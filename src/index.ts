@@ -65,7 +65,7 @@ async function main(): Promise<void> {
 
   // Run initial index (single-threaded, synchronous for Phase 1)
   try {
-    const result = await indexProject(projectRoot, store, config);
+    const result = await indexProject(projectRoot, store, config, zvecStore);
     log.info(
       { files: result.filesIndexed, symbols: result.symbolsFound },
       'Initial indexing complete',

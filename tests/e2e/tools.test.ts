@@ -48,13 +48,14 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     );
     await client.connect(transport);
 
-    // Brief wait for server startup (indexing completes before connect)
-    await new Promise((r) => setTimeout(r, 500));
+    // Wait for server startup — includes embedding model loading on first run
+    // (Xenova/all-MiniLM-L6-v2 can take 10-30s to download + load)
+    await new Promise((r) => setTimeout(r, 3000));
 
     // Use the high-level listTools() method instead of raw client.request
     const result = await client.listTools({}, { timeout: 5000 });
     tools = result.tools;
-  }, 20000);
+  }, 120000);
 
   afterAll(async () => {
     try {
@@ -68,10 +69,15 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     }
   });
 
-  it('registers 3 tools', () => {
-    const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(['find_symbol', 'get_file_structure', 'index_status']);
-  });
+  it('registers 4 tools (including semantic_search)', () => {
+    const names = tools.map((t: { name: string }) => t.name).sort();
+    expect(names).toEqual([
+      'find_symbol',
+      'get_file_structure',
+      'index_status',
+      'semantic_search',
+    ]);
+  }, 5000);
 
   it('find_symbol finds exported functions', async () => {
     const result = await client.callTool(
@@ -145,5 +151,43 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     expect(data.totalFiles).toBeGreaterThan(0);
     expect(data.totalSymbols).toBeGreaterThan(0);
     expect(data.health.sqliteOk).toBe(true);
+  });
+
+  it('semantic_search finds code by natural language', async () => {
+    // Wait a moment for embedding model to load
+    const result = await client.callTool(
+      { name: 'semantic_search', arguments: { query: 'add two numbers', topK: 5 } },
+      undefined,
+      { timeout: 15000 },
+    );
+
+    const text = (result.content as Array<{ type: string; text?: string }>)
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n');
+    const data = JSON.parse(text);
+
+    expect(data.results).toBeDefined();
+    expect(data.results.length).toBeGreaterThan(0);
+    expect(data.embeddingTookMs).toBeGreaterThan(0);
+    // The add function should rank highly for "add two numbers"
+    const topNames = data.results.slice(0, 5).map((r: { name: string }) => r.name);
+    expect(topNames).toContain('add');
+  }, 30000);
+
+  it('semantic_search respects topK', async () => {
+    const result = await client.callTool(
+      { name: 'semantic_search', arguments: { query: 'function', topK: 2 } },
+      undefined,
+      { timeout: 10000 },
+    );
+
+    const text = (result.content as Array<{ type: string; text?: string }>)
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n');
+    const data = JSON.parse(text);
+
+    expect(data.results.length).toBeLessThanOrEqual(2);
   });
 });
