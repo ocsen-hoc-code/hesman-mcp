@@ -29,6 +29,7 @@ export interface ParseResult {
 }
 
 let parserInitialized = false;
+const languageCache = new Map<string, Parser.Language>();
 
 export async function initParser(profile: LanguageProfile): Promise<void> {
   if (parserInitialized) return;
@@ -45,8 +46,11 @@ export async function parseFile(
 
   const source = readFileSync(filePath, 'utf-8');
   const parser = new Parser();
-  const wasmPath = profile.parserWasmPath;
-  const lang = await Parser.Language.load(wasmPath);
+  let lang = languageCache.get(profile.language);
+  if (!lang) {
+    lang = await Parser.Language.load(profile.parserWasmPath);
+    languageCache.set(profile.language, lang);
+  }
 
   parser.setLanguage(lang);
   const tree = parser.parse(source);

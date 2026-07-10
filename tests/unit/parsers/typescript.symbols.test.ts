@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initParser, parseFile } from '../../../src/parsers/core';
 import { tsProfile } from '../../../src/parsers/profiles/typescript';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const FIXTURE_DIR = resolve(import.meta.dirname, '..', '..', 'fixtures', 'ts-basic');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FIXTURE_DIR = resolve(__dirname, '..', '..', 'fixtures', 'ts-basic');
 
 describe('TypeScript parser — symbol extraction', () => {
   beforeAll(async () => {
