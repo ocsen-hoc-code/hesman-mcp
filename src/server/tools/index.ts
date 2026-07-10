@@ -4,6 +4,7 @@ import type { ZVecStore } from '../../stores/zvec';
 import type { HesmanConfig } from '../../config/schema';
 import { registerFindSymbolTool } from './find-symbol';
 import { registerGetFileStructureTool } from './get-file-structure';
+import { registerGetReferencesTool } from './get-references';
 import { registerIndexStatusTool } from './index-status';
 import { registerSemanticSearchTool } from './semantic-search';
 
@@ -15,6 +16,7 @@ export function registerAllTools(
 ): void {
   registerFindSymbolTool(server, store);
   registerGetFileStructureTool(server, store);
+  registerGetReferencesTool(server, store);
   registerIndexStatusTool(server, store, zvecStore);
   if (zvecStore && config) {
     registerSemanticSearchTool(server, zvecStore, config);
