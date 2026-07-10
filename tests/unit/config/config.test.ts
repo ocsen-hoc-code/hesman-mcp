@@ -16,7 +16,11 @@ describe('defaultConfig', () => {
     expect(defaultConfig.indexOnStartup).toBe(true);
     expect(defaultConfig.cacheSize).toBe(2000);
     expect(defaultConfig.maxMemoryMB).toBe(350);
-    expect(defaultConfig.embeddingModel).toBe('all-MiniLM-L6-v2');
+    expect(defaultConfig.semanticSearch.embeddingModel).toBe('Xenova/all-MiniLM-L6-v2');
+    expect(defaultConfig.semanticSearch.enabled).toBe(true);
+    expect(defaultConfig.semanticSearch.defaultTopK).toBe(10);
+    expect(defaultConfig.semanticSearch.maxTopK).toBe(50);
+    expect(defaultConfig.semanticSearch.minScore).toBe(0.0);
   });
 
   it('passes zod validation', () => {

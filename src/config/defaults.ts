@@ -9,15 +9,16 @@ export const defaultConfig: HesmanConfig = {
   workers: 0, // auto
   batchSize: 50,
   watchMode: true,
-  embeddingModel: 'all-MiniLM-L6-v2',
-  embeddingCacheDir: '',
-  semanticSearch: {
-    defaultTopK: 10,
-    maxTopK: 50,
-    hybridWeight: { dense: 0.6, sparse: 0.4 },
-  },
   maxMemoryMB: 350,
   cacheSize: 2000,
+  semanticSearch: {
+    enabled: true,
+    defaultTopK: 10,
+    maxTopK: 50,
+    minScore: 0.0,
+    embeddingModel: 'Xenova/all-MiniLM-L6-v2',
+    embeddingCacheDir: '',
+  },
   logLevel: 'info',
   logFile: null,
   dataDir: '.hesman',
