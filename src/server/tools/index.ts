@@ -10,6 +10,7 @@ import { registerGetReferencesTool } from './get-references';
 import { registerIndexStatusTool } from './index-status';
 import { registerSemanticSearchTool } from './semantic-search';
 import { registerListDependenciesTool } from './list-dependencies';
+import { registerFindPatternTool } from './find-pattern';
 
 export function registerAllTools(
   server: McpServer,
@@ -26,5 +27,8 @@ export function registerAllTools(
   registerListDependenciesTool(server, store);
   if (zvecStore && config) {
     registerSemanticSearchTool(server, zvecStore, config);
+  }
+  if (config) {
+    registerFindPatternTool(server, config);
   }
 }
