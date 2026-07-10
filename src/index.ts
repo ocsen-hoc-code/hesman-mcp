@@ -2,6 +2,8 @@
 import { resolve } from 'node:path';
 import { loadConfig } from './config/loader';
 import { SqliteStore } from './stores/sqlite';
+import { ZVecStore } from './stores/zvec';
+import { initEmbedding } from './stores/embedding';
 import { indexProject } from './indexing/index-coordinator';
 import { McpServer } from './server/mcp-server';
 import { registerAllTools } from './server/tools/index';
@@ -48,6 +50,19 @@ async function main(): Promise<void> {
   // Open store
   store.open();
 
+  // Initialize ZVec + embedding for semantic search
+  let zvecStore: ZVecStore | undefined;
+  if (config.semanticSearch.enabled) {
+    zvecStore = new ZVecStore(dataDir);
+    zvecStore.open();
+    try {
+      await initEmbedding(config.semanticSearch.embeddingModel);
+      log.info('Embedding model loaded for semantic search');
+    } catch (err) {
+      log.warn(err, 'Failed to load embedding model — semantic search will be unavailable');
+    }
+  }
+
   // Run initial index (single-threaded, synchronous for Phase 1)
   try {
     const result = await indexProject(projectRoot, store, config);
@@ -61,13 +76,14 @@ async function main(): Promise<void> {
 
   // Start MCP server
   const server = new McpServer('hesman', '0.1.0');
-  registerAllTools(server, store);
+  registerAllTools(server, store, zvecStore, config);
 
   // Graceful shutdown
   process.on('SIGINT', async () => {
     log.info('Received SIGINT, shutting down...');
     await server.close();
     store.close();
+    zvecStore?.close();
     process.exit(0);
   });
 
@@ -75,6 +91,7 @@ async function main(): Promise<void> {
     log.info('Received SIGTERM, shutting down...');
     await server.close();
     store.close();
+    zvecStore?.close();
     process.exit(0);
   });
 
