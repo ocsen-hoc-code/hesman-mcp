@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { chunkSymbols } from '../parsers/chunker';
+import { embedBatch } from '../stores/embedding';
+import type { ZVecStore } from '../stores/zvec';
 import { createLogger } from '../utils/logger';
 import type { HesmanConfig } from '../config/schema';
 import type { SqliteStore } from '../stores/sqlite';
@@ -26,6 +29,7 @@ export async function indexProject(
   rootDir: string,
   store: SqliteStore,
   config: HesmanConfig,
+  zvecStore?: ZVecStore,
 ): Promise<IndexResult> {
   const startTime = Date.now();
   const errors: string[] = [];
@@ -50,6 +54,7 @@ export async function indexProject(
 
       // Check if file changed
       const content = readFileSync(file.filePath, 'utf-8');
+      const sourceLines = content.split('\n');
       const sha256 = createHash('sha256').update(content).digest('hex');
       const previousHash = store.getFileHash(file.filePath);
 
@@ -71,6 +76,27 @@ export async function indexProject(
           updated_at: now,
         }));
         store.upsertSymbols(rows);
+      }
+
+      // Phase 2: Populate ZVec search index
+      if (zvecStore) {
+        const chunks = chunkSymbols(result.symbols, sourceLines);
+        if (chunks.length > 0) {
+          const embeddings = await embedBatch(chunks.map(c => c.text));
+          const searchDocs = chunks.map((c, i) => ({
+            symbolId: c.symbol.id,
+            name: c.symbol.name,
+            kind: c.symbol.kind,
+            filePath: c.symbol.file_path,
+            startLine: c.symbol.start_line,
+            endLine: c.symbol.end_line,
+            signature: c.symbol.signature,
+            code: sourceLines.slice(c.symbol.start_line, c.symbol.end_line + 1).join('\n'),
+            docComment: c.symbol.doc_comment,
+            language: c.symbol.language,
+          }));
+          zvecStore.upsertDocs(searchDocs, embeddings);
+        }
       }
 
       // Update file hash
