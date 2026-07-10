@@ -8,6 +8,7 @@ import type { HesmanConfig } from '../config/schema';
 import type { SqliteStore } from '../stores/sqlite';
 import { scanProject } from './project-scanner';
 import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core';
+import { extractRelations } from '../parsers/relation-extractor';
 import { tsProfile } from '../parsers/profiles/typescript';
 import type { LanguageProfile } from '../parsers/language-profile';
 
@@ -76,6 +77,15 @@ export async function indexProject(
           updated_at: now,
         }));
         store.upsertSymbols(rows);
+      }
+
+      // Phase 3: Extract and store relations
+      if (profile.relationQueries) {
+        const relations = extractRelations(result.symbols, content, file.filePath, profile);
+        store.clearRelations(file.filePath);
+        if (relations.length > 0) {
+          store.upsertRelations(relations);
+        }
       }
 
       // Phase 2: Populate ZVec search index

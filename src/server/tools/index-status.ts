@@ -25,7 +25,7 @@ export function registerIndexStatusTool(
             totalFiles: stats.totalFiles,
             indexedFiles: stats.totalFiles, // Phase 1: no pending concept (single-threaded)
             totalSymbols: stats.totalSymbols,
-            totalRelations: 0, // Phase 1: no graph yet
+            totalRelations: store.getTotalRelations(),
             lastFullIndexTime: stats.lastIndexTime ? new Date(stats.lastIndexTime).toISOString() : null,
             lastIncrementalIndexTime: null,
             pendingFiles: 0,

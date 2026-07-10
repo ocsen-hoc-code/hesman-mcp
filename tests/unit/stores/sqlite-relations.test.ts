@@ -97,7 +97,10 @@ describe('SqliteStore — relations', () => {
     ]);
     const deps = store.getDependencies('src/a.ts');
     expect(deps).toHaveLength(1);
-    expect(deps[0].target).toBe('c');
+    // T6: getDependencies resolves imported symbol IDs to file paths
+    expect(deps[0].target).toBe('src/b.ts');
+    expect(deps[0].kind).toBe('local_file');
+    expect(deps[0].importedSymbols).toContain('util');
   });
 
   it('clearRelations removes relations for a file', () => {

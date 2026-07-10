@@ -69,12 +69,17 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     }
   });
 
-  it('registers 4 tools (including semantic_search)', () => {
+  it('registers 9 tools (all Phase 1 tools)', () => {
     const names = tools.map((t: { name: string }) => t.name).sort();
     expect(names).toEqual([
+      'find_pattern',
       'find_symbol',
+      'get_callees',
+      'get_callers',
       'get_file_structure',
+      'get_references',
       'index_status',
+      'list_dependencies',
       'semantic_search',
     ]);
   }, 5000);
@@ -152,6 +157,56 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     expect(data.totalSymbols).toBeGreaterThan(0);
     expect(data.health.sqliteOk).toBe(true);
   });
+
+  it('get_references returns references for a known symbol', async () => {
+    // Use formatGreeting — it's called from main() in the same file,
+    // so intra-file call relations should exist (cross-file resolution
+    // is a Phase 4 feature).
+    const findResult = await client.callTool(
+      { name: 'find_symbol', arguments: { name: 'formatGreeting' } },
+      undefined,
+      { timeout: 5000 },
+    );
+
+    const findText = (findResult.content as Array<{ type: string; text?: string }>)
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n');
+    const findData = JSON.parse(findText);
+
+    expect(findData.symbols.length).toBeGreaterThan(0);
+    const symbolId = findData.symbols[0].id;
+
+    // Now call get_references with that symbolId
+    const refResult = await client.callTool(
+      { name: 'get_references', arguments: { symbolId } },
+      undefined,
+      { timeout: 5000 },
+    );
+
+    const refText = (refResult.content as Array<{ type: string; text?: string }>)
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n');
+    const refData = JSON.parse(refText);
+
+    expect(refData.references).toBeDefined();
+    expect(refData.references.length).toBeGreaterThan(0);
+    expect(refData.totalCount).toBeGreaterThan(0);
+
+    // At least one reference should be a 'calls' kind (from main() calling add())
+    const callRefs = refData.references.filter((r: { kind: string }) => r.kind === 'calls');
+    expect(callRefs.length).toBeGreaterThan(0);
+
+    // Verify reference shape
+    const firstRef = refData.references[0];
+    expect(firstRef).toHaveProperty('filePath');
+    expect(firstRef).toHaveProperty('line');
+    expect(firstRef).toHaveProperty('col');
+    expect(firstRef).toHaveProperty('kind');
+    expect(firstRef).toHaveProperty('callerSymbolId');
+    expect(firstRef).toHaveProperty('callerName');
+  }, 30000);
 
   it('semantic_search finds code by natural language', async () => {
     // Wait a moment for embedding model to load
