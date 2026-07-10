@@ -82,7 +82,7 @@ export function scanProject(rootDir: string, config: HesmanConfig): ScannedFile[
       // Check gitignore patterns
       if (isIgnored(relPath, gitignorePatterns)) continue;
       // Check user-defined ignore patterns
-      if (isIgnored(relPath, config.ignore)) continue;
+      if (isIgnored(relPath, config.ignore ?? [])) continue;
 
       if (st.isDirectory()) {
         walk(fullPath);

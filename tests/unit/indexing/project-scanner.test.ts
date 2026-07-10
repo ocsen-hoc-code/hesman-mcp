@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { scanProject, detectLanguage } from '../../../src/indexing/project-scanner';
 import { defaultConfig } from '../../../src/config/defaults';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const FIXTURE_DIR = resolve(import.meta.dirname, '..', '..', 'fixtures', 'ts-basic');
+const FIXTURE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'fixtures', 'ts-basic');
 
 describe('detectLanguage', () => {
   it('detects TypeScript by extension', () => {
