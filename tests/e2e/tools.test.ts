@@ -48,8 +48,8 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     );
     await client.connect(transport);
 
-    // Wait for initial indexing to complete
-    await new Promise((r) => setTimeout(r, 3000));
+    // Brief wait for server startup (indexing completes before connect)
+    await new Promise((r) => setTimeout(r, 500));
 
     // Use the high-level listTools() method instead of raw client.request
     const result = await client.listTools({}, { timeout: 5000 });

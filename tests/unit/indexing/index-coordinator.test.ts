@@ -2,10 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { indexProject } from '../../../src/indexing/index-coordinator';
 import { SqliteStore } from '../../../src/stores/sqlite';
 import { defaultConfig } from '../../../src/config/defaults';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { rmSync, mkdirSync, existsSync } from 'node:fs';
 
-const FIXTURE_DIR = resolve(import.meta.dirname, '..', '..', 'fixtures', 'ts-basic');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FIXTURE_DIR = resolve(__dirname, '..', '..', 'fixtures', 'ts-basic');
 const TEST_DATA_DIR = '.hesman-test-coordinator';
 
 describe('indexProject', () => {
