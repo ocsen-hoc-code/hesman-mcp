@@ -1,14 +1,21 @@
 import type { McpServer, ToolHandler } from '../mcp-server';
 import type { SqliteStore } from '../../stores/sqlite';
+import type { ZVecStore } from '../../stores/zvec';
+import { isEmbeddingReady } from '../../stores/embedding';
 
 const inputSchema = {
   type: 'object',
   properties: {},
 };
 
-export function registerIndexStatusTool(server: McpServer, store: SqliteStore): void {
+export function registerIndexStatusTool(
+  server: McpServer,
+  store: SqliteStore,
+  zvecStore?: ZVecStore,
+): void {
   const handler: ToolHandler = async () => {
     const stats = store.getStats();
+    const zvecStats = zvecStore?.stats();
 
     return {
       content: [
@@ -24,9 +31,10 @@ export function registerIndexStatusTool(server: McpServer, store: SqliteStore): 
             pendingFiles: 0,
             health: {
               sqliteOk: true,
+              zvecOk: zvecStore !== undefined,
+              zvecDocCount: zvecStats?.docCount ?? 0,
+              embeddingModelLoaded: isEmbeddingReady(),
               kuzuOk: false, // Phase 1: no Kuzu
-              zvecOk: false, // Phase 1: no ZVec
-              consistencyDrift: 0,
             },
             languages: [], // Phase 1: no per-language breakdown
           }),

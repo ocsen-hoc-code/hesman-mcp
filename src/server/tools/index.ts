@@ -15,7 +15,7 @@ export function registerAllTools(
 ): void {
   registerFindSymbolTool(server, store);
   registerGetFileStructureTool(server, store);
-  registerIndexStatusTool(server, store);
+  registerIndexStatusTool(server, store, zvecStore);
   if (zvecStore && config) {
     registerSemanticSearchTool(server, zvecStore, config);
   }
