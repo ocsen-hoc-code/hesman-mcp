@@ -83,7 +83,7 @@ export async function indexProject(
         const chunks = chunkSymbols(result.symbols, sourceLines);
         if (chunks.length > 0) {
           const embeddings = await embedBatch(chunks.map(c => c.text));
-          const searchDocs = chunks.map((c, i) => ({
+          const searchDocs = chunks.map((c, _i) => ({
             symbolId: c.symbol.id,
             name: c.symbol.name,
             kind: c.symbol.kind,

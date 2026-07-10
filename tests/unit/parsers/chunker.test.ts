@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { chunkSymbols, type CodeChunk } from '../../../src/parsers/chunker';
+import { chunkSymbols } from '../../../src/parsers/chunker';
 import type { ExtractedSymbol } from '../../../src/parsers/core';
 
 describe('chunkSymbols', () => {

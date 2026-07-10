@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ZVecStore, type SearchDoc } from '../../../src/stores/zvec';
 import { rmSync, existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 
 const TEST_DIR = '.hesman-test-zvec';
 

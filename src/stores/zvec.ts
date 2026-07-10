@@ -158,9 +158,8 @@ export class ZVecStore {
     }));
 
     const results = this.collection.upsertSync(zvecDocs);
-    const failures = Array.isArray(results)
-      ? results.filter(r => !r.ok)
-      : !results.ok ? [results] : [];
+    const resultList = (Array.isArray(results) ? results : [results]) as Array<{ ok: boolean; code: string; message: string }>;
+    const failures = resultList.filter(r => !r.ok);
 
     if (failures.length > 0) {
       log.warn({ failures: failures.length }, 'Some ZVec upserts failed');

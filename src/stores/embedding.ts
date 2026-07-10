@@ -22,7 +22,11 @@ export async function initEmbedding(modelName: string): Promise<void> {
 export async function embedText(text: string): Promise<Float32Array> {
   if (!embedPipeline) throw new Error('Embedding pipeline not initialized. Call initEmbedding() first.');
   const result = await embedPipeline(text, { pooling: 'mean', normalize: true });
-  return new Float32Array(result.data);
+  // Transformers.js returns typed array; ensure Float32Array
+  const data = result.data instanceof Float32Array
+    ? result.data
+    : new Float32Array(result.data as Iterable<number>);
+  return data;
 }
 
 /**
