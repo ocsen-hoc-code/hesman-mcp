@@ -1,3 +1,16 @@
+export interface RelationQueries {
+  /** Tree-sitter query string to extract call expressions */
+  calls?: string;
+  /** Tree-sitter query string to extract extends clauses */
+  extends?: string;
+  /** Tree-sitter query string to extract implements clauses */
+  implements?: string;
+  /** Tree-sitter query string to extract import statements */
+  imports?: string;
+  /** Tree-sitter query string to extract type references */
+  references?: string;
+}
+
 export interface LanguageProfile {
   /** Language identifier: "typescript", "python", "go", ... */
   language: string;
@@ -7,6 +20,8 @@ export interface LanguageProfile {
   parserWasmPath: string;
   /** Set of tree-sitter node type names that qualify as symbols */
   symbolNodeTypes: Set<string>;
+  /** Optional relation extraction queries. If absent, relations are not extracted. */
+  relationQueries?: RelationQueries;
   /**
    * Extract a human-readable signature from a symbol node.
    * @param nodeText - the full text of the AST node

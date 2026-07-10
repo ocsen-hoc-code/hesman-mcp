@@ -29,6 +29,35 @@ export const tsProfile: LanguageProfile = {
     'arrow_function',
   ]),
 
+  relationQueries: {
+    calls: `
+      (call_expression
+        function: (identifier) @callee) @call_site
+    `,
+    extends: `
+      (class_declaration
+        name: (type_identifier) @class
+        heritage_clause: (extends_clause
+          value: (type_identifier) @parent))
+    `,
+    implements: `
+      (class_declaration
+        name: (type_identifier) @class
+        heritage_clause: (implements_clause
+          value: (type_identifier) @iface))
+    `,
+    imports: `
+      (import_statement
+        source: (string (string_fragment) @module_path)
+        import_clause: (import_clause
+          (named_imports (import_specifier name: (identifier) @imported_name))?)?)
+    `,
+    references: `
+      (type_annotation
+        (type_identifier) @ref_type)
+    `,
+  },
+
   extractSignature(nodeText: string, _sourceText: string): string {
     // Return first line of the node text (the declaration line)
     const firstLine = nodeText.split('\n')[0].trim();
