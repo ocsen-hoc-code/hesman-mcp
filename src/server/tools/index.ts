@@ -9,6 +9,7 @@ import { registerGetFileStructureTool } from './get-file-structure';
 import { registerGetReferencesTool } from './get-references';
 import { registerIndexStatusTool } from './index-status';
 import { registerSemanticSearchTool } from './semantic-search';
+import { registerListDependenciesTool } from './list-dependencies';
 
 export function registerAllTools(
   server: McpServer,
@@ -22,6 +23,7 @@ export function registerAllTools(
   registerGetFileStructureTool(server, store);
   registerGetReferencesTool(server, store);
   registerIndexStatusTool(server, store, zvecStore);
+  registerListDependenciesTool(server, store);
   if (zvecStore && config) {
     registerSemanticSearchTool(server, zvecStore, config);
   }

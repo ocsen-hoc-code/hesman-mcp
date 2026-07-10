@@ -322,38 +322,68 @@ export class SqliteStore {
     filePath?: string,
     direction: 'imports' | 'imported_by' | 'both' = 'imports',
   ): DependencyResult[] {
-    let where = "WHERE kind = 'imports'";
-    const params: any[] = [];
+    const resultMap = new Map<string, { target: string; kind: 'local_file' | 'package' | 'unresolved'; importedSymbols: string[] }>();
 
-    if (filePath) {
-      if (direction === 'imports') {
-        where += ' AND file_path = ?';
-        params.push(filePath);
-      } else if (direction === 'imported_by') {
-        where += ' AND to_id IN (SELECT id FROM symbols WHERE file_path = ?)';
+    const addDep = (target: string, kind: 'local_file' | 'package' | 'unresolved', symbolName: string) => {
+      const key = `${kind}\x00${target}`;
+      let entry = resultMap.get(key);
+      if (!entry) {
+        entry = { target, kind, importedSymbols: [] };
+        resultMap.set(key, entry);
+      }
+      if (!entry.importedSymbols.includes(symbolName)) {
+        entry.importedSymbols.push(symbolName);
+      }
+    };
+
+    // Phase 1: imports (what this file imports, or all project imports if no filePath)
+    if (direction === 'imports' || direction === 'both') {
+      const params: any[] = [];
+      let fileFilter = '';
+      if (filePath) {
+        fileFilter = 'AND r.file_path = ?';
         params.push(filePath);
       }
-      // 'both' — no file filter
+
+      const rows = this.db.prepare(`
+        SELECT r.to_id, s.file_path AS target_file, s.name AS symbol_name
+        FROM relations r
+        LEFT JOIN symbols s ON s.id = r.to_id
+        WHERE r.kind = 'imports' ${fileFilter}
+      `).all(...params) as any[];
+
+      for (const r of rows) {
+        if (r.to_id.startsWith('unresolved:')) {
+          addDep(r.to_id.slice('unresolved:'.length), 'unresolved', r.to_id);
+        } else if (r.to_id.startsWith('package:')) {
+          addDep(r.to_id.slice('package:'.length), 'package', r.to_id);
+        } else if (r.target_file) {
+          addDep(r.target_file, 'local_file', r.symbol_name || r.to_id);
+        } else {
+          addDep(r.to_id, 'local_file', r.to_id);
+        }
+      }
     }
 
-    const rows = this.db.prepare(`
-      SELECT to_id, COUNT(*) as count
-      FROM relations
-      ${where}
-      GROUP BY to_id
-      ORDER BY count DESC
-    `).all(...params) as any[];
+    // Phase 2: imported_by (which files import from this file)
+    if (filePath && (direction === 'imported_by' || direction === 'both')) {
+      const rows = this.db.prepare(`
+        SELECT r.file_path AS importing_file, s.name AS symbol_name
+        FROM relations r
+        JOIN symbols s ON s.id = r.to_id
+        WHERE r.kind = 'imports' AND r.to_id IN (SELECT id FROM symbols WHERE file_path = ?)
+      `).all(filePath) as any[];
 
-    return rows.map((r: any) => {
-      // Determine kind: local file if to_id looks like a symbol ID (hex), package if "unresolved:*", else local_file
-      const isUnresolved = r.to_id.startsWith('unresolved:');
-      const target = isUnresolved ? r.to_id.slice('unresolved:'.length) : r.to_id;
-      return {
-        target,
-        kind: isUnresolved ? 'unresolved' as const : 'local_file' as const,
-        importedSymbols: [], // Phase 3: not tracking individual symbols
-        count: r.count,
-      };
-    });
+      for (const r of rows) {
+        addDep(r.importing_file, 'local_file', r.symbol_name || r.to_id);
+      }
+    }
+
+    return Array.from(resultMap.values()).map(({ target, kind, importedSymbols }) => ({
+      target,
+      kind,
+      importedSymbols,
+      count: importedSymbols.length,
+    }));
   }
 }
