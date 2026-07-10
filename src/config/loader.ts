@@ -6,6 +6,9 @@ export function loadConfig(): HesmanConfig {
   const raw: Record<string, unknown> = { ...defaultConfig };
 
   // Environment variable overrides
+  if (process.env.HESMAN_PROJECT_ROOT) {
+    raw.projectRoot = process.env.HESMAN_PROJECT_ROOT;
+  }
   if (process.env.HESMAN_WORKERS) {
     raw.workers = parseInt(process.env.HESMAN_WORKERS, 10);
   }
