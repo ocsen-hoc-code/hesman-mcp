@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { tsProfile } from '../../../src/parsers/profiles/typescript';
-import type { LanguageProfile } from '../../../src/parsers/language-profile';
 
 describe('tsProfile', () => {
   it('has correct metadata', () => {

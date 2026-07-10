@@ -4,10 +4,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rmSync, existsSync } from 'node:fs';
-import type {
-  ListToolsResult,
-  CallToolResult,
-} from '@modelcontextprotocol/sdk/types.js';
+import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -91,7 +88,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
 
     expect(data.symbols).toBeDefined();
     expect(data.symbols.length).toBeGreaterThan(0);
-    const addSymbol = data.symbols.find((s: any) => s.name === 'add');
+    const addSymbol: { name: string; kind: string; isExported: boolean } | undefined = data.symbols.find((s: { name: string }) => s.name === 'add');
     expect(addSymbol).toBeDefined();
     expect(addSymbol.kind).toBe('function');
     expect(addSymbol.isExported).toBe(true);

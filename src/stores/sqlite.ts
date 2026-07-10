@@ -112,9 +112,9 @@ export class SqliteStore {
   }
 
   getStats(): { totalFiles: number; totalSymbols: number; lastIndexTime: number | null } {
-    const fileCount = this.db.prepare('SELECT COUNT(DISTINCT file_path) as count FROM symbols').get() as any;
-    const symCount = this.db.prepare('SELECT COUNT(*) as count FROM symbols').get() as any;
-    const lastTime = this.db.prepare('SELECT MAX(parsed_at) as max_time FROM file_hashes').get() as any;
+    const fileCount = this.db.prepare('SELECT COUNT(DISTINCT file_path) as count FROM symbols').get() as { count: number };
+    const symCount = this.db.prepare('SELECT COUNT(*) as count FROM symbols').get() as { count: number };
+    const lastTime = this.db.prepare('SELECT MAX(parsed_at) as max_time FROM file_hashes').get() as { max_time: number | null };
     return {
       totalFiles: fileCount.count,
       totalSymbols: symCount.count,

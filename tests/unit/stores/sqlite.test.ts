@@ -38,9 +38,9 @@ describe('SqliteStore', () => {
   });
 
   it('creates tables on open', () => {
-    const db = (store as any).db;
+    const db = (store as unknown as { db: import('better-sqlite3').Database }).db;
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all();
-    const names = tables.map((t: any) => t.name);
+    const names = tables.map((t: { name: string }) => t.name);
     expect(names).toContain('symbols');
     expect(names).toContain('file_hashes');
   });
