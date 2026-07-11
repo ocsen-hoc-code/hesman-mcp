@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path';
-import { loadConfig } from './config/loader';
+import { loadConfig, parseCliFlagsToOverrides } from './config/loader';
 import { SqliteStore } from './stores/sqlite';
 import { ZVecStore } from './stores/zvec';
 import { initEmbedding } from './stores/embedding';
 import { indexProject } from './indexing/index-coordinator';
+import { WorkerPool } from './indexing/worker-pool';
+import { FileWatcher } from './indexing/file-watcher';
 import { McpServer } from './server/mcp-server';
 import { registerAllTools } from './server/tools/index';
 import { createLogger } from './utils/logger';
@@ -57,18 +59,25 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Default: run MCP server
-  const config = loadConfig();
+  // ── Default: run MCP server ──
+  const cliOverrides = parseCliFlagsToOverrides(args);
+  const config = loadConfig(cliOverrides);
+
+  // Auto-detect project root if not explicitly set
+  if (config.projectRoot === '.') {
+    const { detectProjectRoot } = await import('./config/loader');
+    config.projectRoot = detectProjectRoot(process.cwd());
+  }
+
   const projectRoot = resolve(config.projectRoot);
   const dataDir = resolve(projectRoot, config.dataDir);
+
+  log.info({ projectRoot, dataDir, workers: config.workers, watchMode: config.watchMode }, 'Starting Hesman MCP server');
+
+  // Open stores
   const store = new SqliteStore(dataDir);
-
-  log.info({ projectRoot, dataDir }, 'Starting Hesman MCP server');
-
-  // Open store
   store.open();
 
-  // Initialize ZVec + embedding for semantic search
   let zvecStore: ZVecStore | undefined;
   if (config.semanticSearch.enabled) {
     zvecStore = new ZVecStore(dataDir);
@@ -81,9 +90,16 @@ async function main(): Promise<void> {
     }
   }
 
-  // Run initial index (single-threaded, synchronous for Phase 1)
+  // Create worker pool
+  const pool = new WorkerPool(config.workers);
+  log.info(`Worker pool created with ${config.workers === 0 ? 'auto' : config.workers} workers`);
+
+  // File watcher
+  let watcher: FileWatcher | undefined;
+
+  // Initial index
   try {
-    const result = await indexProject(projectRoot, store, config, zvecStore);
+    const result = await indexProject(projectRoot, store, config, zvecStore, pool);
     log.info(
       { files: result.filesIndexed, symbols: result.symbolsFound },
       'Initial indexing complete',
@@ -92,26 +108,63 @@ async function main(): Promise<void> {
     log.error(err, 'Initial indexing failed — server starting with incomplete index');
   }
 
+  // Start file watcher (if enabled)
+  if (config.watchMode) {
+    watcher = new FileWatcher({
+      projectRoot,
+      ignore: config.ignore,
+      store,
+      pool,
+      zvecStore,
+    });
+    await watcher.start();
+    log.info('File watcher started');
+  }
+
   // Start MCP server
-  const server = new McpServer('hesman', '0.1.0');
+  const server = new McpServer('hesman', '0.4.0');
   registerAllTools(server, store, zvecStore, config);
 
-  // Graceful shutdown
-  process.on('SIGINT', async () => {
-    log.info('Received SIGINT, shutting down...');
-    await server.close();
-    store.close();
-    zvecStore?.close();
-    process.exit(0);
-  });
+  // ── Graceful shutdown ──
+  let shuttingDown = false;
 
-  process.on('SIGTERM', async () => {
-    log.info('Received SIGTERM, shutting down...');
+  async function shutdown(signal: string): Promise<void> {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    log.info(`Received ${signal}, shutting down...`);
+
+    // 1. Stop accepting new work
+    watcher?.stop();
+    pool.pause();
+
+    // 2. Drain in-progress work (max 5s timeout)
+    const timeout = setTimeout(() => {
+      log.warn('Shutdown timeout — force killing workers');
+      pool.terminate(true);
+    }, 5000);
+
+    try {
+      await pool.drain();
+      if (watcher) await watcher.drain();
+      clearTimeout(timeout);
+    } catch (err) {
+      log.warn(err, 'Error draining pool during shutdown');
+    }
+
+    // 3. Flush stores in order
     await server.close();
-    store.close();
     zvecStore?.close();
+    store.close();
+
+    // 4. Terminate pool
+    await pool.terminate();
+    log.info('Shutdown complete');
     process.exit(0);
-  });
+  }
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 
   await server.connect();
 }
