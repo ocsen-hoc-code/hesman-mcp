@@ -1,0 +1,11 @@
+src/
+tests/
+docs/
+.hesman/
+.claude/
+.github/
+.superpowers/
+scripts/
+eslint.config.js
+tsconfig.json
+*.config.js
