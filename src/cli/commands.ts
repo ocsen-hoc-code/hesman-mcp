@@ -55,7 +55,8 @@ export function printVersion(): void {
 }
 
 export function printHelp(): void {
-  console.log(`hesman v1.0.0 — Next-gen MCP server for deep code intelligence
+  const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
+  console.log(`hesman v${pkg.version} — Next-gen MCP server for deep code intelligence
 
 Usage:
   hesman                    Run the MCP server (stdio transport)

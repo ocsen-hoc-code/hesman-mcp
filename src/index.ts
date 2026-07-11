@@ -10,6 +10,7 @@ import { FileWatcher } from './indexing/file-watcher.js';
 import { McpServer } from './server/mcp-server.js';
 import { registerAllTools } from './server/tools/index.js';
 import { createLogger } from './utils/logger.js';
+import { MetricsCollector } from './diagnostics/metrics.js';
 
 const log = createLogger('hesman');
 
@@ -124,6 +125,11 @@ async function main(): Promise<void> {
   // Start MCP server
   const server = new McpServer('hesman', '1.0.0');
   registerAllTools(server, store, zvecStore, config);
+
+  // Wire metrics collector for observability
+  const metrics = new MetricsCollector(dataDir);
+  server.setMetrics(metrics);
+  metrics.startPeriodicFlush(60000);
 
   // ── Graceful shutdown ──
   let shuttingDown = false;
