@@ -15,6 +15,9 @@ const EXTENSION_MAP: Record<string, string> = {
   '.cjs': 'typescript',
   '.mts': 'typescript',
   '.cts': 'typescript',
+  '.py': 'python',
+  '.pyw': 'python',
+  '.pyi': 'python',
 };
 
 /** Patterns to always skip */

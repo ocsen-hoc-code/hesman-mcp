@@ -2,7 +2,15 @@ import Parser, { type SyntaxNode } from 'web-tree-sitter';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { LanguageProfile } from './language-profile';
+import { tsProfile } from './profiles/typescript.js';
+import { pythonProfile } from './profiles/python.js';
 import { createLogger } from '../utils/logger.js';
+
+/** Map from language ID to its LanguageProfile. */
+export const PROFILE_BY_LANG: Record<string, LanguageProfile> = {
+  typescript: tsProfile,
+  python: pythonProfile,
+};
 
 const log = createLogger('parser');
 
@@ -119,6 +127,7 @@ function extractSymbols(
         // are extracted with a parent_id linking back to the container.
         if (
           child.type === 'class_declaration' ||
+          child.type === 'class_definition' ||
           child.type === 'interface_declaration'
         ) {
           const childId = makeSymbolId(
@@ -193,6 +202,7 @@ function getSymbolName(node: SyntaxNode, source: string): string | null {
 
 function mapNodeTypeToKind(nodeType: string): string {
   const MAP: Record<string, string> = {
+    // TypeScript / JavaScript
     function_declaration: 'function',
     generator_function_declaration: 'function',
     function_expression: 'function',
@@ -206,6 +216,10 @@ function mapNodeTypeToKind(nodeType: string): string {
     enum_declaration: 'enum',
     module_declaration: 'namespace',
     export_statement: 'variable',
+    // Python
+    function_definition: 'function',
+    class_definition: 'class',
+    decorated_definition: 'unknown',
   };
   return MAP[nodeType] || 'unknown';
 }
