@@ -15,7 +15,7 @@ const inputSchema = {
     matchMode: {
       type: 'string',
       enum: ['exact', 'fuzzy', 'prefix'],
-      description: 'Match mode. Phase 1 only supports "exact".',
+      description: 'Match mode (default: "fuzzy"). exact=precise name, prefix=starts with, fuzzy=FTS5 text search',
     },
     topK: { type: 'number', description: 'Max results (default 20)' },
   },
@@ -36,20 +36,8 @@ export function registerFindSymbolTool(server: McpServer, store: SqliteStore): v
       };
     }
 
-    let results;
-    if (filePath) {
-      results = store.getSymbolsByFile(filePath).filter((s) => s.name === name);
-    } else {
-      results = store.getSymbolsByName(name);
-    }
-
-    // Filter by kind
-    if (kind) {
-      results = results.filter((s) => s.kind === kind);
-    }
-
-    // Limit results
-    results = results.slice(0, topK);
+    const matchMode = (args.matchMode as 'exact' | 'fuzzy' | 'prefix') || 'fuzzy';
+    const results = store.getSymbolsByName(name, kind, filePath, topK, matchMode);
 
     const symbols = results.map((s) => ({
       id: s.id,

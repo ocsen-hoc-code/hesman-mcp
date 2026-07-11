@@ -86,7 +86,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
 
   it('find_symbol finds exported functions', async () => {
     const result = await client.callTool(
-      { name: 'find_symbol', arguments: { name: 'add' } },
+      { name: 'find_symbol', arguments: { name: 'add', matchMode: 'exact' } },
       undefined,
       { timeout: 5000 },
     );
