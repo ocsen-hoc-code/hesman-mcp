@@ -1,0 +1,6 @@
+{
+  "name": "monorepo-basic",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Test fixture: basic pnpm workspace with 2 packages"
+}

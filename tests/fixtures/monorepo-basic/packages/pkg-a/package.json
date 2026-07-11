@@ -1,0 +1,6 @@
+{
+  "name": "@monorepo/pkg-a",
+  "version": "1.0.0",
+  "description": "Package A in monorepo fixture",
+  "main": "src/index.ts"
+}
