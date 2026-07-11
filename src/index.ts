@@ -141,7 +141,7 @@ async function main(): Promise<void> {
     // 2. Drain in-progress work (max 5s timeout)
     const timeout = setTimeout(() => {
       log.warn('Shutdown timeout — force killing workers');
-      pool.terminate(true);
+      pool.terminate(true).catch(err => log.warn(err, 'Force terminate error'));
     }, 5000);
 
     try {

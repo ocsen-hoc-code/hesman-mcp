@@ -157,6 +157,10 @@ export class WorkerPool {
   async terminate(force: boolean = false): Promise<void> {
     if (!force) {
       await this.drain();
+    } else {
+      // Clear busy set so drain() doesn't deadlock after force kill
+      this.busyWorkers.clear();
+      this.taskQueue.length = 0;
     }
     for (const worker of this.workers) {
       await worker.terminate();
