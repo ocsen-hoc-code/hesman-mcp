@@ -1,5 +1,6 @@
 import { resolve, join } from 'node:path';
 import { readFileSync, existsSync, rmSync, statSync, readdirSync } from 'node:fs';
+import { getHeapStatistics } from 'node:v8';
 import { loadConfig } from '../config/loader';
 import { SqliteStore } from '../stores/sqlite';
 import { indexProject } from '../indexing/index-coordinator';
@@ -192,8 +193,62 @@ export async function runDiag(args: string[]): Promise<void> {
   const dataDir = resolve(projectRoot, config.dataDir);
 
   const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
+  const heapStats = getHeapStatistics();
 
-  const diag = {
+  const diag: {
+    version: string;
+    node: string;
+    platform: string;
+    arch: string;
+    uptime: number;
+    memory: {
+      heapUsedMB: number;
+      heapTotalMB: number;
+      rssMB: number;
+      externalMB: number;
+    };
+    gc: {
+      totalHeapMB: number;
+      usedHeapMB: number;
+      heapLimitMB: number;
+      totalAvailableMB: number;
+    };
+    config: {
+      projectRoot: string;
+      workers: number;
+      watchMode: boolean;
+      semanticSearch: boolean;
+    };
+    store: {
+      totalFiles: number;
+      totalSymbols: number;
+      totalRelations: number;
+      dbSizeBytes: number;
+      lastIndexTime: string | null;
+    } | null;
+    cache: {
+      hits: number;
+      misses: number;
+      hitRate: number;
+      status: string;
+    };
+    queryLatency: {
+      avgMs: number;
+      p95Ms: number;
+      count: number;
+      status: string;
+    };
+    watcher: {
+      enabled: boolean;
+      running: boolean;
+      pendingFiles: number;
+    };
+    workerPool: {
+      configured: number | string;
+      activeWorkers: number;
+      pendingTasks: number;
+    };
+  } = {
     version: pkg.version,
     node: process.version,
     platform: process.platform,
@@ -205,19 +260,41 @@ export async function runDiag(args: string[]): Promise<void> {
       rssMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
       externalMB: Math.round(process.memoryUsage().external / 1024 / 1024),
     },
+    gc: {
+      totalHeapMB: Math.round(heapStats.total_heap_size / 1024 / 1024),
+      usedHeapMB: Math.round(heapStats.used_heap_size / 1024 / 1024),
+      heapLimitMB: Math.round(heapStats.heap_size_limit / 1024 / 1024),
+      totalAvailableMB: Math.round(heapStats.total_available_size / 1024 / 1024),
+    },
     config: {
       projectRoot: config.projectRoot,
       workers: config.workers,
       watchMode: config.watchMode,
       semanticSearch: config.semanticSearch.enabled,
     },
-    store: null as {
-      totalFiles: number;
-      totalSymbols: number;
-      totalRelations: number;
-      dbSizeBytes: number;
-      lastIndexTime: string | null;
-    } | null,
+    store: null,
+    cache: {
+      hits: 0,
+      misses: 0,
+      hitRate: 0,
+      status: 'N/A (server not running)',
+    },
+    queryLatency: {
+      avgMs: 0,
+      p95Ms: 0,
+      count: 0,
+      status: 'N/A (server not running)',
+    },
+    watcher: {
+      enabled: config.watchMode,
+      running: false,
+      pendingFiles: 0,
+    },
+    workerPool: {
+      configured: config.workers === 0 ? 'auto' : config.workers,
+      activeWorkers: 0,
+      pendingTasks: 0,
+    },
   };
 
   // If data dir exists, query store stats
@@ -248,6 +325,7 @@ export async function runDiag(args: string[]): Promise<void> {
     console.log(`Runtime: Node ${diag.node} | ${diag.platform} ${diag.arch}`);
     console.log(`Uptime:  ${diag.uptime}s`);
     console.log(`Memory:  heap ${diag.memory.heapUsedMB}/${diag.memory.heapTotalMB}MB | rss ${diag.memory.rssMB}MB`);
+    console.log(`GC:      total ${diag.gc.totalHeapMB}MB | used ${diag.gc.usedHeapMB}MB | limit ${diag.gc.heapLimitMB}MB`);
     console.log(``);
     console.log(`Config:`);
     console.log(`  project:  ${diag.config.projectRoot}`);
@@ -267,5 +345,27 @@ export async function runDiag(args: string[]): Promise<void> {
         console.log(`  indexed:   never`);
       }
     }
+    console.log(``);
+    console.log(`Cache:`);
+    console.log(`  hits:    ${diag.cache.hits}`);
+    console.log(`  misses:  ${diag.cache.misses}`);
+    console.log(`  rate:    ${diag.cache.hitRate}`);
+    console.log(`  status:  ${diag.cache.status}`);
+    console.log(``);
+    console.log(`Query Latency:`);
+    console.log(`  avg:     ${diag.queryLatency.avgMs}ms`);
+    console.log(`  p95:     ${diag.queryLatency.p95Ms}ms`);
+    console.log(`  count:   ${diag.queryLatency.count}`);
+    console.log(`  status:  ${diag.queryLatency.status}`);
+    console.log(``);
+    console.log(`Watcher:`);
+    console.log(`  enabled:      ${diag.watcher.enabled ? 'yes' : 'no'}`);
+    console.log(`  running:      ${diag.watcher.running ? 'yes' : 'no'}`);
+    console.log(`  pending:      ${diag.watcher.pendingFiles}`);
+    console.log(``);
+    console.log(`Worker Pool:`);
+    console.log(`  configured:   ${diag.workerPool.configured}`);
+    console.log(`  active:       ${diag.workerPool.activeWorkers}`);
+    console.log(`  pending:      ${diag.workerPool.pendingTasks}`);
   }
 }

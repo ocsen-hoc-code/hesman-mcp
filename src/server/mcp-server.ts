@@ -7,6 +7,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { createLogger } from '../utils/logger';
 import { formatError, ErrorCode } from './error-codes';
+import type { MetricsCollector } from '../diagnostics/metrics';
 
 const log = createLogger('mcp-server');
 
@@ -24,12 +25,17 @@ interface RegisteredTool {
 export class McpServer {
   private server: Server;
   private tools: RegisteredTool[] = [];
+  private metrics?: MetricsCollector;
 
   constructor(name: string, version: string) {
     this.server = new Server(
       { name, version },
       { capabilities: { tools: {} } },
     );
+  }
+
+  setMetrics(metrics: MetricsCollector): void {
+    this.metrics = metrics;
   }
 
   registerTool(
@@ -72,7 +78,13 @@ export class McpServer {
 
         try {
           const args = (request.params.arguments ?? {}) as Record<string, unknown>;
-          return await tool.handler(args);
+          const startTime = performance.now();
+          const result = await tool.handler(args);
+          const tookMs = performance.now() - startTime;
+          if (this.metrics) {
+            this.metrics.recordQuery(tookMs);
+          }
+          return result;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           log.error({ tool: tool.name, error: message }, 'Tool handler error');
