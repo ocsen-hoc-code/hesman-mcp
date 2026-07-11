@@ -1,7 +1,7 @@
-import type { McpServer, ToolHandler } from '../mcp-server';
-import type { SqliteStore } from '../../stores/sqlite';
-import type { ZVecStore } from '../../stores/zvec';
-import { isEmbeddingReady } from '../../stores/embedding';
+import type { McpServer, ToolHandler } from '../mcp-server.js';
+import type { SqliteStore } from '../../stores/sqlite.js';
+import type { ZVecStore } from '../../stores/zvec.js';
+import { isEmbeddingReady } from '../../stores/embedding.js';
 
 const inputSchema = {
   type: 'object',

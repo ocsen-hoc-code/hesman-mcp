@@ -1,5 +1,5 @@
-import { compactCode } from '../parsers/compact-mode';
-import type { SqliteStore } from '../stores/sqlite';
+import { compactCode } from '../parsers/compact-mode.js';
+import type { SqliteStore } from '../stores/sqlite.js';
 
 interface CompressOptions {
   store?: SqliteStore;

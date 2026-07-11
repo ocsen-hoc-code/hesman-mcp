@@ -2,12 +2,12 @@ import { watch, type FSWatcher } from 'chokidar';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { extname } from 'node:path';
-import type { WorkerPool } from './worker-pool';
-import type { SqliteStore } from '../stores/sqlite';
-import type { ZVecStore } from '../stores/zvec';
-import { chunkSymbols } from '../parsers/chunker';
-import { embedBatch } from '../stores/embedding';
-import { createLogger } from '../utils/logger';
+import type { WorkerPool } from './worker-pool.js';
+import type { SqliteStore } from '../stores/sqlite.js';
+import type { ZVecStore } from '../stores/zvec.js';
+import { chunkSymbols } from '../parsers/chunker.js';
+import { embedBatch } from '../stores/embedding.js';
+import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('file-watcher');
 

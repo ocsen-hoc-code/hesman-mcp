@@ -1,4 +1,4 @@
-import { type LanguageProfile } from './language-profile';
+import { type LanguageProfile } from './language-profile.js';
 
 export interface CompactOptions {
   level?: 1 | 2;                     // 1 = basic regex (Phase 2), 2 = AST-aware

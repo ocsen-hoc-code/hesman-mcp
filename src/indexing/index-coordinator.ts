@@ -1,19 +1,19 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { chunkSymbols } from '../parsers/chunker';
-import { embedBatch } from '../stores/embedding';
-import type { ZVecStore } from '../stores/zvec';
-import { createLogger } from '../utils/logger';
-import type { HesmanConfig } from '../config/schema';
-import type { SqliteStore } from '../stores/sqlite';
-import { scanProject } from './project-scanner';
-import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core';
-import { extractRelations } from '../parsers/relation-extractor';
-import { tsProfile } from '../parsers/profiles/typescript';
-import { pythonProfile as pyProfile } from '../parsers/profiles/python';
-import { goProfile } from '../parsers/profiles/go';
-import type { LanguageProfile } from '../parsers/language-profile';
-import { WorkerPool, WorkerTask } from './worker-pool';
+import { chunkSymbols } from '../parsers/chunker.js';
+import { embedBatch } from '../stores/embedding.js';
+import type { ZVecStore } from '../stores/zvec.js';
+import { createLogger } from '../utils/logger.js';
+import type { HesmanConfig } from '../config/schema.js';
+import type { SqliteStore } from '../stores/sqlite.js';
+import { scanProject } from './project-scanner.js';
+import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core.js';
+import { extractRelations } from '../parsers/relation-extractor.js';
+import { tsProfile } from '../parsers/profiles/typescript.js';
+import { pythonProfile as pyProfile } from '../parsers/profiles/python.js';
+import { goProfile } from '../parsers/profiles/go.js';
+import type { LanguageProfile } from '../parsers/language-profile.js';
+import { WorkerPool, WorkerTask } from './worker-pool.js';
 
 const log = createLogger('index-coordinator');
 

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
-import type { ExtractedSymbol } from './core';
-import type { LanguageProfile } from './language-profile';
+import type { ExtractedSymbol } from './core.js';
+import type { LanguageProfile } from './language-profile.js';
 
 export interface RelationRow {
   from_id: string;

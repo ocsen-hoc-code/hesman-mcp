@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync, readdirSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('monorepo-detector');
 

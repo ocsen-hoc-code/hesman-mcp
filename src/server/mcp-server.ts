@@ -5,9 +5,9 @@ import {
   ListToolsRequestSchema,
   type CallToolRequest,
 } from '@modelcontextprotocol/sdk/types.js';
-import { createLogger } from '../utils/logger';
-import { formatError, ErrorCode } from './error-codes';
-import type { MetricsCollector } from '../diagnostics/metrics';
+import { createLogger } from '../utils/logger.js';
+import { formatError, ErrorCode } from './error-codes.js';
+import type { MetricsCollector } from '../diagnostics/metrics.js';
 
 const log = createLogger('mcp-server');
 

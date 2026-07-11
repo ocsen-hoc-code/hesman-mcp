@@ -7,7 +7,8 @@ import { THRESHOLDS } from './thresholds';
 import { SqliteStore, type SymbolRow } from '../../src/stores/sqlite';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const FIXTURE_DIR = resolve(__dirname, '..', 'fixtures', 'ts-basic');
+// fixture dir available for future use
+const _FIXTURE_DIR = resolve(__dirname, '..', 'fixtures', 'ts-basic');
 const SYMBOL_COUNT = 5000;
 
 /** Generate a symbol row for the memory test */
@@ -82,7 +83,8 @@ process.on('exit', () => {
 describe('memory after indexing', () => {
   bench('heap used after index', () => {
     const mem = process.memoryUsage();
-    const heapUsedMB = mem.heapUsed / 1024 / 1024;
+    const _heapUsedMB = mem.heapUsed / 1024 / 1024;
+    // Benchmark measures heap usage via process.memoryUsage()
   }, { time: 1_000 });
 
   bench('RSS after index (asserts within threshold)', () => {
@@ -97,6 +99,7 @@ describe('memory after indexing', () => {
 
   bench('external memory after index', () => {
     const mem = process.memoryUsage();
-    const externalMB = mem.external / 1024 / 1024;
+    const _externalMB = mem.external / 1024 / 1024;
+    // Benchmark measures external memory via process.memoryUsage()
   }, { time: 1_000 });
 });

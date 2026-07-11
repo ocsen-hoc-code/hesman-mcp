@@ -1,5 +1,5 @@
 import { pipeline, type FeatureExtractionPipeline } from '@xenova/transformers';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('embedding');
 

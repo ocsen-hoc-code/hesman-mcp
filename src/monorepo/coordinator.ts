@@ -1,10 +1,10 @@
-import { indexProject, type IndexResult } from '../indexing/index-coordinator';
-import type { SqliteStore } from '../stores/sqlite';
-import type { ZVecStore } from '../stores/zvec';
-import type { WorkerPool } from '../indexing/worker-pool';
-import type { HesmanConfig } from '../config/schema';
-import type { WorkspaceInfo } from './detector';
-import { createLogger } from '../utils/logger';
+import { indexProject, type IndexResult } from '../indexing/index-coordinator.js';
+import type { SqliteStore } from '../stores/sqlite.js';
+import type { ZVecStore } from '../stores/zvec.js';
+import type { WorkerPool } from '../indexing/worker-pool.js';
+import type { HesmanConfig } from '../config/schema.js';
+import type { WorkspaceInfo } from './detector.js';
+import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('monorepo-coordinator');
 

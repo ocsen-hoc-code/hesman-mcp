@@ -1,4 +1,4 @@
-import type { HesmanConfig } from './schema';
+import type { HesmanConfig } from './schema.js';
 
 export const defaultConfig: HesmanConfig = {
   projectRoot: '.',

@@ -1,4 +1,4 @@
-import type { SqliteStore } from '../stores/sqlite';
+import type { SqliteStore } from '../stores/sqlite.js';
 
 export interface PruneOptions {
   _maxOutputLines?: number;        // default 50 (reserved for future use)

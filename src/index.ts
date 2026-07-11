@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 import { resolve } from 'node:path';
-import { loadConfig, parseCliFlagsToOverrides } from './config/loader';
-import { SqliteStore } from './stores/sqlite';
-import { ZVecStore } from './stores/zvec';
-import { initEmbedding } from './stores/embedding';
-import { indexProject } from './indexing/index-coordinator';
-import { WorkerPool } from './indexing/worker-pool';
-import { FileWatcher } from './indexing/file-watcher';
-import { McpServer } from './server/mcp-server';
-import { registerAllTools } from './server/tools/index';
-import { createLogger } from './utils/logger';
+import { loadConfig, parseCliFlagsToOverrides } from './config/loader.js';
+import { SqliteStore } from './stores/sqlite.js';
+import { ZVecStore } from './stores/zvec.js';
+import { initEmbedding } from './stores/embedding.js';
+import { indexProject } from './indexing/index-coordinator.js';
+import { WorkerPool } from './indexing/worker-pool.js';
+import { FileWatcher } from './indexing/file-watcher.js';
+import { McpServer } from './server/mcp-server.js';
+import { registerAllTools } from './server/tools/index.js';
+import { createLogger } from './utils/logger.js';
 
 const log = createLogger('hesman');
 
@@ -18,43 +18,43 @@ async function main(): Promise<void> {
 
   // Handle subcommands
   if (args[0] === 'index') {
-    const { runIndex } = await import('./cli/commands');
+    const { runIndex } = await import('./cli/commands.js');
     await runIndex(args.slice(1));
     return;
   }
 
   if (args[0] === 'status') {
-    const { runStatus } = await import('./cli/commands');
+    const { runStatus } = await import('./cli/commands.js');
     await runStatus(args.slice(1));
     return;
   }
 
   if (args[0] === 'install') {
-    const { runInstall } = await import('./cli/commands');
+    const { runInstall } = await import('./cli/commands.js');
     await runInstall(args.slice(1));
     return;
   }
 
   if (args[0] === 'clean') {
-    const { runClean } = await import('./cli/commands');
+    const { runClean } = await import('./cli/commands.js');
     await runClean(args.slice(1));
     return;
   }
 
   if (args[0] === 'diag') {
-    const { runDiag } = await import('./cli/commands');
+    const { runDiag } = await import('./cli/commands.js');
     await runDiag(args.slice(1));
     return;
   }
 
   if (args[0] === '--version' || args[0] === '-v') {
-    const { printVersion } = await import('./cli/commands');
+    const { printVersion } = await import('./cli/commands.js');
     printVersion();
     return;
   }
 
   if (args[0] === '--help' || args[0] === '-h') {
-    const { printHelp } = await import('./cli/commands');
+    const { printHelp } = await import('./cli/commands.js');
     printHelp();
     return;
   }
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
 
   // Auto-detect project root if not explicitly set
   if (config.projectRoot === '.') {
-    const { detectProjectRoot } = await import('./config/loader');
+    const { detectProjectRoot } = await import('./config/loader.js');
     config.projectRoot = detectProjectRoot(process.cwd());
   }
 

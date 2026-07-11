@@ -1,7 +1,7 @@
 import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
-import { createLogger } from '../utils/logger';
-import type { HesmanConfig } from '../config/schema';
+import { createLogger } from '../utils/logger.js';
+import type { HesmanConfig } from '../config/schema.js';
 
 const log = createLogger('scanner');
 

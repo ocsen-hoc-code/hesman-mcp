@@ -1,4 +1,4 @@
-import type { LanguageProfile } from '../language-profile';
+import type { LanguageProfile } from '../language-profile.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 

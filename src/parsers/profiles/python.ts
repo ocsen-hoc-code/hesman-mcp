@@ -1,4 +1,4 @@
-import type { LanguageProfile, RelationQueries } from '../language-profile';
+import type { LanguageProfile, RelationQueries } from '../language-profile.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 

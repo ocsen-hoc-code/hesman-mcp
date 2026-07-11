@@ -1,4 +1,4 @@
-import { writeFileSync, appendFileSync, existsSync, statSync, renameSync, unlinkSync } from 'node:fs';
+import { appendFileSync, existsSync, statSync, renameSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 interface RuntimeMetrics {

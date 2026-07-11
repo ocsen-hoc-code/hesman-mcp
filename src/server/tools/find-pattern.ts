@@ -1,9 +1,9 @@
-import { compressToolResponse } from '../response-compressor';
-import type { McpServer, ToolHandler } from '../mcp-server';
-import type { HesmanConfig } from '../../config/schema';
-import { ErrorCode, formatError } from '../error-codes';
+import { compressToolResponse } from '../response-compressor.js';
+import type { McpServer, ToolHandler } from '../mcp-server.js';
+import type { HesmanConfig } from '../../config/schema.js';
+import { ErrorCode, formatError } from '../error-codes.js';
 import { readFileSync } from 'node:fs';
-import { scanProject } from '../../indexing/project-scanner';
+import { scanProject } from '../../indexing/project-scanner.js';
 import picomatch from 'picomatch';
 
 const inputSchema = {

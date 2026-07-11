@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
-import { defaultConfig } from './defaults';
-import { HesmanConfigSchema, type HesmanConfig } from './schema';
+import { defaultConfig } from './defaults.js';
+import { HesmanConfigSchema, type HesmanConfig } from './schema.js';
 
 /**
  * Walk up directories from startDir looking for hesman.config.json.

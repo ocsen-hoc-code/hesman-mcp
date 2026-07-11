@@ -1,7 +1,7 @@
-import { compressToolResponse } from '../response-compressor';
-import type { McpServer, ToolHandler } from '../mcp-server';
-import type { SqliteStore } from '../../stores/sqlite';
-import { ErrorCode, formatError } from '../error-codes';
+import { compressToolResponse } from '../response-compressor.js';
+import type { McpServer, ToolHandler } from '../mcp-server.js';
+import type { SqliteStore } from '../../stores/sqlite.js';
+import { ErrorCode, formatError } from '../error-codes.js';
 
 const inputSchema = {
   type: 'object',

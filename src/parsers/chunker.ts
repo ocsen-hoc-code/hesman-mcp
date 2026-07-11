@@ -1,4 +1,4 @@
-import type { ExtractedSymbol } from './core';
+import type { ExtractedSymbol } from './core.js';
 
 export interface CodeChunk {
   symbolId: string;

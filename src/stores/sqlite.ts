@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import type BetterSqlite3 from 'better-sqlite3';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('sqlite');
 
@@ -124,7 +124,6 @@ function withRetry<T>(fn: () => T, maxRetries = 3): T {
       if (err?.code === 'SQLITE_BUSY' && i < maxRetries - 1) {
         const waitMs = Math.pow(10, i + 1);
         // Sleep without external dependency
-        const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
         Atomics.wait?.(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs);
         continue;
       }

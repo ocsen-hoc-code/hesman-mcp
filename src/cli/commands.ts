@@ -1,9 +1,9 @@
 import { resolve, join } from 'node:path';
 import { readFileSync, existsSync, rmSync, statSync, readdirSync } from 'node:fs';
 import { getHeapStatistics } from 'node:v8';
-import { loadConfig } from '../config/loader';
-import { SqliteStore } from '../stores/sqlite';
-import { indexProject } from '../indexing/index-coordinator';
+import { loadConfig } from '../config/loader.js';
+import { SqliteStore } from '../stores/sqlite.js';
+import { indexProject } from '../indexing/index-coordinator.js';
 
 export async function runIndex(args: string[]): Promise<void> {
   const config = loadConfig();
@@ -88,7 +88,7 @@ Supported languages: TypeScript, JavaScript, Python, Go
 }
 
 export async function runInstall(args: string[]): Promise<void> {
-  const { installAgent } = await import('./install');
+  const { installAgent } = await import('./install.js');
 
   let agent = '';
   let global = false;

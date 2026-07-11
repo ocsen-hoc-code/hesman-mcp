@@ -1,10 +1,10 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { extname } from 'node:path';
-import type { McpServer, ToolHandler } from '../mcp-server';
-import type { SqliteStore } from '../../stores/sqlite';
-import { compactCode } from '../../parsers/compact-mode';
-import { compressToolResponse } from '../response-compressor';
-import { ErrorCode, formatError } from '../error-codes';
+import type { McpServer, ToolHandler } from '../mcp-server.js';
+import type { SqliteStore } from '../../stores/sqlite.js';
+import { compactCode } from '../../parsers/compact-mode.js';
+import { compressToolResponse } from '../response-compressor.js';
+import { ErrorCode, formatError } from '../error-codes.js';
 
 const inputSchema = {
   type: 'object',

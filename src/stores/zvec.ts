@@ -10,7 +10,7 @@ import {
 } from '@zvec/zvec';
 import { join } from 'node:path';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('zvec');
 

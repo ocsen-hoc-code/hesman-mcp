@@ -1,10 +1,10 @@
-import { compressToolResponse } from '../response-compressor';
-import type { McpServer, ToolHandler } from '../mcp-server';
-import type { ZVecStore } from '../../stores/zvec';
-import type { HesmanConfig } from '../../config/schema';
-import { embedText, isEmbeddingReady } from '../../stores/embedding';
-import { compactCode } from '../../parsers/compact-mode';
-import { ErrorCode, formatError } from '../error-codes';
+import { compressToolResponse } from '../response-compressor.js';
+import type { McpServer, ToolHandler } from '../mcp-server.js';
+import type { ZVecStore } from '../../stores/zvec.js';
+import type { HesmanConfig } from '../../config/schema.js';
+import { embedText, isEmbeddingReady } from '../../stores/embedding.js';
+import { compactCode } from '../../parsers/compact-mode.js';
+import { ErrorCode, formatError } from '../error-codes.js';
 
 const inputSchema = {
   type: 'object',

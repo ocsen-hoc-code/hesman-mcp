@@ -1,4 +1,4 @@
-import type { SqliteStore, CallerResult, CalleeResult } from '../stores/sqlite';
+import type { SqliteStore, CallerResult, CalleeResult } from '../stores/sqlite.js';
 
 export interface SymbolSummary {
   signature: string;

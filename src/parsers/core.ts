@@ -1,7 +1,7 @@
 import Parser, { type SyntaxNode } from 'web-tree-sitter';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import type { LanguageProfile } from './language-profile';
+import type { LanguageProfile } from './language-profile.js';
 import { tsProfile } from './profiles/typescript.js';
 import { pythonProfile } from './profiles/python.js';
 import { goProfile } from './profiles/go.js';

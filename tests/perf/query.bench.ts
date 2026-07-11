@@ -1,14 +1,10 @@
 import { bench, describe } from 'vitest';
-import { resolve, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { rmSync, existsSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { THRESHOLDS } from './thresholds';
 import { SqliteStore, type SymbolRow } from '../../src/stores/sqlite';
 import { ZVecStore, type SearchDoc } from '../../src/stores/zvec';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const FIXTURE_DIR = resolve(__dirname, '..', 'fixtures', 'ts-basic');
 const SYMBOL_COUNT = 2000;
 
 /** Make a synthetic SymbolRow */

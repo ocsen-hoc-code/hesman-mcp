@@ -1,18 +1,18 @@
-import type { McpServer } from '../mcp-server';
-import type { SqliteStore } from '../../stores/sqlite';
-import type { ZVecStore } from '../../stores/zvec';
-import type { HesmanConfig } from '../../config/schema';
-import { registerFindSymbolTool } from './find-symbol';
-import { registerGetCalleesTool } from './get-callees';
-import { registerGetCallersTool } from './get-callers';
-import { registerGetFileStructureTool } from './get-file-structure';
-import { registerGetReferencesTool } from './get-references';
-import { registerIndexStatusTool } from './index-status';
-import { registerSemanticSearchTool } from './semantic-search';
-import { registerListDependenciesTool } from './list-dependencies';
-import { registerFindPatternTool } from './find-pattern';
-import { registerGetContextTool } from './get-context';
-import { registerImpactAnalysisTool } from './impact-analysis';
+import type { McpServer } from '../mcp-server.js';
+import type { SqliteStore } from '../../stores/sqlite.js';
+import type { ZVecStore } from '../../stores/zvec.js';
+import type { HesmanConfig } from '../../config/schema.js';
+import { registerFindSymbolTool } from './find-symbol.js';
+import { registerGetCalleesTool } from './get-callees.js';
+import { registerGetCallersTool } from './get-callers.js';
+import { registerGetFileStructureTool } from './get-file-structure.js';
+import { registerGetReferencesTool } from './get-references.js';
+import { registerIndexStatusTool } from './index-status.js';
+import { registerSemanticSearchTool } from './semantic-search.js';
+import { registerListDependenciesTool } from './list-dependencies.js';
+import { registerFindPatternTool } from './find-pattern.js';
+import { registerGetContextTool } from './get-context.js';
+import { registerImpactAnalysisTool } from './impact-analysis.js';
 
 export function registerAllTools(
   server: McpServer,
