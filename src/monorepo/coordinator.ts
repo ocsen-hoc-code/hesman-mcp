@@ -129,7 +129,6 @@ async function discoverCrossPackageRelations(
   store: SqliteStore,
 ): Promise<Array<{ fromFile: string; toSymbolId: string; kind: string }>> {
   const crossRelations: Array<{ fromFile: string; toSymbolId: string; kind: string }> = [];
-  const packagePaths = new Set(workspace.packages.map((p) => p.path));
 
   for (const pkgResult of packageResults) {
     if (pkgResult.result.errors.length > 0) continue;
@@ -167,21 +166,6 @@ async function discoverCrossPackageRelations(
   }
 
   return crossRelations;
-}
-
-/**
- * Find which package a file path belongs to.
- */
-function findPackageForPath(
-  filePath: string,
-  packagePaths: Set<string>,
-): string | null {
-  for (const pkgPath of packagePaths) {
-    if (filePath.startsWith(pkgPath + '/') || filePath.startsWith(pkgPath + '\\')) {
-      return pkgPath;
-    }
-  }
-  return null;
 }
 
 /**
