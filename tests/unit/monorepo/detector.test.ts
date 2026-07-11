@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { detectWorkspace } from '../../../src/monorepo/detector';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 
@@ -53,7 +53,6 @@ describe('detectWorkspace', () => {
       } finally {
         // Cleanup
         try {
-          const { rmSync } = require('node:fs');
           rmSync(tempDir, { recursive: true });
         } catch {
           // ignore cleanup errors
@@ -73,7 +72,6 @@ describe('detectWorkspace', () => {
         expect(result).toBeNull();
       } finally {
         try {
-          const { rmSync } = require('node:fs');
           rmSync(tempDir, { recursive: true });
         } catch {
           // ignore
@@ -105,7 +103,6 @@ describe('detectWorkspace', () => {
         expect(result!.packages[0].name).toBe('@ws/pkg-a');
       } finally {
         try {
-          const { rmSync } = require('node:fs');
           rmSync(tempDir, { recursive: true });
         } catch {
           // ignore
@@ -138,7 +135,6 @@ describe('detectWorkspace', () => {
         expect(result!.packages).toHaveLength(1);
       } finally {
         try {
-          const { rmSync } = require('node:fs');
           rmSync(tempDir, { recursive: true });
         } catch {
           // ignore
@@ -169,7 +165,6 @@ describe('detectWorkspace', () => {
         expect(result!.packages[0].name).toBe('@lerna/pkg-a');
       } finally {
         try {
-          const { rmSync } = require('node:fs');
           rmSync(tempDir, { recursive: true });
         } catch {
           // ignore
@@ -198,7 +193,6 @@ describe('detectWorkspace', () => {
         expect(result!.packages.length).toBeGreaterThanOrEqual(1);
       } finally {
         try {
-          const { rmSync } = require('node:fs');
           rmSync(tempDir, { recursive: true });
         } catch {
           // ignore
@@ -234,7 +228,6 @@ describe('detectWorkspace', () => {
         expect(result!.packages[0].name).toBe('@turbo/web');
       } finally {
         try {
-          const { rmSync } = require('node:fs');
           rmSync(tempDir, { recursive: true });
         } catch {
           // ignore

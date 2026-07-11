@@ -1,5 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { indexProject, type IndexResult } from '../indexing/index-coordinator';
 import type { SqliteStore } from '../stores/sqlite';
 import type { ZVecStore } from '../stores/zvec';
@@ -144,20 +142,26 @@ async function discoverCrossPackageRelations(
       (dep) => dep.kind === 'unresolved' || dep.kind === 'package',
     );
 
+    // Build a map from package name to package path for matching
+    const pkgNameToPath = new Map<string, string>();
+    for (const pkg of workspace.packages) {
+      pkgNameToPath.set(pkg.name, pkg.path);
+    }
+
     for (const dep of unresolvedDeps) {
-      // Try to find the symbol in other packages
-      const candidates = store.getSymbolsByName(dep.target, undefined, undefined, 5, 'exact');
-      for (const candidate of candidates) {
-        // Check if this candidate belongs to a different package
-        const candidatePkgPath = findPackageForPath(candidate.file_path, packagePaths);
-        if (candidatePkgPath && candidatePkgPath !== pkgResult.path) {
-          // Found a cross-package relation
-          crossRelations.push({
-            fromFile: pkgResult.path,
-            toSymbolId: candidate.id,
-            kind: 'imports',
-          });
-        }
+      // dep.target is a module path (e.g., '@monorepo/pkg-a', './utils')
+      // Try to match it against workspace package names
+      const matchedPkgPath = pkgNameToPath.get(dep.target);
+      if (!matchedPkgPath || matchedPkgPath === pkgResult.path) continue;
+
+      // Get all symbols from the matching package
+      const pkgSymbols = store.getSymbolsByFile(matchedPkgPath);
+      for (const sym of pkgSymbols.slice(0, 5)) {
+        crossRelations.push({
+          fromFile: pkgResult.path,
+          toSymbolId: sym.id,
+          kind: 'imports',
+        });
       }
     }
   }

@@ -128,6 +128,11 @@ function findJSDocRanges(source: string): Array<[number, number]> {
   return ranges;
 }
 
+// Helper: escape regex-special characters in a string
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Helper: find unused imports (naive: imported name not found in rest of file)
 function findUnusedImports(source: string): Set<number> {
   const unused = new Set<number>();
@@ -137,7 +142,7 @@ function findUnusedImports(source: string): Set<number> {
     const names = m[1].split(',').map(n => n.trim().split(/\s+as\s+/)[0].trim());
     const afterImport = source.substring(m.index + m[0].length);
     for (const name of names) {
-      if (!new RegExp(`\\b${name}\\b`).test(afterImport)) {
+      if (!new RegExp(`\\b${escapeRegex(name)}\\b`).test(afterImport)) {
         unused.add(source.substring(0, m.index).split('\n').length);
       }
     }

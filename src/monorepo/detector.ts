@@ -218,9 +218,9 @@ function parseTurboWorkspace(root: string): WorkspaceInfo {
     return buildWorkspaceInfo('turbo', root, []);
   }
 
-  let config: Record<string, unknown>;
+  let _config: Record<string, unknown>;
   try {
-    config = JSON.parse(content);
+    _config = JSON.parse(content) as Record<string, unknown>;
   } catch {
     log.warn({ root }, 'Invalid turbo.json');
     return buildWorkspaceInfo('turbo', root, []);

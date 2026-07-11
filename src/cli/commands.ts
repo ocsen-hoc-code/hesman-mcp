@@ -68,6 +68,21 @@ Usage:
   hesman install --agent <claude|cursor|vscode> [--global]
   hesman --version, -v      Print version
   hesman --help, -h         Show this help
+
+MCP tools (available when server is running):
+  find_symbol            Look up symbols by name (exact / fuzzy / prefix)
+  get_file_structure     List all symbols in a file
+  get_references         Find references to a symbol across the codebase
+  get_callers            Traverse the call graph upward (who calls this?)
+  get_callees            Traverse the call graph downward (what does this call?)
+  get_context            Retrieve focused code context around a location (with pruning)
+  semantic_search        Natural-language search over indexed code
+  list_dependencies      List external and internal dependencies
+  impact_analysis        Analyze what breaks if a symbol changes (rename / delete / signature)
+  find_pattern           Search for code patterns using AST queries
+  index_status           Report indexing health and statistics
+
+Supported languages: TypeScript, JavaScript, Python, Go
 `);
 }
 

@@ -10,6 +10,8 @@ import { scanProject } from './project-scanner';
 import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core';
 import { extractRelations } from '../parsers/relation-extractor';
 import { tsProfile } from '../parsers/profiles/typescript';
+import { pythonProfile as pyProfile } from '../parsers/profiles/python';
+import { goProfile } from '../parsers/profiles/go';
 import type { LanguageProfile } from '../parsers/language-profile';
 import { WorkerPool, WorkerTask } from './worker-pool';
 
@@ -25,6 +27,8 @@ export interface IndexResult {
 
 const PROFILE_BY_LANG: Record<string, LanguageProfile> = {
   typescript: tsProfile,
+  python: pyProfile,
+  go: goProfile,
 };
 
 export async function indexProject(

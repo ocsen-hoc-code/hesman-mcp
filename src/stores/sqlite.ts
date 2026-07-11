@@ -212,8 +212,10 @@ export class SqliteStore {
         return this.db.prepare(sql).all(...params) as SymbolRow[];
       }
       case 'fuzzy': {
-        // Escape FTS5 special characters
-        const escaped = name.replace(/[*"()]/g, '');
+        // Escape FTS5 special characters and keywords
+        // FTS5 treats these as special: ()*"^~+ AND OR NOT NEAR
+        // Wrap in double-quotes for phrase matching, escape embedded quotes
+        const escaped = '"' + name.replace(/"/g, '""') + '"';
         let sql = `
           SELECT s.*, fts.rank
           FROM symbols_fts fts

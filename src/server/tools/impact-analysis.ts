@@ -1,6 +1,6 @@
 import type { McpServer, ToolHandler } from '../mcp-server';
 import type { SqliteStore } from '../../stores/sqlite';
-import { compactCode } from '../../parsers/compact-mode';
+import { compressToolResponse } from '../response-compressor';
 import { ErrorCode, formatError } from '../error-codes';
 
 const inputSchema = {
@@ -111,22 +111,21 @@ export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore
     const shouldReview = impactedFiles.filter(f => f.severity === 'should_review').length;
     const info = impactedFiles.filter(f => f.severity === 'info').length;
 
+    const result = {
+      symbol: { id: symbol.id, name: symbol.name, kind: symbol.kind, filePath: symbol.file_path, signature: symbol.signature },
+      changeType,
+      _summary: {
+        totalFiles: fileMap.size,
+        mustFix,
+        shouldReview,
+        info,
+        estimatedChanges: refs.length,
+      },
+      impactedFiles,
+    };
+    const compressed = compressToolResponse('impact_analysis', result, { store });
     return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          symbol: { id: symbol.id, name: symbol.name, kind: symbol.kind, filePath: symbol.file_path, signature: symbol.signature },
-          changeType,
-          _summary: {
-            totalFiles: fileMap.size,
-            mustFix,
-            shouldReview,
-            info,
-            estimatedChanges: refs.length,
-          },
-          impactedFiles,
-        }),
-      }],
+      content: [{ type: 'text', text: JSON.stringify(compressed) }],
     };
   };
 

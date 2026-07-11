@@ -4,7 +4,7 @@ import { SqliteStore } from '../../../src/stores/sqlite';
 import { initParser } from '../../../src/parsers/core';
 import { tsProfile } from '../../../src/parsers/profiles/typescript';
 import { rmSync, existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const TEST_DIR = join(tmpdir(), 'hesman-pruner-test');

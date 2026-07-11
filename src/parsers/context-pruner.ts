@@ -1,9 +1,7 @@
 import type { SqliteStore } from '../stores/sqlite';
-import type { LanguageProfile } from './language-profile';
-import { tsProfile } from './profiles/typescript';
 
 export interface PruneOptions {
-  maxOutputLines?: number;        // default 50
+  _maxOutputLines?: number;        // default 50 (reserved for future use)
   includeCallers?: boolean;       // default true
   includeCallees?: boolean;       // default true
   includeReferences?: boolean;    // default false
@@ -22,10 +20,6 @@ export interface PrunedResult {
   prunedSections: PrunedSection[];
 }
 
-const PROFILE_BY_EXT: Record<string, LanguageProfile> = {
-  '.ts': tsProfile, '.tsx': tsProfile, '.js': tsProfile, '.jsx': tsProfile,
-};
-
 export async function pruneContext(
   source: string,
   filePath: string,
@@ -33,7 +27,7 @@ export async function pruneContext(
   store: SqliteStore,
   options: PruneOptions = {},
 ): Promise<PrunedResult> {
-  const maxOutputLines = options.maxOutputLines ?? 50;
+  const _maxOutputLines = options._maxOutputLines ?? 50;
   const includeCallers = options.includeCallers ?? true;
   const includeCallees = options.includeCallees ?? true;
   const includeReferences = options.includeReferences ?? false;

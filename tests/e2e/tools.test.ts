@@ -247,4 +247,108 @@ describe('Hesman E2E — MCP tools via stdio', () => {
 
     expect(data.results.length).toBeLessThanOrEqual(2);
   });
+
+  it('get_context returns code context around a known location', async () => {
+    const utilsPath = resolve(PROJECT_DIR, 'src/utils.ts');
+    const result = await client.callTool(
+      { name: 'get_context', arguments: { filePath: utilsPath, startLine: 1, endLine: 5 } },
+      undefined,
+      { timeout: 10000 },
+    );
+
+    const text = (result.content as Array<{ type: string; text?: string }>)
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n');
+    const data = JSON.parse(text);
+
+    expect(data.filePath).toBe(utilsPath);
+    expect(data.language).toBe('typescript');
+    expect(data.totalLines).toBeGreaterThan(0);
+    expect(data.content).toBeDefined();
+    expect(data.content.length).toBeGreaterThan(0);
+    expect(data.symbolsInRange).toBeDefined();
+  }, 15000);
+
+  it('get_context returns error for nonexistent file', async () => {
+    const result = await client.callTool(
+      { name: 'get_context', arguments: { filePath: '/nonexistent/path.ts', startLine: 1 } },
+      undefined,
+      { timeout: 5000 },
+    );
+
+    const text = (result.content as Array<{ type: string; text?: string }>)
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n');
+    const data = JSON.parse(text);
+
+    expect(data.error).toBeDefined();
+    expect(data.error.code).toBe('FILE_NOT_FOUND');
+  }, 10000);
+
+  it('impact_analysis returns impact for a known symbol', async () => {
+    // First find a symbol
+    const findResult = await client.callTool(
+      { name: 'find_symbol', arguments: { name: 'add', matchMode: 'exact' } },
+      undefined,
+      { timeout: 5000 },
+    );
+
+    const findText = (findResult.content as Array<{ type: string; text?: string }>)
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n');
+    const findData = JSON.parse(findText);
+    expect(findData.symbols.length).toBeGreaterThan(0);
+    const addSymbolId = findData.symbols[0].id;
+
+    const result = await client.callTool(
+      {
+        name: 'impact_analysis',
+        arguments: {
+          symbolId: addSymbolId,
+          changeType: 'rename',
+          newName: 'addition',
+        },
+      },
+      undefined,
+      { timeout: 10000 },
+    );
+
+    const text = (result.content as Array<{ type: string; text?: string }>)
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n');
+    const data = JSON.parse(text);
+
+    expect(data.symbol).toBeDefined();
+    expect(data.symbol.id).toBe(addSymbolId);
+    expect(data.changeType).toBe('rename');
+    expect(data._summary).toBeDefined();
+    expect(data.impactedFiles).toBeDefined();
+  }, 20000);
+
+  it('impact_analysis returns error for nonexistent symbolId', async () => {
+    const result = await client.callTool(
+      {
+        name: 'impact_analysis',
+        arguments: {
+          symbolId: 'nonexistent-symbol-id',
+          changeType: 'delete',
+        },
+      },
+      undefined,
+      { timeout: 5000 },
+    );
+
+    const text = (result.content as Array<{ type: string; text?: string }>)
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n');
+    const data = JSON.parse(text);
+
+    expect(data.error).toBeDefined();
+    expect(data.error.code).toBe('SYMBOL_NOT_FOUND');
+  }, 10000);
 });

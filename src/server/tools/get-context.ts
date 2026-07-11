@@ -3,6 +3,7 @@ import { extname } from 'node:path';
 import type { McpServer, ToolHandler } from '../mcp-server';
 import type { SqliteStore } from '../../stores/sqlite';
 import { compactCode } from '../../parsers/compact-mode';
+import { compressToolResponse } from '../response-compressor';
 import { ErrorCode, formatError } from '../error-codes';
 
 const inputSchema = {
@@ -73,19 +74,18 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore): v
     };
     const language = langMap[ext] || 'unknown';
 
+    const result = {
+      filePath,
+      startLine: fromLine,
+      endLine: toLine,
+      content,
+      language,
+      totalLines,
+      symbolsInRange,
+    };
+    const compressed = compressToolResponse('get_context', result, { store });
     return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          filePath,
-          startLine: fromLine,
-          endLine: toLine,
-          content,
-          language,
-          totalLines,
-          symbolsInRange,
-        }),
-      }],
+      content: [{ type: 'text', text: JSON.stringify(compressed) }],
     };
   };
 
