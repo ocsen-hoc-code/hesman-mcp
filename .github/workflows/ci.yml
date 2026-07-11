@@ -1,27 +1,53 @@
 name: CI
 
-on:
-  push:
-    branches: [master]
-  pull_request:
-    branches: [master]
+on: [push, pull_request]
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        node: ['20', '22']
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [20, 22]
+
+    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: 'npm'
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/hesman/models/
+            node_modules/
+          key: ${{ runner.os }}-node${{ matrix.node }}-${{ hashFiles('package-lock.json') }}
+
       - run: npm ci
-      - run: npm run download:parsers
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run test
-      - run: npm run build
+
+      - name: Download WASM parsers
+        run: npx tsx scripts/download-parsers.ts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit + Integration tests
+        run: npm test
+
+      - name: E2E tests
+        run: npm run test:e2e
+        timeout-minutes: 3
+
+      - name: Performance benchmarks
+        if: runner.os == 'Linux' && matrix.node == 22
+        run: npm run test:perf:ci
+        continue-on-error: true
