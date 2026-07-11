@@ -2,7 +2,7 @@ import Parser, { type SyntaxNode } from 'web-tree-sitter';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { LanguageProfile } from './language-profile';
-import { createLogger } from '../utils/logger';
+import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('parser');
 
