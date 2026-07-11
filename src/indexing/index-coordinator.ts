@@ -11,6 +11,7 @@ import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core';
 import { extractRelations } from '../parsers/relation-extractor';
 import { tsProfile } from '../parsers/profiles/typescript';
 import type { LanguageProfile } from '../parsers/language-profile';
+import { WorkerPool, WorkerTask } from './worker-pool';
 
 const log = createLogger('index-coordinator');
 
@@ -31,6 +32,7 @@ export async function indexProject(
   store: SqliteStore,
   config: HesmanConfig,
   zvecStore?: ZVecStore,
+  pool?: WorkerPool,
 ): Promise<IndexResult> {
   const startTime = Date.now();
   const errors: string[] = [];
@@ -48,76 +50,156 @@ export async function indexProject(
   let filesIndexed = 0;
   let symbolsFound = 0;
 
-  for (const file of files) {
-    try {
+  // Use worker pool if available and files exist
+  if (pool && files.length > 0) {
+    // Filter to files that actually changed
+    const tasks: WorkerTask[] = [];
+    const validFiles: typeof files = [];
+
+    for (const file of files) {
       const profile = PROFILE_BY_LANG[file.language];
       if (!profile) continue;
 
-      // Check if file changed
       const content = readFileSync(file.filePath, 'utf-8');
-      const sourceLines = content.split('\n');
       const sha256 = createHash('sha256').update(content).digest('hex');
       const previousHash = store.getFileHash(file.filePath);
 
-      if (previousHash === sha256) {
-        // File unchanged — skip
-        continue;
-      }
+      if (previousHash === sha256) continue;
 
-      // Parse file
-      const result = await parseFile(file.filePath, profile);
+      tasks.push({ filePath: file.filePath, language: file.language });
+      validFiles.push(file);
+    }
 
-      // Clear old symbols and insert new
-      store.clearSymbols(file.filePath);
+    if (tasks.length > 0) {
+      const results = await pool.dispatch(tasks);
 
-      if (result.symbols.length > 0) {
-        const now = Date.now();
-        const rows = result.symbols.map((s: ExtractedSymbol) => ({
-          ...s,
-          updated_at: now,
-        }));
-        store.upsertSymbols(rows);
-      }
+      for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const file = validFiles[i];
 
-      // Phase 3: Extract and store relations
-      if (profile.relationQueries) {
-        const relations = extractRelations(result.symbols, content, file.filePath, profile);
-        store.clearRelations(file.filePath);
-        if (relations.length > 0) {
-          store.upsertRelations(relations);
+        try {
+          if (result.error) {
+            errors.push(`${result.filePath}: ${result.error}`);
+            continue;
+          }
+
+          // Clear old data
+          store.clearSymbols(result.filePath);
+          store.clearRelations(result.filePath);
+
+          // Insert symbols
+          if (result.symbols.length > 0) {
+            const now = Date.now();
+            const rows = result.symbols.map((s) => ({
+              ...s,
+              updated_at: now,
+            }));
+            store.upsertSymbols(rows);
+          }
+
+          // Insert relations
+          if (result.relations.length > 0) {
+            store.upsertRelations(result.relations);
+          }
+
+          // ZVec indexing
+          if (zvecStore) {
+            const sourceLines = readFileSync(result.filePath, 'utf-8').split('\n');
+            const chunks = chunkSymbols(result.symbols, sourceLines);
+            if (chunks.length > 0) {
+              const embeddings = await embedBatch(chunks.map(c => c.text));
+              const searchDocs = chunks.map((c, _i) => ({
+                symbolId: c.symbol.id,
+                name: c.symbol.name,
+                kind: c.symbol.kind,
+                filePath: c.symbol.file_path,
+                startLine: c.symbol.start_line,
+                endLine: c.symbol.end_line,
+                signature: c.symbol.signature,
+                code: sourceLines.slice(c.symbol.start_line, c.symbol.end_line + 1).join('\n'),
+                docComment: c.symbol.doc_comment,
+                language: c.symbol.language,
+              }));
+              zvecStore.upsertDocs(searchDocs, embeddings);
+            }
+          }
+
+          // Update hash
+          store.upsertFileHash(result.filePath, result.contentHash);
+
+          filesIndexed++;
+          symbolsFound += result.symbols.length;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          log.error({ file: result.filePath, error: message }, 'Failed to process file');
+          errors.push(`${result.filePath}: ${message}`);
         }
       }
+    }
+  } else {
+    // Fallback: single-threaded path (Phase 3 behavior)
+    for (const file of files) {
+      try {
+        const profile = PROFILE_BY_LANG[file.language];
+        if (!profile) continue;
 
-      // Phase 2: Populate ZVec search index
-      if (zvecStore) {
-        const chunks = chunkSymbols(result.symbols, sourceLines);
-        if (chunks.length > 0) {
-          const embeddings = await embedBatch(chunks.map(c => c.text));
-          const searchDocs = chunks.map((c, _i) => ({
-            symbolId: c.symbol.id,
-            name: c.symbol.name,
-            kind: c.symbol.kind,
-            filePath: c.symbol.file_path,
-            startLine: c.symbol.start_line,
-            endLine: c.symbol.end_line,
-            signature: c.symbol.signature,
-            code: sourceLines.slice(c.symbol.start_line, c.symbol.end_line + 1).join('\n'),
-            docComment: c.symbol.doc_comment,
-            language: c.symbol.language,
+        const content = readFileSync(file.filePath, 'utf-8');
+        const sourceLines = content.split('\n');
+        const sha256 = createHash('sha256').update(content).digest('hex');
+        const previousHash = store.getFileHash(file.filePath);
+
+        if (previousHash === sha256) continue;
+
+        const result = await parseFile(file.filePath, profile);
+
+        store.clearSymbols(file.filePath);
+
+        if (result.symbols.length > 0) {
+          const now = Date.now();
+          const rows = result.symbols.map((s: ExtractedSymbol) => ({
+            ...s,
+            updated_at: now,
           }));
-          zvecStore.upsertDocs(searchDocs, embeddings);
+          store.upsertSymbols(rows);
         }
+
+        if (profile.relationQueries) {
+          const relations = extractRelations(result.symbols, content, file.filePath, profile);
+          store.clearRelations(file.filePath);
+          if (relations.length > 0) {
+            store.upsertRelations(relations);
+          }
+        }
+
+        if (zvecStore) {
+          const chunks = chunkSymbols(result.symbols, sourceLines);
+          if (chunks.length > 0) {
+            const embeddings = await embedBatch(chunks.map(c => c.text));
+            const searchDocs = chunks.map((c, _i) => ({
+              symbolId: c.symbol.id,
+              name: c.symbol.name,
+              kind: c.symbol.kind,
+              filePath: c.symbol.file_path,
+              startLine: c.symbol.start_line,
+              endLine: c.symbol.end_line,
+              signature: c.symbol.signature,
+              code: sourceLines.slice(c.symbol.start_line, c.symbol.end_line + 1).join('\n'),
+              docComment: c.symbol.doc_comment,
+              language: c.symbol.language,
+            }));
+            zvecStore.upsertDocs(searchDocs, embeddings);
+          }
+        }
+
+        store.upsertFileHash(file.filePath, sha256);
+
+        filesIndexed++;
+        symbolsFound += result.symbols.length;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        log.error({ file: file.filePath, error: message }, 'Failed to index file');
+        errors.push(`${file.filePath}: ${message}`);
       }
-
-      // Update file hash
-      store.upsertFileHash(file.filePath, sha256);
-
-      filesIndexed++;
-      symbolsFound += result.symbols.length;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      log.error({ file: file.filePath, error: message }, 'Failed to index file');
-      errors.push(`${file.filePath}: ${message}`);
     }
   }
 
