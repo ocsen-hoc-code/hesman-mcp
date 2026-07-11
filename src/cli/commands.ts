@@ -54,7 +54,7 @@ export function printVersion(): void {
 }
 
 export function printHelp(): void {
-  console.log(`hesman — Next-gen MCP server for deep code intelligence
+  console.log(`hesman v1.0.0 — Next-gen MCP server for deep code intelligence
 
 Usage:
   hesman                    Run the MCP server (stdio transport)

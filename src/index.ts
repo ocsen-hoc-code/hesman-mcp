@@ -122,7 +122,7 @@ async function main(): Promise<void> {
   }
 
   // Start MCP server
-  const server = new McpServer('hesman', '0.4.0');
+  const server = new McpServer('hesman', '1.0.0');
   registerAllTools(server, store, zvecStore, config);
 
   // ── Graceful shutdown ──
