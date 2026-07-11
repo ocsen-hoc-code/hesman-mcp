@@ -1,9 +1,32 @@
+import { type LanguageProfile } from './language-profile';
+
+export interface CompactOptions {
+  level?: 1 | 2;                     // 1 = basic regex (Phase 2), 2 = AST-aware
+  removeUnusedImports?: boolean;      // remove unused named imports
+  profile?: LanguageProfile;          // language profile (required for level 2 in future)
+}
+
 /**
  * Convert source code to compact mode by stripping comments,
  * collapsing blank lines, and removing trailing whitespace.
  * Preserves magic comments like // @ts-ignore, // eslint-disable-*.
+ *
+ * @param source  Source code to compact
+ * @param options Optional level and import removal settings
  */
-export function compactCode(source: string): string {
+export function compactCode(source: string, options?: CompactOptions): string {
+  const level = options?.level ?? 1;
+
+  if (level === 1) {
+    // Existing Phase 2 logic unchanged
+    return compactCodeBasic(source);
+  }
+
+  // Level 2: AST-aware
+  return compactCodeAST(source, options!);
+}
+
+function compactCodeBasic(source: string): string {
   const lines = source.split('\n');
   const result: string[] = [];
   let prevBlank = false;
@@ -37,6 +60,97 @@ export function compactCode(source: string): string {
   output = stripBlockComments(output);
 
   return output.trim() + '\n';
+}
+
+function compactCodeAST(source: string, options: CompactOptions): string {
+  const lines = source.split('\n');
+  const result: string[] = [];
+
+  // Parse to identify JSDoc ranges and unused imports
+  const jsdocRanges = findJSDocRanges(source);
+  const unusedImports = options.removeUnusedImports ? findUnusedImports(source) : new Set<number>();
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Skip lines of unused imports
+    if (unusedImports.has(i + 1)) continue;
+
+    // Check if this line is inside a JSDoc block
+    const inJSDoc = jsdocRanges.some(([s, e]) => i + 1 >= s && i + 1 <= e);
+
+    const trimmed = line.trimEnd();
+
+    // Preserve JSDoc lines (including blank lines inside JSDoc)
+    if (inJSDoc) {
+      result.push(trimmed);
+      continue;
+    }
+
+    // Preserve magic comments
+    if (isMagicComment(trimmed)) {
+      result.push(trimmed);
+      continue;
+    }
+
+    // Strip single-line comments
+    const noLineComment = stripLineComment(trimmed);
+
+    // Skip entirely blank / comment-only lines (will be collapsed later)
+    if (noLineComment.length === 0) {
+      continue;
+    }
+
+    result.push(noLineComment);
+  }
+
+  let output = result.join('\n');
+
+  // Strip non-JSDoc block comments
+  output = stripBlockCommentsKeepJSDoc(output);
+
+  // Collapse multiple consecutive blank lines into one
+  output = output.replace(/\n{3,}/g, '\n\n');
+
+  return output.trim() + '\n';
+}
+
+// Helper: find JSDoc ranges (/** ... */)
+function findJSDocRanges(source: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  const re = /\/\*\*[\s\S]*?\*\//g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(source)) !== null) {
+    const startLine = source.substring(0, m.index).split('\n').length;
+    const endLine = source.substring(0, m.index + m[0].length).split('\n').length;
+    ranges.push([startLine, endLine]);
+  }
+  return ranges;
+}
+
+// Helper: find unused imports (naive: imported name not found in rest of file)
+function findUnusedImports(source: string): Set<number> {
+  const unused = new Set<number>();
+  const importRe = /import\s+\{([^}]+)\}\s+from\s+['"][^'"]+['"]/g;
+  let m: RegExpExecArray | null;
+  while ((m = importRe.exec(source)) !== null) {
+    const names = m[1].split(',').map(n => n.trim().split(/\s+as\s+/)[0].trim());
+    const afterImport = source.substring(m.index + m[0].length);
+    for (const name of names) {
+      if (!new RegExp(`\\b${name}\\b`).test(afterImport)) {
+        unused.add(source.substring(0, m.index).split('\n').length);
+      }
+    }
+  }
+  return unused;
+}
+
+// Helper: strip block comments but keep JSDoc
+function stripBlockCommentsKeepJSDoc(source: string): string {
+  return source.replace(/\/\*[^*][\s\S]*?\*\//g, (match) => {
+    if (match.startsWith('/**')) return match; // Keep JSDoc
+    return ''; // Remove non-JSDoc block comments
+  });
 }
 
 function isMagicComment(line: string): boolean {
