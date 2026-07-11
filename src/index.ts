@@ -27,6 +27,12 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (args[0] === 'install') {
+    const { runInstall } = await import('./cli/commands');
+    await runInstall(args.slice(1));
+    return;
+  }
+
   if (args[0] === '--version' || args[0] === '-v') {
     const { printVersion } = await import('./cli/commands');
     printVersion();

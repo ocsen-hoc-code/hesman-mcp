@@ -60,7 +60,31 @@ Usage:
   hesman                    Run the MCP server (stdio transport)
   hesman index [path]       Index a project (default: current directory)
   hesman status [path]      Show indexing status
+  hesman install --agent    Install MCP config for an agent (claude, cursor, vscode)
   hesman --version          Print version
   hesman --help             Show this help
 `);
+}
+
+export async function runInstall(args: string[]): Promise<void> {
+  const { installAgent } = await import('./install');
+
+  let agent = '';
+  let global = false;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--agent' && args[i + 1]) {
+      agent = args[++i];
+    } else if (args[i] === '--global') {
+      global = true;
+    }
+  }
+
+  if (!agent) {
+    console.log('Usage: hesman install --agent <claude|cursor|vscode> [--global]');
+    process.exit(1);
+  }
+
+  const projectRoot = process.cwd();
+  installAgent(agent, projectRoot, global);
 }
