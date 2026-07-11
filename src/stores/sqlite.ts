@@ -106,6 +106,14 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_relations_from ON relations(from_id)`,
   `CREATE INDEX IF NOT EXISTS idx_relations_to ON relations(to_id)`,
   `CREATE INDEX IF NOT EXISTS idx_relations_kind ON relations(kind)`,
+  // Migration: FTS5 virtual table for fuzzy search
+  `CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(
+    name,
+    kind,
+    signature,
+    content='symbols',
+    content_rowid='rowid'
+  )`,
 ];
 
 export class SqliteStore {
@@ -123,6 +131,7 @@ export class SqliteStore {
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('synchronous = NORMAL');
     this.runMigrations();
+    this.ensureFtsTriggers();
     log.info({ dbPath }, 'SQLite store opened');
   }
 
@@ -139,6 +148,27 @@ export class SqliteStore {
     }
   }
 
+  private ensureFtsTriggers(): void {
+    this.db.exec(`
+      CREATE TRIGGER IF NOT EXISTS symbols_ai AFTER INSERT ON symbols BEGIN
+        INSERT INTO symbols_fts(rowid, name, kind, signature)
+        VALUES (new.rowid, new.name, new.kind, new.signature);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS symbols_ad AFTER DELETE ON symbols BEGIN
+        INSERT INTO symbols_fts(symbols_fts, rowid, name, kind, signature)
+        VALUES ('delete', old.rowid, old.name, old.kind, old.signature);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS symbols_au AFTER UPDATE ON symbols BEGIN
+        INSERT INTO symbols_fts(symbols_fts, rowid, name, kind, signature)
+        VALUES ('delete', old.rowid, old.name, old.kind, old.signature);
+        INSERT INTO symbols_fts(rowid, name, kind, signature)
+        VALUES (new.rowid, new.name, new.kind, new.signature);
+      END;
+    `);
+  }
+
   upsertSymbols(symbols: SymbolRow[]): void {
     if (symbols.length === 0) return;
     const stmt = this.db.prepare(`
@@ -153,9 +183,48 @@ export class SqliteStore {
     insertMany(symbols);
   }
 
-  getSymbolsByName(name: string): SymbolRow[] {
-    const stmt = this.db.prepare('SELECT * FROM symbols WHERE name = ?');
-    return stmt.all(name) as SymbolRow[];
+  getSymbolsByName(
+    name: string,
+    kind?: string,
+    filePath?: string,
+    topK: number = 20,
+    matchMode: 'exact' | 'prefix' | 'fuzzy' = 'exact',
+  ): SymbolRow[] {
+    switch (matchMode) {
+      case 'exact': {
+        let sql = 'SELECT * FROM symbols WHERE name = ?';
+        const params: any[] = [name];
+        if (kind) { sql += ' AND kind = ?'; params.push(kind); }
+        if (filePath) { sql += ' AND file_path = ?'; params.push(filePath); }
+        sql += ' LIMIT ?'; params.push(topK);
+        return this.db.prepare(sql).all(...params) as SymbolRow[];
+      }
+      case 'prefix': {
+        let sql = 'SELECT * FROM symbols WHERE name LIKE ?';
+        const params: any[] = [name + '%'];
+        if (kind) { sql += ' AND kind = ?'; params.push(kind); }
+        if (filePath) { sql += ' AND file_path = ?'; params.push(filePath); }
+        sql += ' LIMIT ?'; params.push(topK);
+        return this.db.prepare(sql).all(...params) as SymbolRow[];
+      }
+      case 'fuzzy': {
+        // Escape FTS5 special characters
+        const escaped = name.replace(/[*"()]/g, '');
+        let sql = `
+          SELECT s.*, fts.rank
+          FROM symbols_fts fts
+          JOIN symbols s ON s.rowid = fts.rowid
+          WHERE symbols_fts MATCH ?
+        `;
+        const params: any[] = [escaped + '*'];
+        if (kind) { sql += ' AND s.kind = ?'; params.push(kind); }
+        if (filePath) { sql += ' AND s.file_path = ?'; params.push(filePath); }
+        sql += ' ORDER BY fts.rank LIMIT ?'; params.push(topK);
+        return this.db.prepare(sql).all(...params) as SymbolRow[];
+      }
+      default:
+        return this.getSymbolsByName(name, kind, filePath, topK, 'exact');
+    }
   }
 
   getSymbolsByFile(filePath: string): SymbolRow[] {
