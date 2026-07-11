@@ -36,6 +36,8 @@
     "pretest": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:perf": "vitest bench --run",
+    "test:perf:ci": "vitest bench --run",
     "lint": "eslint src/ tests/",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts'",
     "typecheck": "tsc --noEmit",
