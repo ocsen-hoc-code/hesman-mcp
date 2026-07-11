@@ -183,6 +183,10 @@ export class SqliteStore {
     insertMany(symbols);
   }
 
+  getSymbolById(id: string): SymbolRow | undefined {
+    return this.db.prepare('SELECT * FROM symbols WHERE id = ?').get(id) as SymbolRow | undefined;
+  }
+
   getSymbolsByName(
     name: string,
     kind?: string,
