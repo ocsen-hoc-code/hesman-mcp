@@ -1,3 +1,4 @@
+import { compressToolResponse } from '../response-compressor';
 import type { McpServer, ToolHandler } from '../mcp-server';
 import type { SqliteStore } from '../../stores/sqlite';
 import { ErrorCode, formatError } from '../error-codes';
@@ -74,17 +75,18 @@ export function registerGetFileStructureTool(server: McpServer, store: SqliteSto
 
     const language = allSymbols[0]?.language || 'unknown';
 
+    const compressed = compressToolResponse('get_file_structure', {
+      file: filePath,
+      language,
+      symbols,
+      totalSymbols: allSymbols.length,
+      tookMs: 0,
+    }, { store });
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            file: filePath,
-            language,
-            symbols,
-            totalSymbols: allSymbols.length,
-            tookMs: 0,
-          }),
+          text: JSON.stringify(compressed),
         },
       ],
     };

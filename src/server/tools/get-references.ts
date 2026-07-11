@@ -1,3 +1,4 @@
+import { compressToolResponse } from '../response-compressor';
 import type { McpServer, ToolHandler } from '../mcp-server';
 import type { SqliteStore } from '../../stores/sqlite';
 import { compactCode } from '../../parsers/compact-mode';
@@ -40,7 +41,8 @@ export function registerGetReferencesTool(server: McpServer, store: SqliteStore)
       callerName: r.callerName,
     }));
 
-    return { content: [{ type: 'text', text: JSON.stringify({ references, totalCount, hasMore, nextCursor, tookMs: 0 }) }] };
+    const compressed = compressToolResponse('get_references', { references, totalCount, hasMore, nextCursor, tookMs: 0 }, { store });
+    return { content: [{ type: 'text', text: JSON.stringify(compressed) }] };
   };
 
   server.registerTool('get_references', 'Find all usages of a symbol', inputSchema, handler);

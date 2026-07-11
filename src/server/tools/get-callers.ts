@@ -1,3 +1,4 @@
+import { compressToolResponse } from '../response-compressor';
 import type { McpServer, ToolHandler } from '../mcp-server';
 import type { SqliteStore } from '../../stores/sqlite';
 import { ErrorCode, formatError } from '../error-codes';
@@ -26,8 +27,9 @@ export function registerGetCallersTool(server: McpServer, store: SqliteStore): v
     const callers = store.getCallers(symbolId, maxDepth, topK);
     const tookMs = Math.round((performance.now() - start) * 100) / 100;
 
+    const compressed = compressToolResponse('get_callers', { callers, tookMs }, { store });
     return {
-      content: [{ type: 'text', text: JSON.stringify({ callers, tookMs }) }],
+      content: [{ type: 'text', text: JSON.stringify(compressed) }],
     };
   };
 

@@ -1,3 +1,4 @@
+import { compressToolResponse } from '../response-compressor';
 import type { McpServer, ToolHandler } from '../mcp-server';
 import type { ZVecStore } from '../../stores/zvec';
 import type { HesmanConfig } from '../../config/schema';
@@ -89,15 +90,16 @@ export function registerSemanticSearchTool(
         snippet: compactCode(r.snippet),
       }));
 
+    const compressed = compressToolResponse('semantic_search', {
+      results,
+      totalFound: results.length,
+      tookMs: embedTookMs + searchTookMs,
+      embeddingTookMs: embedTookMs,
+    }, {});
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({
-          results,
-          totalFound: results.length,
-          tookMs: embedTookMs + searchTookMs,
-          embeddingTookMs: embedTookMs,
-        }),
+        text: JSON.stringify(compressed),
       }],
     };
   };

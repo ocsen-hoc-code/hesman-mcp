@@ -1,3 +1,4 @@
+import { compressToolResponse } from '../response-compressor';
 import type { McpServer, ToolHandler } from '../mcp-server';
 import type { SqliteStore } from '../../stores/sqlite';
 import { ErrorCode, formatError } from '../error-codes';
@@ -53,11 +54,12 @@ export function registerFindSymbolTool(server: McpServer, store: SqliteStore): v
       language: s.language,
     }));
 
+    const compressed = compressToolResponse('find_symbol', { symbols, tookMs: 0 }, { store });
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({ symbols, tookMs: 0 }),
+          text: JSON.stringify(compressed),
         },
       ],
     };

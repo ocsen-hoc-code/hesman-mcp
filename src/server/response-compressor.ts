@@ -3,7 +3,7 @@ import type { SqliteStore } from '../stores/sqlite';
 
 interface CompressOptions {
   store?: SqliteStore;
-  level?: 1 | 2 | 3;
+  level?: 1 | 2;
 }
 
 // Tools that should not be compressed

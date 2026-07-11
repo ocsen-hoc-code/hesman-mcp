@@ -1,3 +1,4 @@
+import { compressToolResponse } from '../response-compressor';
 import type { McpServer, ToolHandler } from '../mcp-server';
 import type { SqliteStore } from '../../stores/sqlite';
 import { ErrorCode, formatError } from '../error-codes';
@@ -38,15 +39,16 @@ export function registerListDependenciesTool(server: McpServer, store: SqliteSto
     const dependencies = store.getDependencies(filePath, direction as 'imports' | 'imported_by' | 'both');
     const tookMs = Math.round((performance.now() - start) * 100) / 100;
 
+    const compressed = compressToolResponse('list_dependencies', {
+      file: filePath || null,
+      dependencies,
+      tookMs,
+    }, { store });
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            file: filePath || null,
-            dependencies,
-            tookMs,
-          }),
+          text: JSON.stringify(compressed),
         },
       ],
     };

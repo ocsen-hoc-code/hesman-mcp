@@ -1,3 +1,4 @@
+import { compressToolResponse } from '../response-compressor';
 import type { McpServer, ToolHandler } from '../mcp-server';
 import type { HesmanConfig } from '../../config/schema';
 import { ErrorCode, formatError } from '../error-codes';
@@ -152,11 +153,12 @@ export function registerFindPatternTool(server: McpServer, config: HesmanConfig)
       }
     }
 
+    const compressed = compressToolResponse('find_pattern', { matches, totalFound: matches.length, tookMs: 0 }, {});
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({ matches, totalFound: matches.length, tookMs: 0 }),
+          text: JSON.stringify(compressed),
         },
       ],
     };
