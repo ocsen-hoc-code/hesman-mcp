@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { rmSync, existsSync, mkdirSync, writeFileSync, copyFileSync, readFileSync } from 'node:fs';
+import { rmSync, existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { indexProject } from '../../src/indexing/index-coordinator';
 import { SqliteStore } from '../../src/stores/sqlite';
 import { WorkerPool } from '../../src/indexing/worker-pool';
@@ -66,14 +66,14 @@ describe('incremental indexing', () => {
     const tempFile = resolve(FIXTURE_DIR, 'temp-test.ts');
     writeFileSync(tempFile, 'export const tempVar = 42;');
 
-    const result1 = await indexProject(FIXTURE_DIR, store, { ...defaultConfig, watchMode: false }, undefined, pool);
-    const beforeSymbols = store.getStats().totalSymbols;
+    const _result1 = await indexProject(FIXTURE_DIR, store, { ...defaultConfig, watchMode: false }, undefined, pool);
+    const _beforeSymbols = store.getStats().totalSymbols;
 
     // Delete the temp file
     rmSync(tempFile);
 
     // Re-index — deleted file should be handled by project scanner (which won't find it)
-    const result2 = await indexProject(FIXTURE_DIR, store, { ...defaultConfig, watchMode: false }, undefined, pool);
+    const _result2 = await indexProject(FIXTURE_DIR, store, { ...defaultConfig, watchMode: false }, undefined, pool);
 
     // The symbols for deleted files are not auto-cleaned by the scanner
     // (this is expected — the re-index path only handles changed files,

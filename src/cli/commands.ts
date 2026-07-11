@@ -60,11 +60,14 @@ Usage:
   hesman                    Run the MCP server (stdio transport)
   hesman index [path]       Index a project (default: current directory)
   hesman status [path]      Show indexing status
-  hesman install --agent    Install MCP config for an agent (claude, cursor, vscode)
-  hesman clean [path]       Clean project data directory (.hesman)
-  hesman diag [path]        Show runtime diagnostics
-  hesman --version          Print version
-  hesman --help             Show this help
+  hesman clean [path]       Delete .hesman/ data directory
+  hesman clean --force      Skip confirmation prompt
+  hesman clean --dry-run    Preview what would be deleted
+  hesman diag [path]        Print diagnostics to terminal
+  hesman diag --json        JSON format output
+  hesman install --agent <claude|cursor|vscode> [--global]
+  hesman --version, -v      Print version
+  hesman --help, -h         Show this help
 `);
 }
 

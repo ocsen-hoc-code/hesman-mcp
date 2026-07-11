@@ -1,7 +1,7 @@
 import { watch, type FSWatcher } from 'chokidar';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { resolve, extname } from 'node:path';
+import { extname } from 'node:path';
 import type { WorkerPool } from './worker-pool';
 import type { SqliteStore } from '../stores/sqlite';
 import type { ZVecStore } from '../stores/zvec';
@@ -121,7 +121,7 @@ export class FileWatcher {
               language: c.symbol.language,
             }));
             this.config.zvecStore.upsertDocs(searchDocs, embeddings);
-          } catch (embErr) {
+          } catch {
             log.warn({ file: filePath }, 'Failed to update vector index');
           }
         }

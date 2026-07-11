@@ -3,7 +3,7 @@ import { FileWatcher } from '../../../src/indexing/file-watcher';
 import { WorkerPool } from '../../../src/indexing/worker-pool';
 import { SqliteStore } from '../../../src/stores/sqlite';
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const TEST_DIR = join(tmpdir(), 'hesman-fw-test');

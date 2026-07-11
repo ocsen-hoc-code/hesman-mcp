@@ -75,7 +75,6 @@ export async function indexProject(
 
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
-        const file = validFiles[i];
 
         try {
           if (result.error) {
