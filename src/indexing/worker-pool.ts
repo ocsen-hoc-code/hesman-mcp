@@ -3,8 +3,11 @@ import { cpus } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
+import { createLogger } from '../utils/logger';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+const log = createLogger('worker-pool');
 
 export interface WorkerTask {
   filePath: string;
@@ -52,6 +55,8 @@ export class WorkerPool {
   private busyWorkers: Set<number> = new Set();
   private workerTasks: Map<number, PendingTask> = new Map();
   private paused = false;
+  private shuttingDown = false;
+  private workerPath: string;
 
   constructor(size: number) {
     const workerCount = size === 0 ? Math.max(1, cpus().length - 1) : Math.max(1, size);
@@ -68,6 +73,7 @@ export class WorkerPool {
         `worker.js not found at ${primaryPath} or ${fallbackPath}. Ensure the project is built (npx tsc).`,
       );
     }
+    this.workerPath = workerPath;
 
     for (let i = 0; i < workerCount; i++) {
       const worker = new Worker(workerPath);
@@ -97,6 +103,16 @@ export class WorkerPool {
       }
       this.busyWorkers.delete(index);
       this.flushQueue();
+    });
+
+    worker.on('exit', (code) => {
+      if (code !== 0 && !this.shuttingDown) {
+        log.warn({ index, code }, 'Worker exited unexpectedly, restarting...');
+        this.busyWorkers.delete(index);
+        const newWorker = new Worker(this.workerPath);
+        this.setupWorker(newWorker, index);
+        this.workers[index] = newWorker;
+      }
     });
   }
 
@@ -155,6 +171,7 @@ export class WorkerPool {
   }
 
   async terminate(force: boolean = false): Promise<void> {
+    this.shuttingDown = true;
     if (!force) {
       await this.drain();
     } else {

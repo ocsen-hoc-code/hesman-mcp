@@ -116,6 +116,24 @@ const MIGRATIONS = [
   )`,
 ];
 
+function withRetry<T>(fn: () => T, maxRetries = 3): T {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return fn();
+    } catch (err: any) {
+      if (err?.code === 'SQLITE_BUSY' && i < maxRetries - 1) {
+        const waitMs = Math.pow(10, i + 1);
+        // Sleep without external dependency
+        const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+        Atomics.wait?.(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('SQLITE_BUSY after max retries');
+}
+
 export class SqliteStore {
   private db!: BetterSqlite3.Database;
   private dataDir: string;
@@ -170,17 +188,19 @@ export class SqliteStore {
   }
 
   upsertSymbols(symbols: SymbolRow[]): void {
-    if (symbols.length === 0) return;
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO symbols
-        (id, name, kind, file_path, start_line, end_line, start_col, end_col, signature, doc_comment, parent_id, language, is_exported, updated_at)
-      VALUES
-        (@id, @name, @kind, @file_path, @start_line, @end_line, @start_col, @end_col, @signature, @doc_comment, @parent_id, @language, @is_exported, @updated_at)
-    `);
-    const insertMany = this.db.transaction((rows: SymbolRow[]) => {
-      for (const row of rows) stmt.run(row);
+    withRetry(() => {
+      if (symbols.length === 0) return;
+      const stmt = this.db.prepare(`
+        INSERT OR REPLACE INTO symbols
+          (id, name, kind, file_path, start_line, end_line, start_col, end_col, signature, doc_comment, parent_id, language, is_exported, updated_at)
+        VALUES
+          (@id, @name, @kind, @file_path, @start_line, @end_line, @start_col, @end_col, @signature, @doc_comment, @parent_id, @language, @is_exported, @updated_at)
+      `);
+      const insertMany = this.db.transaction((rows: SymbolRow[]) => {
+        for (const row of rows) stmt.run(row);
+      });
+      insertMany(symbols);
     });
-    insertMany(symbols);
   }
 
   getSymbolById(id: string): SymbolRow | undefined {
@@ -239,8 +259,9 @@ export class SqliteStore {
   }
 
   clearSymbols(filePath: string): void {
-    const stmt = this.db.prepare('DELETE FROM symbols WHERE file_path = ?');
-    stmt.run(filePath);
+    withRetry(() => {
+      this.db.prepare('DELETE FROM symbols WHERE file_path = ?').run(filePath);
+    });
   }
 
   getStats(): { totalFiles: number; totalSymbols: number; lastIndexTime: number | null } {
@@ -255,8 +276,9 @@ export class SqliteStore {
   }
 
   upsertFileHash(filePath: string, sha256: string): void {
-    const stmt = this.db.prepare('INSERT OR REPLACE INTO file_hashes (file_path, sha256, parsed_at) VALUES (?, ?, ?)');
-    stmt.run(filePath, sha256, Date.now());
+    withRetry(() => {
+      this.db.prepare('INSERT OR REPLACE INTO file_hashes (file_path, sha256, parsed_at) VALUES (?, ?, ?)').run(filePath, sha256, Date.now());
+    });
   }
 
   getFileHash(filePath: string): string | null {
@@ -266,18 +288,22 @@ export class SqliteStore {
   }
 
   upsertRelations(relations: RelationRow[]): void {
-    if (relations.length === 0) return;
-    const stmt = this.db.prepare(
-      'INSERT OR REPLACE INTO relations (from_id, to_id, kind, file_path, line, col) VALUES (@from_id, @to_id, @kind, @file_path, @line, @col)',
-    );
-    const insertMany = this.db.transaction((rows: RelationRow[]) => {
-      for (const row of rows) stmt.run(row);
+    withRetry(() => {
+      if (relations.length === 0) return;
+      const stmt = this.db.prepare(
+        'INSERT OR REPLACE INTO relations (from_id, to_id, kind, file_path, line, col) VALUES (@from_id, @to_id, @kind, @file_path, @line, @col)',
+      );
+      const insertMany = this.db.transaction((rows: RelationRow[]) => {
+        for (const row of rows) stmt.run(row);
+      });
+      insertMany(relations);
     });
-    insertMany(relations);
   }
 
   clearRelations(filePath: string): void {
-    this.db.prepare('DELETE FROM relations WHERE file_path = ?').run(filePath);
+    withRetry(() => {
+      this.db.prepare('DELETE FROM relations WHERE file_path = ?').run(filePath);
+    });
   }
 
   getTotalRelations(): number {

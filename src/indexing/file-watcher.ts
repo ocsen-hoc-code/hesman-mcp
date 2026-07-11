@@ -32,6 +32,7 @@ export class FileWatcher {
   private watcher: FSWatcher | null = null;
   private config: FileWatcherConfig;
   private pending: Set<string> = new Set();
+  private changeTimestamps = new Map<string, number>();
 
   constructor(config: FileWatcherConfig) {
     this.config = config;
@@ -65,6 +66,11 @@ export class FileWatcher {
   private async handleChange(filePath: string): Promise<void> {
     const lang = EXT_TO_LANG[extname(filePath)];
     if (!lang) return;
+
+    const now = Date.now();
+    const lastChange = this.changeTimestamps.get(filePath) || 0;
+    if (now - lastChange < 2000) return; // rate limit: 2s per file
+    this.changeTimestamps.set(filePath, now);
 
     if (this.pending.has(filePath)) return;
     this.pending.add(filePath);

@@ -36,6 +36,7 @@ export interface ParseResult {
   symbols: ExtractedSymbol[];
   language: string;
   parseQuality: 'full' | 'partial';
+  errors: Array<{ line: number; message: string }>;
 }
 
 let parserInitialized = false;
@@ -68,11 +69,16 @@ export async function parseFile(
   const hasError = tree.rootNode.hasError;
 
   const symbols = extractSymbols(tree.rootNode, source, filePath, profile);
+  const errors: Array<{ line: number; message: string }> = [];
+  if (hasError) {
+    collectErrorNodes(tree.rootNode, source, errors);
+  }
 
   return {
     symbols,
     language: profile.language,
     parseQuality: hasError ? 'partial' : 'full',
+    errors,
   };
 }
 
@@ -238,6 +244,26 @@ function isNodeExported(node: SyntaxNode): boolean {
     current = current.parent;
   }
   return false;
+}
+
+/**
+ * Collect ERROR nodes from the AST for partial parse reporting.
+ */
+function collectErrorNodes(
+  node: SyntaxNode,
+  source: string,
+  errors: Array<{ line: number; message: string }>,
+): void {
+  if (node.type === 'ERROR') {
+    errors.push({
+      line: node.startPosition.row,
+      message: `Unexpected token at line ${node.startPosition.row}: ${source.slice(node.startIndex, node.endIndex).trim().slice(0, 80)}`,
+    });
+  }
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i);
+    if (child) collectErrorNodes(child, source, errors);
+  }
 }
 
 export function makeSymbolId(
