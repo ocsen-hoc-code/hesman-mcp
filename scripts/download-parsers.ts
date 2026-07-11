@@ -5,6 +5,8 @@ const PARSERS: Record<string, string> = {
     'https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm',
   'tree-sitter-python.wasm':
     'https://github.com/tree-sitter/tree-sitter-python/releases/download/v0.23.6/tree-sitter-python.wasm',
+  'tree-sitter-go.wasm':
+    'https://github.com/tree-sitter/tree-sitter-go/releases/download/v0.23.4/tree-sitter-go.wasm',
 };
 
 const OUT_DIR = new URL('../parsers', import.meta.url).pathname;

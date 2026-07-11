@@ -4,12 +4,14 @@ import { readFileSync } from 'node:fs';
 import type { LanguageProfile } from './language-profile';
 import { tsProfile } from './profiles/typescript.js';
 import { pythonProfile } from './profiles/python.js';
+import { goProfile } from './profiles/go.js';
 import { createLogger } from '../utils/logger.js';
 
 /** Map from language ID to its LanguageProfile. */
 export const PROFILE_BY_LANG: Record<string, LanguageProfile> = {
   typescript: tsProfile,
   python: pythonProfile,
+  go: goProfile,
 };
 
 const log = createLogger('parser');
@@ -220,6 +222,11 @@ function mapNodeTypeToKind(nodeType: string): string {
     function_definition: 'function',
     class_definition: 'class',
     decorated_definition: 'unknown',
+    // Go
+    method_declaration: 'method',
+    type_spec: 'type',
+    const_spec: 'constant',
+    var_spec: 'variable',
   };
   return MAP[nodeType] || 'unknown';
 }

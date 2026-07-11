@@ -18,6 +18,7 @@ const EXTENSION_MAP: Record<string, string> = {
   '.py': 'python',
   '.pyw': 'python',
   '.pyi': 'python',
+  '.go': 'go',
 };
 
 /** Patterns to always skip */
