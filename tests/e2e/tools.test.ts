@@ -69,15 +69,17 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     }
   });
 
-  it('registers 9 tools (all Phase 1 tools)', () => {
+  it('registers 11 tools (all Phase 1 through Phase 5 tools)', () => {
     const names = tools.map((t: { name: string }) => t.name).sort();
     expect(names).toEqual([
       'find_pattern',
       'find_symbol',
       'get_callees',
       'get_callers',
+      'get_context',
       'get_file_structure',
       'get_references',
+      'impact_analysis',
       'index_status',
       'list_dependencies',
       'semantic_search',

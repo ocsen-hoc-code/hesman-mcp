@@ -11,6 +11,8 @@ import { registerIndexStatusTool } from './index-status';
 import { registerSemanticSearchTool } from './semantic-search';
 import { registerListDependenciesTool } from './list-dependencies';
 import { registerFindPatternTool } from './find-pattern';
+import { registerGetContextTool } from './get-context';
+import { registerImpactAnalysisTool } from './impact-analysis';
 
 export function registerAllTools(
   server: McpServer,
@@ -25,6 +27,8 @@ export function registerAllTools(
   registerGetReferencesTool(server, store);
   registerIndexStatusTool(server, store, zvecStore);
   registerListDependenciesTool(server, store);
+  registerGetContextTool(server, store);
+  registerImpactAnalysisTool(server, store);
   if (zvecStore && config) {
     registerSemanticSearchTool(server, zvecStore, config);
   }
