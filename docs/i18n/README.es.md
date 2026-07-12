@@ -7,7 +7,7 @@
 
 🌐 **Leer en:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | **Español** | [Português](./README.pt.md)
 
-**Hesman** es un servidor MCP (Model Context Protocol) de última generación que brinda a los agentes de codificación de IA un conocimiento profundo de tu código fuente — símbolos, grafos de llamadas, dependencias y búsqueda semántica — con un pipeline de compresión de 3 capas que reduce drásticamente el consumo de tokens (hasta un 98% en los mejores escenarios). Todo se ejecuta localmente. Sin APIs externas. Sin servidores LSP.
+**Hesman** es un servidor MCP (Model Context Protocol) de última generación que brinda a los agentes de codificación de IA un conocimiento profundo de tu código fuente — símbolos, grafos de llamadas, dependencias y búsqueda semántica — con un pipeline de compresión de 3 capas que reduce drásticamente el consumo de tokens (hasta un 97% en los mejores escenarios). Todo se ejecuta localmente. Sin APIs externas. Sin servidores LSP.
 
 ---
 
@@ -85,11 +85,11 @@ El pipeline de compresion de 3 capas de Hesman reduce el uso de tokens en cada r
 
 | Capa | Tecnica | Ahorro Tipico | Mejor Caso |
 |---|---|---|---|
-| **Modo compacto** | Elimina comentarios, lineas en blanco, espacios al final; elimina imports no utilizados | 20–35% | ~50% (codigo muy comentado) |
+| **Modo compacto** | Elimina comentarios, lineas en blanco, espacios al final; elimina imports no utilizados | 10–30% | ~35% (codigo muy comentado) |
 | **Poda de contexto** | Conserva solo las lineas relevantes para el simbolo consultado; reemplaza el codigo omitido con marcadores de conteo | 50–80% (sobre el modo compacto) | ~95% (archivos grandes con area de enfoque pequena) |
-| **Resumen inteligente** | Reemplaza arreglos de resultados grandes con bloques `_summary` agregados; comprime cadenas de llamadas en estadisticas agrupadas | 70–90% (en herramientas de listado) | ~98% (200+ referencias → resumen) |
+| **Resumen inteligente** | Reemplaza arreglos de resultados grandes con bloques `_summary` agregados; comprime cadenas de llamadas en estadisticas agrupadas | 70–90% (en herramientas de listado) | ~90% (500+ referencias → resumen) |
 
-**Mejor caso combinado:** Un archivo de 500 lineas consultado via `get_context` para una sola funcion → podado a ~10 lineas relevantes + modo compacto → **hasta un 98% de reduccion**. Este es el escenario ideal; el uso tipico en todas las herramientas promedia una reduccion del 40–70%.
+**Mejor caso combinado:** Un archivo de 430 lineas consultado via `get_context` para una sola funcion → podado a ~6 lineas relevantes + modo compacto → **hasta un 97% de reduccion**. Este es el escenario ideal; el uso tipico en todas las herramientas promedia una reduccion del 20–70%.
 
 ### Listo para Produccion
 
@@ -208,10 +208,10 @@ Cada respuesta de Hesman incluye un bloque `_meta` con los ahorros reales de tok
 ```json
 {
   "_meta": {
-    "originalTokens": 1250,
-    "compressedTokens": 85,
-    "reduction": "93.2%",
-    "layers": ["compact"]
+    "originalTokens": 2007,
+    "compressedTokens": 58,
+    "reduction": "97.1%",
+    "layers": ["compact", "prune"]
   }
 }
 ```

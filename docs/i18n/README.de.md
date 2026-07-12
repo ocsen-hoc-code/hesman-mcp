@@ -89,7 +89,7 @@ Die 3-stufige Komprimierungspipeline von Hesman reduziert den Tokenverbrauch bei
 | **Context Pruning** | Behalt nur Zeilen, die fur das abgefragte Symbol relevant sind; ersetzt ausgelassenen Code durch Zahlmarkierungen | 50-80 % (zusatzlich zu Compact) | ~95 % (groSSE Dateien mit kleinem Fokusbereich) |
 | **Smart Summarization** | Ersetzt groSSE Ergebnisarrays durch aggregierte `_summary`-Blocke; komprimiert Aufrufketten in gruppierte Statistiken | 70-90 % (bei List-Tools) | ~98 % (200+ Referenzen -> Zusammenfassung) |
 
-**Kombinierter Best-Case:** Eine 500-zeilige Datei, die uber `get_context` fur eine einzelne Funktion abgefragt wird -> auf ~10 relevante Zeilen reduziert + Compact Mode -> **bis zu 98 % Reduktion**. Dies ist das ideale Szenario; die typische Nutzung uber alle Tools hinweg liegt bei durchschnittlich 40-70 % Reduktion.
+**Kombinierter Best-Case:** Eine 430-zeilige Datei, die uber `get_context` fur eine einzelne Funktion abgefragt wird -> auf ~6 relevante Zeilen reduziert + Compact Mode -> **bis zu 97,1 % Reduktion**. Dies ist das ideale Szenario; die typische Nutzung uber alle Tools hinweg liegt bei durchschnittlich 20-70 % Reduktion.
 
 ### Produktionsreif
 
@@ -208,10 +208,10 @@ Jede Hesman-Antwort enthalt einen `_meta`-Block mit den tatsachlichen Tokeneinsp
 ```json
 {
   "_meta": {
-    "originalTokens": 1250,
-    "compressedTokens": 85,
-    "reduction": "93.2%",
-    "layers": ["compact"]
+    "originalTokens": 2007,
+    "compressedTokens": 58,
+    "reduction": "97.1%",
+    "layers": ["compact", "prune"]
   }
 }
 ```

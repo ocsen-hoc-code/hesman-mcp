@@ -7,7 +7,7 @@
 
 🌐 **Đọc bằng:** [English](../../README.md) | **Tiếng Việt** | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
-**Hesman** là một máy chủ MCP (Model Context Protocol) thế hệ mới giúp các tác nhân AI viết mã hiểu sâu về mã nguồn của bạn — biểu tượng (symbol), đồ thị lời gọi (call graph), phụ thuộc (dependency), và tìm kiếm ngữ nghĩa (semantic search) — với một pipeline nén 3 lớp giúp giảm đáng kể lượng token tiêu thụ (lên đến 98% trong trường hợp lý tưởng). Mọi thứ đều chạy trên máy cục bộ. Không cần API bên ngoài. Không cần máy chủ LSP.
+**Hesman** là một máy chủ MCP (Model Context Protocol) thế hệ mới giúp các tác nhân AI viết mã hiểu sâu về mã nguồn của bạn — biểu tượng (symbol), đồ thị lời gọi (call graph), phụ thuộc (dependency), và tìm kiếm ngữ nghĩa (semantic search) — với một pipeline nén 3 lớp giúp giảm đáng kể lượng token tiêu thụ (lên đến 97% trong trường hợp lý tưởng). Mọi thứ đều chạy trên máy cục bộ. Không cần API bên ngoài. Không cần máy chủ LSP.
 
 ---
 
@@ -85,11 +85,11 @@ Pipeline nén 3 lớp của Hesman giảm lượng token sử dụng ở mọi p
 
 | Lớp | Kỹ thuật | Tiết kiệm điển hình | Trường hợp tốt nhất |
 |---|---|---|---|
-| **Chế độ gọn nhẹ** | Loại bỏ chú thích, dòng trống, khoảng trắng cuối dòng; xóa import không dùng | 20–35% | ~50% (mã có nhiều chú thích) |
+| **Chế độ gọn nhẹ** | Loại bỏ chú thích, dòng trống, khoảng trắng cuối dòng; xóa import không dùng | 10–30% | ~35% (mã có nhiều chú thích) |
 | **Cắt tỉa ngữ cảnh** | Chỉ giữ các dòng liên quan đến biểu tượng được truy vấn; thay thế mã bị lược bỏ bằng bộ đếm | 50–80% (cộng dồn lên chế độ gọn nhẹ) | ~95% (tệp lớn với vùng tập trung nhỏ) |
-| **Tóm tắt thông minh** | Thay thế mảng kết quả lớn bằng khối `_summary` tổng hợp; nén chuỗi lời gọi thành thống kê nhóm | 70–90% (trên các công cụ dạng danh sách) | ~98% (200+ tham chiếu → tóm tắt) |
+| **Tóm tắt thông minh** | Thay thế mảng kết quả lớn bằng khối `_summary` tổng hợp; nén chuỗi lời gọi thành thống kê nhóm | 70–90% (trên các công cụ dạng danh sách) | ~90% (500+ tham chiếu → tóm tắt) |
 
-**Kết hợp trường hợp tốt nhất:** Một tệp 500 dòng được truy vấn qua `get_context` cho một hàm duy nhất → được cắt tỉa xuống còn ~10 dòng liên quan + chế độ gọn nhẹ → **lên đến 98% giảm tải**. Đây là kịch bản lý tưởng; mức sử dụng điển hình trên tất cả các công cụ trung bình đạt 40–70% giảm tải.
+**Kết hợp trường hợp tốt nhất:** Một tệp 430 dòng được truy vấn qua `get_context` cho một hàm duy nhất → được cắt tỉa xuống còn ~6 dòng liên quan + chế độ gọn nhẹ → **lên đến 97% giảm tải**. Đây là kịch bản lý tưởng; mức sử dụng điển hình trên tất cả các công cụ trung bình đạt 20–70% giảm tải.
 
 ### Sẵn sàng cho sản xuất
 
@@ -208,10 +208,10 @@ Mọi phản hồi của Hesman đều bao gồm một khối `_meta` với số
 ```json
 {
   "_meta": {
-    "originalTokens": 1250,
-    "compressedTokens": 85,
-    "reduction": "93.2%",
-    "layers": ["compact"]
+    "originalTokens": 2007,
+    "compressedTokens": 58,
+    "reduction": "97.1%",
+    "layers": ["compact", "prune"]
   }
 }
 ```

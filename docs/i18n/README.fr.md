@@ -89,7 +89,7 @@ Le pipeline de compression en 3 couches de Hesman reduit l'utilisation de tokens
 | **Elagage de contexte** | Conserve uniquement les lignes pertinentes pour le symbole interroge ; remplace le code omis par des marqueurs de comptage | 50–80 % (en plus du compact) | ~95 % (grands fichiers avec petite zone d'interet) |
 | **Resume intelligent** | Remplace les grands tableaux de resultats par des blocs `_summary` agreges ; compresse les chaines d'appels en statistiques groupees | 70–90 % (outils de liste) | ~98 % (200+ references → resume) |
 
-**Meilleur cas combine :** Un fichier de 500 lignes interroge via `get_context` pour une seule fonction → elague a ~10 lignes pertinentes + mode compact → **jusqu'a 98 % de reduction**. C'est le scenario ideal ; l'utilisation typique sur tous les outils offre une reduction moyenne de 40–70 %.
+**Meilleur cas combine :** Un fichier de 430 lignes interroge via `get_context` pour une seule fonction → elague a ~6 lignes pertinentes + mode compact → **jusqu'a 98 % de reduction**. C'est le scenario ideal ; l'utilisation typique sur tous les outils offre une reduction moyenne de 40–70 %.
 
 ### Pret pour la production
 
@@ -208,10 +208,10 @@ Chaque reponse de Hesman inclut un bloc `_meta` avec les economies reelles de to
 ```json
 {
   "_meta": {
-    "originalTokens": 1250,
-    "compressedTokens": 85,
-    "reduction": "93.2%",
-    "layers": ["compact"]
+    "originalTokens": 2007,
+    "compressedTokens": 58,
+    "reduction": "97.1%",
+    "layers": ["compact", "prune"]
   }
 }
 ```
