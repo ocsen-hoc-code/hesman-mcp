@@ -46,10 +46,8 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore): v
     let content = lines.slice(fromLine - 1, toLine).join('\n');
 
     // Apply compact mode
-    let compactApplied = false;
     if (mode === 'compact') {
       content = compactCode(content, { level: 1 });
-      compactApplied = true;
     }
 
     // Find symbols in range
