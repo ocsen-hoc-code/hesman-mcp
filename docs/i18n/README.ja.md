@@ -5,7 +5,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🌐 **表示言語:** [English](./README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [**日本語**](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
+🌐 **表示言語:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [**日本語**](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
 **Hesman** は、AIコーディングエージェントにコードベースの深い理解（シンボル、コールグラフ、依存関係、セマンティック検索）を提供する次世代MCP（Model Context Protocol）サーバーです。3層の圧縮パイプラインにより、トークン消費を劇的に削減します（最良のケースで最大98%）。すべてローカルで動作し、外部APIやLSPサーバーは不要です。
 
@@ -528,7 +528,7 @@ npm run test:perf         # パフォーマンスベンチマーク
 
 | ドキュメント | 内容 |
 |---|---|
-| [README.md](./README.md) | プロジェクト概要、セットアップ、設定（このファイル） |
+| [README.md](../../README.md) | プロジェクト概要、セットアップ、設定（このファイル） |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 完全なアーキテクチャ：データフロー、モジュールマップ、ストアスキーマ、ワーカープール設計 |
 | [docs/TOOLS.md](./docs/TOOLS.md) | 全11ツールの完全な入出力スキーマと使用例 |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | 開発環境セットアップ、テストガイド、言語プロファイル作成、PRチェックリスト |

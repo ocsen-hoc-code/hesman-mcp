@@ -5,7 +5,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🌐 **اقرأ هذه الوثيقة بـ:** [English](./README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
+🌐 **اقرأ هذه الوثيقة بـ:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
 **Hesman** هو خادم MCP (بروتوكول سياق النموذج) من الجيل التالي يمنح وكلاء البرمجة الذكية فهماً عميقاً لقاعدة الشيفرة البرمجية الخاصة بك — الرموز، رسوم الاستدعاءات، التبعيات، والبحث الدلالي — مع خط أنابيب ضغط ثلاثي المستويات يقلل بشكل كبير من استهلاك الرموز المميزة (حتى 98% في أفضل السيناريوهات). كل شيء يعمل محلياً. لا واجهات برمجية خارجية. ولا خوادم LSP.
 
@@ -528,7 +528,7 @@ npm run test:perf         # اختبارات الأداء
 
 | الوثيقة | المحتوى |
 |---|---|
-| [README.md](./README.md) | نظرة عامة على المشروع، الإعداد، والتكوين (هذا الملف) |
+| [README.md](../../README.md) | نظرة عامة على المشروع، الإعداد، والتكوين (هذا الملف) |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | الهيكلة الكاملة: تدفق البيانات، خريطة الوحدات، مخططات المخازن، تصميم مجموعة العمال |
 | [docs/TOOLS.md](./docs/TOOLS.md) | مخططات المدخلات/المخرجات الكاملة لجميع الأدوات الـ 11 مع الأمثلة |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | إعداد التطوير، دليل الاختبارات، تأليف ملفات تعريف اللغة، قائمة مراجعة PR |

@@ -5,7 +5,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🌐 **Đọc bằng:** [English](./README.md) | **Tiếng Việt** | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
+🌐 **Đọc bằng:** [English](../../README.md) | **Tiếng Việt** | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
 **Hesman** là một máy chủ MCP (Model Context Protocol) thế hệ mới giúp các tác nhân AI viết mã hiểu sâu về mã nguồn của bạn — biểu tượng (symbol), đồ thị lời gọi (call graph), phụ thuộc (dependency), và tìm kiếm ngữ nghĩa (semantic search) — với một pipeline nén 3 lớp giúp giảm đáng kể lượng token tiêu thụ (lên đến 98% trong trường hợp lý tưởng). Mọi thứ đều chạy trên máy cục bộ. Không cần API bên ngoài. Không cần máy chủ LSP.
 
@@ -528,7 +528,7 @@ Mô hình nhúng (`all-MiniLM-L6-v2`) được tải xuống trong lần sử d�
 
 | Tài liệu | Nội dung |
 |---|---|
-| [README.md](./README.md) | Tổng quan dự án, thiết lập, và cấu hình (tệp này) |
+| [README.md](../../README.md) | Tổng quan dự án, thiết lập, và cấu hình (tệp này) |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Kiến trúc đầy đủ: luồng dữ liệu, sơ đồ mô-đun, lược đồ bộ lưu trữ, thiết kế nhóm worker |
 | [docs/TOOLS.md](./docs/TOOLS.md) | Lược đồ đầu vào/đầu ra hoàn chỉnh cho tất cả 11 công cụ kèm ví dụ |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Thiết lập phát triển, hướng dẫn kiểm thử, viết hồ sơ ngôn ngữ, danh sách kiểm tra PR |

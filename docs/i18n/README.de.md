@@ -5,7 +5,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🌐 **Lesen in:** [English](./README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | **Deutsch** | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
+🌐 **Lesen in:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | **Deutsch** | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
 **Hesman** ist ein MCP-Server (Model Context Protocol) der nächsten Generation, der KI-Codierungsagenten ein tiefes Verständnis Ihrer Codebasis ermoglicht -- Symbole, Aufrufdiagramme, Abhangigkeiten und semantische Suche -- mit einer 3-stufigen Komprimierungspipeline, die den Tokenverbrauch drastisch reduziert (bis zu 98 % in Best-Case-Szenarien). Alles lauft lokal. Keine externen APIs. Keine LSP-Server.
 
@@ -528,7 +528,7 @@ Das Embedding-Modell (`all-MiniLM-L6-v2`) wird bei der ersten Verwendung herunte
 
 | Dokument | Inhalt |
 |---|---|
-| [README.md](./README.md) | Projektubersicht, Einrichtung und Konfiguration (diese Datei) |
+| [README.md](../../README.md) | Projektubersicht, Einrichtung und Konfiguration (diese Datei) |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Vollstandige Architektur: Datenfluss, Modulkarte, Store-Schemas, Worker-Pool-Design |
 | [docs/TOOLS.md](./docs/TOOLS.md) | Vollstandige Ein-/Ausgabeschemata aller 11 Tools mit Beispielen |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Entwicklungseinrichtung, Testanleitung, Erstellung von Sprachprofilen, PR-Checkliste |

@@ -5,7 +5,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🌐 **Lire ce document en :** [English](./README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | **Français** | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
+🌐 **Lire ce document en :** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | **Français** | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
 **Hesman** est un serveur MCP (Model Context Protocol) de nouvelle generation qui offre aux agents IA de codage une comprehension approfondie de votre codebase — symboles, graphes d'appels, dependances et recherche semantique — avec un pipeline de compression en 3 couches qui reduit considerablement la consommation de tokens (jusqu'a 98 % dans les meilleurs cas). Tout s'execute localement. Aucune API externe. Aucun serveur LSP.
 
@@ -528,7 +528,7 @@ Le modele d'embedding (`all-MiniLM-L6-v2`) est telecharge lors de la premiere ut
 
 | Document | Contenu |
 |---|---|
-| [README.md](./README.md) | Apercu du projet, installation et configuration (ce fichier) |
+| [README.md](../../README.md) | Apercu du projet, installation et configuration (ce fichier) |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Architecture complete : flux de donnees, plan des modules, schemas des stocks, conception du pool de workers |
 | [docs/TOOLS.md](./docs/TOOLS.md) | Schemas complets d'entree/sortie pour les 11 outils avec exemples |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Configuration de developpement, guide de test, creation de profils de langage, liste de verification PR |

@@ -5,7 +5,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🌐 **Читать на:** [English](./README.md) | [Tiếng Việt](./README.vi.md) | **Русский** | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
+🌐 **Читать на:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | **Русский** | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
 **Hesman** — это MCP-сервер (Model Context Protocol) нового поколения, который предоставляет AI-агентам глубокое понимание вашей кодовой базы: символы, графы вызовов, зависимости и семантический поиск — с трёхуровневым конвейером сжатия, который радикально сокращает потребление токенов (до 98% в лучшем случае). Всё работает локально. Никаких внешних API. Никаких LSP-серверов.
 
@@ -528,7 +528,7 @@ npm run test:perf         # Бенчмарки производительнос�
 
 | Документ | Содержание |
 |---|---|
-| [README.md](./README.md) | Обзор проекта, установка и конфигурация (этот файл) |
+| [README.md](../../README.md) | Обзор проекта, установка и конфигурация (этот файл) |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Полная архитектура: потоки данных, карта модулей, схемы хранилищ, дизайн пула воркеров |
 | [docs/TOOLS.md](./docs/TOOLS.md) | Полные схемы входных/выходных данных для всех 11 инструментов с примерами |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Настройка окружения, руководство по тестированию, создание языковых профилей, чек-лист PR |

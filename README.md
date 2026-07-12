@@ -5,7 +5,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🌐 **Read this in:** [English](./README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
+🌐 **Read this in:** [English](./README.md) | [Tiếng Việt](./docs/i18n/README.vi.md) | [Русский](./docs/i18n/README.ru.md) | [Deutsch](./docs/i18n/README.de.md) | [Français](./docs/i18n/README.fr.md) | [中文](./docs/i18n/README.zh.md) | [日本語](./docs/i18n/README.ja.md) | [العربية](./docs/i18n/README.ar.md) | [Español](./docs/i18n/README.es.md) | [Português](./docs/i18n/README.pt.md)
 
 **Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — with a 3-layer compression pipeline that dramatically reduces token consumption (up to 98% in best-case scenarios). Everything runs locally. No external APIs. No LSP servers.
 

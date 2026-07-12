@@ -5,7 +5,7 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-🌐 **阅读语言:** [English](./README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
+🌐 **阅读语言:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
 **Hesman** 是一款新一代 MCP（模型上下文协议）服务器，它让 AI 编码代理能够深度理解你的代码库——包括符号、调用图、依赖关系和语义搜索——并通过 3 层压缩管道大幅降低 Token 消耗（最佳场景下可达 98%）。一切在本地运行。无需外部 API。无需 LSP 服务器。
 
@@ -528,7 +528,7 @@ npm run test:perf         # 性能基准测试
 
 | 文档 | 内容 |
 |---|---|
-| [README.md](./README.md) | 项目概述、安装和配置（本文件） |
+| [README.md](../../README.md) | 项目概述、安装和配置（本文件） |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 完整架构：数据流、模块图、存储模式、线程池设计 |
 | [docs/TOOLS.md](./docs/TOOLS.md) | 全部 11 个工具的完整输入/输出模式及示例 |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | 开发环境搭建、测试指南、语言配置编写、PR 检查清单 |
