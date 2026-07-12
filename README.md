@@ -7,7 +7,7 @@
 
 🌐 **Read this in:** [English](./README.md) | [Tiếng Việt](./docs/i18n/README.vi.md) | [Русский](./docs/i18n/README.ru.md) | [Deutsch](./docs/i18n/README.de.md) | [Français](./docs/i18n/README.fr.md) | [中文](./docs/i18n/README.zh.md) | [日本語](./docs/i18n/README.ja.md) | [العربية](./docs/i18n/README.ar.md) | [Español](./docs/i18n/README.es.md) | [Português](./docs/i18n/README.pt.md)
 
-**Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — with a 3-layer compression pipeline that dramatically reduces token consumption (up to 98% in best-case scenarios). Everything runs locally. No external APIs. No LSP servers.
+**Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — with a 3-layer compression pipeline that dramatically reduces token consumption (up to 97% in best-case scenarios). Everything runs locally. No external APIs. No LSP servers.
 
 ---
 
@@ -85,11 +85,11 @@ Hesman's 3-layer compression pipeline reduces token usage at every response. Act
 
 | Layer | Technique | Typical Savings | Best Case |
 |---|---|---|---|
-| **Compact mode** | Strips comments, blank lines, trailing whitespace; removes unused imports | 20–35% | ~50% (heavily commented code) |
-| **Context pruning** | Keeps only lines relevant to the queried symbol; replaces omitted code with count markers | 50–80% (on top of compact) | ~95% (large files with small focus area) |
-| **Smart summarization** | Replaces large result arrays with aggregated `_summary` blocks; compresses call chains into grouped stats | 70–90% (on list tools) | ~98% (200+ references → summary) |
+| **Compact mode** | Strips comments, blank lines, trailing whitespace; removes unused imports | 10–30% | ~35% (heavily commented code) |
+| **Context pruning** | Line-range extraction around focus symbol + compact mode combined; replaces omitted code with count markers | 30–95% (file-size dependent) | ~97% (430-line file → 6 lines) |
+| **Smart summarization** | Replaces large result arrays with aggregated `_summary` blocks; compresses call chains into grouped stats | 15–85% (on 200+ item lists) | ~90% (500+ references → summary) |
 
-**Combined best case:** A 500-line file queried via `get_context` for a single function → pruned to ~10 relevant lines + compact mode → **up to 98% reduction**. This is the ideal scenario; typical usage across all tools averages 40–70% reduction.
+**Combined best case:** A 430-line file queried via `get_context` for a single function → pruned to ~6 relevant lines + compact mode → **97.1% reduction** (verified by test suite). Typical usage across all tools averages **20–70%** reduction, varying by file size and tool. The `_meta.reduction` field in every response reports exact savings for your workload.
 
 ### Production Ready
 
@@ -208,15 +208,15 @@ Every Hesman response includes a `_meta` block with actual token savings:
 ```json
 {
   "_meta": {
-    "originalTokens": 1250,
-    "compressedTokens": 85,
-    "reduction": "93.2%",
-    "layers": ["compact"]
+    "originalTokens": 2007,
+    "compressedTokens": 58,
+    "reduction": "97.1%",
+    "layers": ["compact", "prune"]
   }
 }
 ```
 
-This allows you to audit exactly how much Hesman is saving in your real workloads.
+This example shows the full 3-layer pipeline in action: a 430-line file pruned to 6 lines (the `prune` layer), then compacted (the `compact` layer). The `_meta.reduction` field measures against the original full-file token count, giving you the true end-to-end savings. Audit exactly how much Hesman saves in your real workloads by checking `_meta.reduction` on any tool response.
 
 ---
 
