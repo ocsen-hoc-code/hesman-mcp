@@ -11,7 +11,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/do-minh/hesman-mcp.git
+git clone https://github.com/ocsen-hoc-code/hesman-mcp.git
 cd hesman-mcp
 
 # Install dependencies
