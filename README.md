@@ -5,7 +5,9 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — while cutting token usage by up to **98%**. Everything runs locally. No external APIs. No LSP servers.
+🌐 **Read this in:** [English](./README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
+
+**Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — with a 3-layer compression pipeline that dramatically reduces token consumption (up to 98% in best-case scenarios). Everything runs locally. No external APIs. No LSP servers.
 
 ---
 
@@ -38,6 +40,7 @@ Hesman solves this by:
 - **Compressing every response** — a 3-layer pipeline strips comments, prunes irrelevant code, and summarizes large result sets.
 - **Replacing raw dumps with summaries** — instead of 200 references in a JSON array, the agent gets a `_summary` block with counts grouped by kind and file.
 - **Running 100% locally** — no API keys, no network calls, no latency from external services. Your code never leaves your machine.
+- **Measurable savings** — every response includes `_meta.reduction` showing exactly how many tokens were saved vs. raw output.
 
 The result: agents work faster, cost less, and reason more accurately because they see the right code, not all the code.
 
@@ -76,15 +79,17 @@ That's it. Once the initial indexing finishes (a few seconds for most projects),
 | **Dependency analysis** | See what a file imports and what imports from it |
 | **Context windows** | Get focused, compacted code around any location in a file |
 
-### Token Reduction (up to 98%)
+### Token Reduction Pipeline
 
-| Layer | Technique | Typical Savings |
-|---|---|---|
-| **Compact mode** | Strips comments, blank lines, trailing whitespace; removes unused imports | 40–60% |
-| **Context pruning** | Keeps only lines relevant to the queried symbol, replaces omitted code with markers | 50–80% (on top of compact) |
-| **Smart summarization** | Replaces large result arrays with aggregated `_summary` blocks; compresses call chains | 70–90% (on list tools) |
+Hesman's 3-layer compression pipeline reduces token usage at every response. Actual savings are measured and reported via `_meta.reduction` in each response.
 
-Every response includes `_meta` showing exactly how many tokens were saved.
+| Layer | Technique | Typical Savings | Best Case |
+|---|---|---|---|
+| **Compact mode** | Strips comments, blank lines, trailing whitespace; removes unused imports | 20–35% | ~50% (heavily commented code) |
+| **Context pruning** | Keeps only lines relevant to the queried symbol; replaces omitted code with count markers | 50–80% (on top of compact) | ~95% (large files with small focus area) |
+| **Smart summarization** | Replaces large result arrays with aggregated `_summary` blocks; compresses call chains into grouped stats | 70–90% (on list tools) | ~98% (200+ references → summary) |
+
+**Combined best case:** A 500-line file queried via `get_context` for a single function → pruned to ~10 relevant lines + compact mode → **up to 98% reduction**. This is the ideal scenario; typical usage across all tools averages 40–70% reduction.
 
 ### Production Ready
 
@@ -101,6 +106,8 @@ Every response includes `_meta` showing exactly how many tokens were saved.
 ## How Token Reduction Works
 
 ### Layer 1: Compact Mode
+
+Strips comments, blank lines, and trailing whitespace while preserving magic comments (`// @ts-ignore`, `// eslint-disable-*`). Level 2 adds AST-aware JSDoc handling and unused import removal.
 
 Before:
 ```typescript
@@ -139,7 +146,7 @@ function calculateTotal(
 }
 ```
 
-After (Level 2 — AST-aware, preserves JSDoc):
+After (Level 2 — AST-aware, preserves JSDoc only):
 ```typescript
 /**
  * Calculates the total price including tax.
@@ -194,6 +201,23 @@ Instead of dumping 200 references in a JSON array:
 
 The agent can then request details for specific files or kinds — paginated via `cursor`.
 
+### Measuring Savings
+
+Every Hesman response includes a `_meta` block with actual token savings:
+
+```json
+{
+  "_meta": {
+    "originalTokens": 1250,
+    "compressedTokens": 85,
+    "reduction": "93.2%",
+    "layers": ["compact"]
+  }
+}
+```
+
+This allows you to audit exactly how much Hesman is saving in your real workloads.
+
 ---
 
 ## Installation & Setup
@@ -212,7 +236,7 @@ npm install -g hesman-mcp
 ### Install from Source
 
 ```bash
-git clone https://github.com/do-minh/hesman-mcp.git
+git clone https://github.com/ocsen-hoc-code/hesman-mcp.git
 cd hesman-mcp
 npm install
 npm run download:parsers   # Download Tree-sitter WASM parsers
@@ -223,7 +247,7 @@ npm link                   # Make `hesman` available globally
 ### Register with AI Agents
 
 ```bash
-# Claude Desktop (auto-detects config path)
+# Claude Desktop (auto-detects config path per platform)
 hesman install --agent claude
 
 # Cursor
@@ -440,7 +464,7 @@ For the full architecture document including module dependencies, store schemas,
 
 ```bash
 # Clone and install
-git clone https://github.com/do-minh/hesman-mcp.git
+git clone https://github.com/ocsen-hoc-code/hesman-mcp.git
 cd hesman-mcp
 npm install
 
