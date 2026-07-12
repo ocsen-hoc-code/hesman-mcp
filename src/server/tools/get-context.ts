@@ -3,7 +3,7 @@ import { extname } from 'node:path';
 import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
 import { compactCode } from '../../parsers/compact-mode.js';
-import { compressToolResponse } from '../response-compressor.js';
+import { compressToolResponse, estimateTokens } from '../response-compressor.js';
 import { ErrorCode, formatError } from '../error-codes.js';
 
 const inputSchema = {
@@ -35,6 +35,9 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore): v
     const lines = source.split('\n');
     const totalLines = lines.length;
 
+    // Capture full-file token count as pipeline baseline (before pruning)
+    const fullFileTokens = estimateTokens(source);
+
     // Calculate range with context
     const fromLine = Math.max(1, startLine - contextLines);
     const toLine = Math.min(totalLines, (endLine || startLine) + contextLines);
@@ -43,8 +46,10 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore): v
     let content = lines.slice(fromLine - 1, toLine).join('\n');
 
     // Apply compact mode
+    let compactApplied = false;
     if (mode === 'compact') {
       content = compactCode(content, { level: 1 });
+      compactApplied = true;
     }
 
     // Find symbols in range
@@ -83,7 +88,7 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore): v
       totalLines,
       symbolsInRange,
     };
-    const compressed = compressToolResponse('get_context', result, { store });
+    const compressed = compressToolResponse('get_context', result, { store, originalTokens: fullFileTokens });
     return {
       content: [{ type: 'text', text: JSON.stringify(compressed) }],
     };

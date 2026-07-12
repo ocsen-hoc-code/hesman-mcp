@@ -4,6 +4,10 @@ import type { SqliteStore } from '../stores/sqlite.js';
 interface CompressOptions {
   store?: SqliteStore;
   level?: 1 | 2;
+  /** Pre-pipeline token count (before pruning/line-range extraction).
+   *  When set, _meta.reduction compares against this baseline
+   *  instead of the input data size, reflecting the full pipeline. */
+  originalTokens?: number;
 }
 
 // Tools that should not be compressed
@@ -92,21 +96,29 @@ export function compressToolResponse(
   }
 
   // Always add _meta
-  const originalTokens = estimateTokens(JSON.stringify(data));
+  const pipelineBaseline = options?.originalTokens ?? estimateTokens(JSON.stringify(data));
   const compressedTokens = estimateTokens(JSON.stringify(result));
+  const reduction = pipelineBaseline > 0
+    ? `${((1 - compressedTokens / pipelineBaseline) * 100).toFixed(1)}%`
+    : '0%';
+
+  // Determine which layers were active
+  const layers: string[] = [];
+  if (CODE_TOOLS.has(toolName)) layers.push('compact');
+  if (LIST_TOOLS.has(toolName) || CHAIN_TOOLS.has(toolName)) layers.push('summary');
+  if (options?.originalTokens !== undefined) layers.push('prune');
+
   (result as any)._meta = {
-    originalTokens,
+    originalTokens: pipelineBaseline,
     compressedTokens,
-    reduction: originalTokens > 0
-      ? `${((1 - compressedTokens / originalTokens) * 100).toFixed(1)}%`
-      : '0%',
-    layers: CODE_TOOLS.has(toolName) ? ['compact'] : [],
+    reduction,
+    layers,
   };
 
   return result;
 }
 
-function estimateTokens(text: string): number {
+export function estimateTokens(text: string): number {
   // Rough estimate: 4 chars ≈ 1 token for code
   return Math.ceil(text.length / 4);
 }
