@@ -27,6 +27,7 @@ M0 is done only when both blocking problems (broken core, security holes) are pr
 7. The server does not exit when stdin closes (found during M0-02). When the agent client dies, Hesman keeps running as an orphan process holding the SQLite and ZVec files. Shut down gracefully on stdin `end`/`close` (same path as SIGTERM) and add an e2e test that closes stdin and expects the process to exit within a few seconds.
 8. Follow-up from M0-06: `find_pattern` still runs `scanProject` (a full directory walk) on the main thread for every call. Move the scan into the worker or reuse the indexed file list from SQLite.
 10. Truthful token-reduction claims (found in M0-15): `_summary` never reduced size, so the per-tool "Token reduction" lines in `docs/TOOLS.md` (40–90% for list tools) and the README average ("20–70%") were never true for list tools. Rewrite them to match measured behavior (`_meta.compressed` / `_meta.reduction`), in the README and the `docs/i18n` READMEs' numbers.
+11. Edge case from M0-14: if a pre-M0-14 index is first reopened by a run without ZVec (CLI `index`, or `--no-semantic`), the schema version is marked current while old ZVec documents stay on disk, and a later semantic run never clears them. Store the ZVec schema version separately (or only mark the version current once both stores are cleared).
 9. Follow-up from M0-05: `find_symbol` still declares its own inline kind enum; import `SYMBOL_KINDS` from `src/parsers/symbol-kinds.ts` so both tools accept the same kinds (including `constant`).
 
 ## Out of scope
