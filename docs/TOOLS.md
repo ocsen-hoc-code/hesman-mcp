@@ -1,6 +1,6 @@
 # Tools Reference
 
-Hesman exposes 11 MCP tools over stdio transport. All responses include a `_meta` block with token reduction statistics.
+Hesman exposes 11 MCP tools over stdio transport. Every tool response except `index_status` includes a `_meta` block with token reduction statistics.
 
 **Line numbers:** every line number Hesman accepts or returns (`startLine`, `endLine`, `line`, parse-error lines) is **1-based and inclusive**. The first line of a file is line 1. A symbol's `startLine` can be passed straight to `get_context`, and it matches the `line` that `find_pattern` reports for the same declaration. Indexes built before this convention (0-based) are detected by their schema version and rebuilt automatically on the next start.
 
@@ -65,9 +65,9 @@ Get the symbol structure of a file — functions, classes, methods, etc.
 get_file_structure({ filePath: "src/index.ts" })
 ```
 
-**Output:** Hierarchical symbol tree with `children` arrays for nested symbols, plus `_summary` with `totalSymbols` and `byKind` breakdown.
+**Output:** Hierarchical symbol tree with `children` arrays for nested symbols.
 
-**Token reduction:** `_summary` block aggregates by kind. Typical compression: 40-60%.
+**Token reduction:** none yet — summaries are not applied, so the plain payload is returned with `_meta.reduction: "0.0%"` (measured). See [Response Structure](#response-structure) and the backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md).
 
 ---
 
@@ -97,12 +97,12 @@ Find all usages of a symbol across the codebase.
 get_references({ symbolId: "a1b2c3d4e5f6g7h8", referenceKind: "calls", topK: 10 })
 ```
 
-**Output:** `references` array with `filePath`, `line`, `col`, `kind`, `callerName`, plus `totalCount`, `hasMore`, `nextCursor` for pagination. Includes `_summary` with `byKind` and `byFile` aggregations.
+**Output:** `references` array with `filePath`, `line`, `col`, `kind`, `callerName`, plus `totalCount`, `hasMore`, `nextCursor` for pagination.
 
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
 
-**Token reduction:** Pagination cursor prevents full-result dumps; `_summary` replaces individual entries. Typical reduction: 60-80%.
+**Token reduction:** `topK` and the pagination cursor bound each page. Summaries are not applied yet, so `_meta.reduction` is `0.0%` (measured). See [Response Structure](#response-structure) and the backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md).
 
 ---
 
@@ -128,12 +128,12 @@ Traverse the call graph upward — find who calls a symbol.
 get_callers({ symbolId: "a1b2c3d4e5f6g7h8", maxDepth: 2 })
 ```
 
-**Output:** `callers` array with `symbolId`, `name`, `kind`, `filePath`, `depth`, and `callSite`. Includes `_summary` with `directCount`, `transitiveCount`, `files`, `paths`, and a human-readable `summary` string.
+**Output:** `callers` array with `symbolId`, `name`, `kind`, `filePath`, `depth`, and `callSite`.
 
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
 
-**Token reduction:** Call chain compression replaces individual entries with depth-grouped paths. Typical reduction: 70-90%.
+**Token reduction:** none yet — call chain summaries are not applied, so the plain payload is returned with `_meta.reduction: "0.0%"` (measured). See [Response Structure](#response-structure) and the backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md).
 
 ---
 
@@ -159,12 +159,12 @@ Traverse the call graph downward — find what a symbol calls.
 get_callees({ symbolId: "a1b2c3d4e5f6g7h8", maxDepth: 2, topK: 100 })
 ```
 
-**Output:** `callees` array (same structure as `get_callers`). Includes `_summary` with direct/transitive counts and file groupings.
+**Output:** `callees` array (same structure as `get_callers`).
 
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
 
-**Token reduction:** Same chain compression as `get_callers`.
+**Token reduction:** none yet (same as `get_callers`).
 
 ---
 
@@ -198,7 +198,7 @@ get_context({ filePath: "src/index.ts", startLine: 42, contextLines: 3, mode: "c
 **Error Codes:**
 - `FILE_NOT_FOUND` — file does not exist
 
-**Token reduction:** Compact mode strips ~50-70% of tokens from full source (comments, blanks, trailing whitespace). Layer 1 (basic): ~50% reduction. Layer 2 (AST-aware): ~60% reduction with JSDoc preservation.
+**Token reduction:** context pruning returns only the requested lines plus `contextLines` around them, and `_meta.reduction` is measured against the whole file: 89.9% with the default ±5 lines and 29.9% with ±40 lines on a 195-line file, 0% when the whole file is requested. Compact mode (level 1: comments, blank lines, trailing whitespace) saved ~14–16% of the response in the same measurements.
 
 ---
 
@@ -233,7 +233,7 @@ semantic_search({ query: "function that validates email addresses", language: "t
 - `INVALID_INPUT` — empty query or disabled in config
 - `INDEX_NOT_READY` — embedding model not loaded
 
-**Token reduction:** Snippets are compacted before return. Typical reduction: 30-50%.
+**Token reduction:** snippets are compacted (comments and blank lines removed) before the response is built, so that saving is not included in `_meta.reduction`.
 
 **Notes:**
 - First run downloads the ~80MB embedding model (cached indefinitely)
@@ -265,7 +265,9 @@ List dependencies for a file or across the project.
 list_dependencies({ filePath: "src/server.ts", direction: "both" })
 ```
 
-**Output:** `file`, `dependencies` array with `target`, `kind` (`local_file` / `package` / `unresolved`), `importedSymbols`, `count`. Includes `_summary` with `totalCount` and `byKind`.
+**Output:** `file`, `dependencies` array with `target`, `kind` (`local_file` / `package` / `unresolved`), `importedSymbols`, `count`.
+
+**Token reduction:** none yet — summaries are not applied, so `_meta.reduction` is `0.0%` (measured). See [Response Structure](#response-structure) and the backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md).
 
 **Error Codes:**
 - `INVALID_INPUT` — invalid direction value
@@ -437,11 +439,11 @@ Every successful response (except `index_status`) includes a `_meta` block:
 ```json
 {
   "_meta": {
-    "originalTokens": 1240,
-    "compressedTokens": 186,
-    "reduction": "85.0%",
-    "compressed": true,
-    "layers": ["compact", "prune"]
+    "originalTokens": 1764,
+    "compressedTokens": 178,
+    "reduction": "89.9%",
+    "compressed": false,
+    "layers": ["prune"]
   }
 }
 ```
@@ -449,22 +451,7 @@ Every successful response (except `index_status`) includes a `_meta` block:
 - `originalTokens` — the baseline: the plain (uncompressed) payload, or the pre-pruning size (e.g. the whole file for `get_context`) when that is larger.
 - `compressedTokens` — the size of the payload actually returned (excluding `_meta`).
 - `reduction` — `1 - compressedTokens / originalTokens`, never negative.
-- `compressed` — `true` when compaction / `_summary` made the payload smaller and were kept; `false` when they would not have reduced size, in which case the plain payload is returned unchanged (and `reduction` is `0.0%` unless pruning saved tokens).
-- `layers` — the layers that actually contributed: `compact`, `summary`, `prune`.
+- `compressed` — `true` when the response compressor's own compaction made the payload smaller and was kept; `false` otherwise, in which case the plain payload is returned unchanged (and `reduction` is `0.0%` unless pruning saved tokens). `get_context` in compact mode reports `false` because its excerpt is already compacted by the tool.
+- `layers` — the layers that actually contributed: `compact`, `prune` (`summary` is reserved; it never appears today).
 
-Hesman never returns a response larger than its uncompressed form. Tools with list responses may include `_summary`, but only when the result is still smaller than the plain payload:
-
-```json
-{
-  "_summary": {
-    "totalCount": 47,
-    "byKind": { "calls": 32, "imports": 8, "extends": 7 },
-    "byFile": [
-      { "filePath": "src/main.ts", "count": 12 },
-      { "filePath": "src/utils.ts", "count": 8 }
-    ]
-  }
-}
-```
-
-Call chain tools include additional `_summary` fields: `directCount`, `transitiveCount`, `files`, `paths`, and `summary`.
+Hesman never returns a response larger than its uncompressed form. The response compressor builds a `_summary` (counts by kind and file) for list and call-graph tools, but it only adds to the full list, so it never makes a response smaller and is always dropped: `get_references`, `get_callers`, `get_callees`, `list_dependencies` and `get_file_structure` return their plain payload with `reduction: "0.0%"` and `compressed: false`. Replacing long lists with a summary plus the top entries is a backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md). `impact_analysis` builds its own `_summary` (`totalFiles`, `mustFix`, `shouldReview`, `info`, `estimatedChanges`) as part of its payload.

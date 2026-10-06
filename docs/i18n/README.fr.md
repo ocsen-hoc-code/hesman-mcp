@@ -7,7 +7,7 @@
 
 🌐 **Lire ce document en :** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | **Français** | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
-**Hesman** est un serveur MCP (Model Context Protocol) de nouvelle generation qui offre aux agents IA de codage une comprehension approfondie de votre codebase — symboles, graphes d'appels, dependances et recherche semantique — avec un pipeline de compression en 3 couches qui reduit considerablement la consommation de tokens (jusqu'a 98 % dans les meilleurs cas). Tout s'execute localement. Aucune API externe. Aucun serveur LSP.
+**Hesman** est un serveur MCP (Model Context Protocol) de nouvelle generation qui offre aux agents IA de codage une comprehension approfondie de votre codebase — symboles, graphes d'appels, dependances et recherche semantique — avec un pipeline de compression en 3 couches qui reduit considerablement la consommation de tokens (jusqu'a 90 % dans les meilleurs cas). Tout s'execute localement. Aucune API externe. Aucun serveur LSP.
 
 ---
 
@@ -38,7 +38,6 @@ Hesman resout ce probleme en :
 
 - **Servant uniquement ce dont l'agent a besoin** — une fonction ciblee, ses appelants, ses appelés, ou les symboles impactes par un changement.
 - **Comprimant chaque reponse** — un pipeline en 3 couches supprime les commentaires, elague le code non pertinent et resume les grands ensembles de resultats.
-- **Remplacant les vidages bruts par des resumes** — au lieu de 200 references dans un tableau JSON, l'agent recoit un bloc `_summary` avec des comptes groupes par type et par fichier.
 - **Fonctionnant 100 % en local** — pas de cles API, pas d'appels reseau, pas de latence due a des services externes. Votre code ne quitte jamais votre machine.
 - **Des economies mesurables** — chaque reponse inclut `_meta.reduction` indiquant exactement combien de tokens ont ete economies par rapport a la sortie brute.
 
@@ -85,11 +84,9 @@ Le pipeline de compression en 3 couches de Hesman reduit l'utilisation de tokens
 
 | Couche | Technique | Economies typiques | Meilleur cas |
 |---|---|---|---|
-| **Mode compact** | Supprime commentaires, lignes vides, espaces de fin ; retire les imports inutilises | 20–35 % | ~50 % (code fortement commente) |
-| **Elagage de contexte** | Conserve uniquement les lignes pertinentes pour le symbole interroge ; remplace le code omis par des marqueurs de comptage | 50–80 % (en plus du compact) | ~95 % (grands fichiers avec petite zone d'interet) |
-| **Resume intelligent** | Remplace les grands tableaux de resultats par des blocs `_summary` agreges ; compresse les chaines d'appels en statistiques groupees | 70–90 % (outils de liste) | ~98 % (200+ references → resume) |
-
-**Meilleur cas combine :** Un fichier de 430 lignes interroge via `get_context` pour une seule fonction → elague a ~6 lignes pertinentes + mode compact → **jusqu'a 98 % de reduction**. C'est le scenario ideal ; l'utilisation typique sur tous les outils offre une reduction moyenne de 40–70 %.
+| **Mode compact** | Supprime commentaires, lignes vides, espaces de fin ; retire les imports inutilises | 10–30 % | ~35 % (code fortement commente) |
+| **Elagage de contexte** | Conserve uniquement les lignes pertinentes pour le symbole interroge ; remplace le code omis par des marqueurs de comptage | 30–90 % (en plus du compact) | ~95 % (grands fichiers avec petite zone d'interet) |
+| **Resume intelligent** | Remplace les grands tableaux de resultats par des blocs `_summary` agreges ; compresse les chaines d'appels en statistiques groupees | 0 % (outils de liste) | 0 % |
 
 ### Pret pour la production
 
@@ -208,10 +205,11 @@ Chaque reponse de Hesman inclut un bloc `_meta` avec les economies reelles de to
 ```json
 {
   "_meta": {
-    "originalTokens": 2007,
-    "compressedTokens": 58,
-    "reduction": "97.1%",
-    "layers": ["compact", "prune"]
+    "originalTokens": 1764,
+    "compressedTokens": 178,
+    "reduction": "89.9%",
+    "compressed": false,
+    "layers": ["prune"]
   }
 }
 ```

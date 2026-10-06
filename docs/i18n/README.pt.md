@@ -7,7 +7,7 @@
 
 🌐 **Leia em:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | **Português**
 
-**Hesman** é um servidor MCP (Model Context Protocol) de nova geração que oferece a agentes de IA uma compreensão profunda do seu código-fonte — símbolos, grafos de chamada, dependências e busca semântica — com um pipeline de compressão de 3 camadas que reduz drasticamente o consumo de tokens (até 97% nos melhores cenários). Tudo roda localmente. Sem APIs externas. Sem servidores LSP.
+**Hesman** é um servidor MCP (Model Context Protocol) de nova geração que oferece a agentes de IA uma compreensão profunda do seu código-fonte — símbolos, grafos de chamada, dependências e busca semântica — com um pipeline de compressão de 3 camadas que reduz drasticamente o consumo de tokens (até 90% nos melhores cenários). Tudo roda localmente. Sem APIs externas. Sem servidores LSP.
 
 ---
 
@@ -38,7 +38,6 @@ O Hesman resolve isso:
 
 - **Servindo apenas o que o agente precisa** — uma função específica, seus caller, seus callee, ou os símbolos impactados por uma alteração.
 - **Comprimindo cada resposta** — um pipeline de 3 camadas remove comentários, poda código irrelevante e resume grandes conjuntos de resultados.
-- **Substituindo dumps brutos por resumos** — em vez de 200 referências em um array JSON, o agente recebe um bloco `_summary` com contagens agrupadas por tipo e arquivo.
 - **Funcionando 100% localmente** — sem chaves de API, sem chamadas de rede, sem latência de serviços externos. Seu código nunca sai da sua máquina.
 - **Economia mensurável** — cada resposta inclui `_meta.reduction` mostrando exatamente quantos tokens foram economizados em relação à saída bruta.
 
@@ -86,10 +85,8 @@ O pipeline de compressão de 3 camadas do Hesman reduz o uso de tokens em cada r
 | Camada | Técnica | Economia Típica | Melhor Caso |
 |---|---|---|---|
 | **Modo compacto** | Remove comentários, linhas em branco, espaços à direita; elimina imports não utilizados | 10–30% | ~35% (código densamente comentado) |
-| **Poda de contexto** | Mantém apenas linhas relevantes ao símbolo consultado; substitui código omitido por marcadores de contagem | 50–80% (sobre o modo compacto) | ~95% (arquivos grandes com área focal pequena) |
-| **Sumarização inteligente** | Substitui grandes arrays de resultados por blocos `_summary` agregados; comprime cadeias de chamada em estatísticas agrupadas | 70–90% (em ferramentas de listagem) | ~90% (500+ referências → resumo) |
-
-**Melhor caso combinado:** Um arquivo de 430 linhas consultado via `get_context` para uma única função → reduzido para ~6 linhas relevantes + modo compacto → **até 97% de redução**. Este é o cenário ideal; o uso típico em todas as ferramentas tem média de 20–70% de redução.
+| **Poda de contexto** | Mantém apenas linhas relevantes ao símbolo consultado; substitui código omitido por marcadores de contagem | 30–90% (sobre o modo compacto) | ~95% (arquivos grandes com área focal pequena) |
+| **Sumarização inteligente** | Substitui grandes arrays de resultados por blocos `_summary` agregados; comprime cadeias de chamada em estatísticas agrupadas | 0% (em ferramentas de listagem) | 0% |
 
 ### Pronto para Produção
 
@@ -208,10 +205,11 @@ Cada resposta do Hesman inclui um bloco `_meta` com a economia real de tokens:
 ```json
 {
   "_meta": {
-    "originalTokens": 2007,
-    "compressedTokens": 58,
-    "reduction": "97.1%",
-    "layers": ["compact", "prune"]
+    "originalTokens": 1764,
+    "compressedTokens": 178,
+    "reduction": "89.9%",
+    "compressed": false,
+    "layers": ["prune"]
   }
 }
 ```
