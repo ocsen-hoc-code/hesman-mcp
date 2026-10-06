@@ -52,7 +52,7 @@ export function extractRelations(
     // Skip keywords
     if (['if', 'for', 'while', 'switch', 'catch', 'return', 'throw', 'new', 'typeof', 'instanceof'].includes(calleeName)) continue;
 
-    const line = sourceCode.substring(0, match.index).split('\n').length - 1;
+    const line = sourceCode.substring(0, match.index).split('\n').length; // 1-based
     const col = match.index - sourceCode.lastIndexOf('\n', match.index - 1) - 1;
 
     // Find caller symbol (the function containing this line)
@@ -77,7 +77,7 @@ export function extractRelations(
   const importRegex = /import\s+(?:type\s+)?(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+['"]([^'"]+)['"]/g;
   while ((match = importRegex.exec(sourceCode)) !== null) {
     const modulePath = match[1];
-    const line = sourceCode.substring(0, match.index).split('\n').length - 1;
+    const line = sourceCode.substring(0, match.index).split('\n').length; // 1-based
     const col = match[0].indexOf('from');
 
     // Determine if local file or package
@@ -107,7 +107,7 @@ export function extractRelations(
   while ((match = extendsRegex.exec(sourceCode)) !== null) {
     const className = match[1];
     const parentName = match[2];
-    const line = sourceCode.substring(0, match.index).split('\n').length - 1;
+    const line = sourceCode.substring(0, match.index).split('\n').length; // 1-based
     const classSymbol = findSymbolByName(symbols, className, 'class');
     const parentSymbol = findSymbolByName(symbols, parentName, 'class') || nameMap.get(parentName)?.[0];
     if (classSymbol && parentSymbol) {
@@ -127,7 +127,7 @@ export function extractRelations(
   while ((match = implementsRegex.exec(sourceCode)) !== null) {
     const className = match[1];
     const ifaceName = match[2];
-    const line = sourceCode.substring(0, match.index).split('\n').length - 1;
+    const line = sourceCode.substring(0, match.index).split('\n').length; // 1-based
     const classSymbol = findSymbolByName(symbols, className, 'class');
     const ifaceSymbol = findSymbolByName(symbols, ifaceName, 'interface') || nameMap.get(ifaceName)?.[0];
     if (classSymbol && ifaceSymbol) {
