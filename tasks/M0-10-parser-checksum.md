@@ -1,7 +1,7 @@
 ---
 id: M0-10
 title: Verify checksums of downloaded WASM parsers
-status: todo
+status: done
 priority: P2
 depends_on: []
 updated: 2026-10-06
@@ -29,9 +29,9 @@ The WASM files are already committed to git, so canonical copies exist to derive
 
 ## Acceptance criteria
 
-- [ ] Unit test: correct hash → accepted; wrong hash → rejected and no file written.
-- [ ] Running the script twice in a row: the second run downloads nothing.
-- [ ] The script works when the repo path contains spaces.
+- [x] Unit test: correct hash → accepted; wrong hash → rejected and no file written.
+- [x] Running the script twice in a row: the second run downloads nothing.
+- [x] The script works when the repo path contains spaces.
 
 ## Verification
 
@@ -42,4 +42,5 @@ git status parsers/   # unchanged
 
 ## Progress notes
 
+- 2026-10-06: done. `scripts/download-parsers.ts` now pins `{ name, url, sha256 }` per parser (hashes from the committed `parsers/*.wasm`), resolves `OUT_DIR` with `fileURLToPath`, skips files that already match, verifies downloads before writing (mismatch → error, nothing written, exit 1), and runs `main()` only when executed directly. Exported `sha256` / `verifyChecksum` / `hasValidFile` / `ensureParser` are covered by `tests/unit/scripts/download-parsers.test.ts` (12 tests). Verified manually: two runs in the repo are no-ops; a fresh run from a copy under a path containing spaces downloaded all 3 files with matching hashes, and a tampered pin exited 1 without writing the file.
 - 2026-10-06: task created.
