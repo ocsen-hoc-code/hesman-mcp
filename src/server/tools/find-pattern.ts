@@ -2,6 +2,7 @@ import { compressToolResponse } from '../response-compressor.js';
 import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { HesmanConfig } from '../../config/schema.js';
 import { ErrorCode, formatError } from '../error-codes.js';
+import { intArg, withArgValidation } from '../args.js';
 import { readFileSync } from 'node:fs';
 import { scanProject } from '../../indexing/project-scanner.js';
 import picomatch from 'picomatch';
@@ -16,7 +17,7 @@ const inputSchema = {
     },
     language: { type: 'string', description: 'Language to search in (e.g. "typescript")' },
     filePattern: { type: 'string', description: 'Glob filter to restrict which files to search' },
-    topK: { type: 'number', description: 'Max results (default 20, max 100)' },
+    topK: { type: 'integer', minimum: 1, maximum: 100, description: 'Max results (default 20, max 100)' },
   },
   required: ['pattern', 'language'],
 };
@@ -49,7 +50,7 @@ export function registerFindPatternTool(server: McpServer, config: HesmanConfig)
     const pattern = args.pattern as string;
     const language = args.language as string;
     const filePattern = args.filePattern as string | undefined;
-    const topK = Math.min((args.topK as number) || 20, 100);
+    const topK = intArg(args, 'topK', { default: 20, min: 1, max: 100 });
 
     // --- Validation ---
     if (!pattern || typeof pattern !== 'string') {
@@ -168,6 +169,6 @@ export function registerFindPatternTool(server: McpServer, config: HesmanConfig)
     'find_pattern',
     'Search code by structural pattern with named captures ($NAME for word tokens, $$$ARGS for greedy capture)',
     inputSchema,
-    handler,
+    withArgValidation(handler),
   );
 }
