@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { isDeepStrictEqual } from 'node:util';
+import { writeConfigAtomically } from './config-writer.js';
 
 interface AgentConfig {
   name: string;
@@ -46,12 +48,19 @@ function getAgentConfig(agent: string, projectRoot: string, global: boolean, hom
   }
 }
 
+export interface InstallResult {
+  configPath: string;
+  /** 'installed' when the config was written, 'unchanged' when the hesman entry was already identical. */
+  status: 'installed' | 'unchanged';
+  backupPath: string | undefined;
+}
+
 export function installAgent(
   agent: string,
   projectRoot: string,
   global: boolean = false,
   home: string = homedir(),
-): void {
+): InstallResult {
   const agentConfig = getAgentConfig(agent, projectRoot, global, home);
 
   // Read existing config or start fresh
@@ -73,19 +82,24 @@ export function installAgent(
     config.mcpServers = {};
   }
 
-  // Write hesman entry
-  config.mcpServers['hesman'] = {
+  const entry = {
     command: 'hesman',
     args: [],
     cwd: projectRoot,
   };
 
-  // Ensure parent directory exists
-  const dir = dirname(agentConfig.configPath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+  if (isDeepStrictEqual(config.mcpServers['hesman'], entry)) {
+    console.log(`Hesman already installed in ${agentConfig.configPath}`);
+    return { configPath: agentConfig.configPath, status: 'unchanged', backupPath: undefined };
   }
 
-  writeFileSync(agentConfig.configPath, JSON.stringify(config, null, 2) + '\n');
+  // Write hesman entry
+  config.mcpServers['hesman'] = entry;
+
+  const { backupPath } = writeConfigAtomically(agentConfig.configPath, JSON.stringify(config, null, 2) + '\n');
+  if (backupPath) {
+    console.log(`Backed up previous config to ${backupPath}`);
+  }
   console.log(`Hesman installed to ${agentConfig.configPath}`);
+  return { configPath: agentConfig.configPath, status: 'installed', backupPath };
 }
