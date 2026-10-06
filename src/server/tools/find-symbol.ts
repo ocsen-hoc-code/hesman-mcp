@@ -5,6 +5,7 @@ import { ErrorCode, formatError } from '../error-codes.js';
 import { intArg, withArgValidation } from '../args.js';
 import type { HesmanConfig } from '../../config/schema.js';
 import { normalizeProjectPath } from '../paths.js';
+import { SYMBOL_KINDS } from '../../parsers/symbol-kinds.js';
 
 const inputSchema = {
   type: 'object',
@@ -12,7 +13,7 @@ const inputSchema = {
     name: { type: 'string', description: 'Symbol name to search for' },
     kind: {
       type: 'string',
-      enum: ['function', 'class', 'method', 'variable', 'interface', 'type', 'enum', 'namespace'],
+      enum: [...SYMBOL_KINDS],
       description: 'Filter by symbol kind',
     },
     filePath: { type: 'string', description: 'Limit search to this file path' },

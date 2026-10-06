@@ -1,7 +1,6 @@
 /**
- * Symbol kinds that tools accept as filters. This mirrors the `kind` enum of
- * `find_symbol`, plus `constant` (emitted by the Go profile). `unknown` is
- * deliberately excluded: it is a fallback, not something to filter on.
+ * Symbol kinds that tools accept as filters (`find_symbol`, `semantic_search`).
+ * `unknown` is deliberately excluded: it is a fallback, not something to filter on.
  */
 export const SYMBOL_KINDS = Object.freeze([
   'function',
