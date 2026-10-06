@@ -3,7 +3,7 @@ id: M0-12
 title: M0 gate — full verification and docs update
 status: pending
 priority: P0
-depends_on: [M0-01, M0-02, M0-03, M0-04, M0-05, M0-06, M0-07, M0-08, M0-09, M0-10, M0-11]
+depends_on: [M0-01, M0-02, M0-03, M0-04, M0-05, M0-06, M0-07, M0-08, M0-09, M0-10, M0-11, M0-13, M0-14, M0-15, M0-16]
 updated: 2026-10-06
 ---
 
@@ -36,7 +36,7 @@ M0 is done only when both blocking problems (broken core, security holes) are pr
 
 - [x] `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e` pass locally.
 - [ ] CI is green on all 3 OSes × Node 20/22.
-- [x] The step-2 smoke test passes; results recorded in *Progress notes*.
+- [ ] The step-2 smoke test passes **9/9 with no reported issues** (first run: 8/9, see notes; fixes in M0-13…M0-16); results recorded in *Progress notes*.
 - [x] Every task M0-01…M0-11 has `status: done` in both its file and `STATUS.md`.
 
 ## Verification
