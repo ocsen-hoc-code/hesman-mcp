@@ -47,3 +47,8 @@ npm ci && npm run typecheck && npm run lint && npm test && npm run test:e2e
 ## Progress notes
 
 - 2026-10-06: task created.
+- 2026-10-06: scope items 5–8 done (items 1–4 still open):
+  - Item 5: `tests/unit/cli/install.test.ts` derives the Claude Desktop path per platform (macOS / `%APPDATA%` / `~/.config`), stubs `APPDATA` into the temp home, and covers darwin/win32/linux explicitly. `index-coordinator.test.ts` passed 10/10 in a row; it used a fixed `.hesman-test-coordinator` dir in the cwd (likely cause of the parallel-run failure), now `mkdtemp`. `tookMs > 0` relaxed to `>= 0` (1 ms clock resolution).
+  - Item 6: new `src/cli/args.ts` (`splitArgs`) separates positionals from flags; `index`/`status`/`clean`/`diag` no longer treat a flag as the project path, and `install --agent` no longer takes another flag as its value. Tests: `tests/unit/cli/no-path-args.test.ts`.
+  - Item 7: `src/index.ts` runs the guarded `shutdown()` on stdin `end`/`close` (the SDK's `StdioServerTransport` only fires `onclose` on an explicit `close()`). Test: `tests/e2e/stdin-close.test.ts`.
+  - Item 8: `find_pattern` walks the project inside its worker (`find-pattern-worker.ts`); the main thread no longer calls `scanProject`. Test: `tests/unit/server/find-pattern-scan.test.ts`.
