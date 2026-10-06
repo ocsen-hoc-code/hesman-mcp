@@ -22,6 +22,11 @@ export interface IndexResult {
   tookMs: number;
 }
 
+/** Ids of the symbols currently stored for `filePath` (used to drop their vectors). */
+function symbolIdsOf(store: SqliteStore, filePath: string): string[] {
+  return store.getSymbolsByFile(filePath).map((s) => s.id);
+}
+
 export async function indexProject(
   rootDir: string,
   store: SqliteStore,
@@ -77,7 +82,8 @@ export async function indexProject(
             continue;
           }
 
-          // Clear old data
+          // Clear old data (vectors first: their ids come from the SQLite rows)
+          zvecStore?.deleteByFile(result.filePath, symbolIdsOf(store, result.filePath));
           store.clearSymbols(result.filePath);
           store.clearRelations(result.filePath);
 
@@ -146,6 +152,7 @@ export async function indexProject(
 
         const result = await parseFile(file.filePath, profile);
 
+        zvecStore?.deleteByFile(file.filePath, symbolIdsOf(store, file.filePath));
         store.clearSymbols(file.filePath);
 
         if (result.symbols.length > 0) {

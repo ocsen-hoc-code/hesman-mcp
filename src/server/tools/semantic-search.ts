@@ -5,7 +5,9 @@ import type { HesmanConfig } from '../../config/schema.js';
 import { embedText, isEmbeddingReady } from '../../stores/embedding.js';
 import { compactCode } from '../../parsers/compact-mode.js';
 import { ErrorCode, formatError } from '../error-codes.js';
-import { intArg, numberArg, withArgValidation } from '../args.js';
+import { InvalidArgumentError, intArg, numberArg, withArgValidation } from '../args.js';
+import { LANGUAGE_IDS, isLanguageId } from '../../parsers/languages.js';
+import { SYMBOL_KINDS, isSymbolKind } from '../../parsers/symbol-kinds.js';
 
 const inputSchema = {
   type: 'object',
@@ -13,12 +15,30 @@ const inputSchema = {
     query: { type: 'string', description: 'Natural language query to search for' },
     topK: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10, max 50)' },
     filePattern: { type: 'string', description: 'Glob filter, e.g. "src/**/*.ts"' },
-    language: { type: 'string', description: 'Filter by language: typescript, python, ...' },
-    kind: { type: 'string', description: 'Filter by symbol kind: function, class, method, ...' },
+    language: { type: 'string', enum: [...LANGUAGE_IDS], description: 'Filter by language' },
+    kind: { type: 'string', enum: [...SYMBOL_KINDS], description: 'Filter by symbol kind' },
     minScore: { type: 'number', minimum: 0, maximum: 1, description: 'Minimum score threshold (0-1, default 0.0)' },
   },
   required: ['query'],
 };
+
+/**
+ * Read an optional string argument that must be one of a fixed set of values.
+ * These values end up in a ZVec filter, so anything else is rejected outright.
+ */
+function enumArg(
+  args: Record<string, unknown>,
+  name: string,
+  isValid: (value: string) => boolean,
+  allowed: readonly string[],
+): string | undefined {
+  const raw = args[name];
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== 'string' || !isValid(raw)) {
+    throw new InvalidArgumentError(`${name} must be one of: ${allowed.join(', ')}`);
+  }
+  return raw;
+}
 
 export function registerSemanticSearchTool(
   server: McpServer,
@@ -33,8 +53,8 @@ export function registerSemanticSearchTool(
       max: config.semanticSearch.maxTopK,
     });
     const filePattern = args.filePattern as string | undefined;
-    const language = args.language as string | undefined;
-    const kind = args.kind as string | undefined;
+    const language = enumArg(args, 'language', isLanguageId, LANGUAGE_IDS);
+    const kind = enumArg(args, 'kind', isSymbolKind, SYMBOL_KINDS);
     const minScore = numberArg(args, 'minScore', { default: config.semanticSearch.minScore, min: 0, max: 1 });
 
     // Validate
