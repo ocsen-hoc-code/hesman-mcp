@@ -11,6 +11,7 @@ import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core.js'
 import { extractRelations } from '../parsers/relation-extractor.js';
 import { profileFor } from '../parsers/languages.js';
 import { WorkerPool, WorkerTask } from './worker-pool.js';
+import { resolveCallRelations, type CallResolutionScope } from './call-resolver.js';
 
 const log = createLogger('index-coordinator');
 
@@ -25,6 +26,15 @@ export interface IndexResult {
 /** Ids of the symbols currently stored for `filePath` (used to drop their vectors). */
 function symbolIdsOf(store: SqliteStore, filePath: string): string[] {
   return store.getSymbolsByFile(filePath).map((s) => s.id);
+}
+
+/**
+ * Records a file about to be replaced in the store: its own calls and every
+ * call to one of its current (soon removed) symbol names must be re-resolved.
+ */
+function noteReplacedFile(scope: CallResolutionScope, store: SqliteStore, filePath: string): void {
+  scope.files.push(filePath);
+  for (const s of store.getSymbolsByFile(filePath)) scope.names.push(s.name);
 }
 
 /**
@@ -79,6 +89,7 @@ export async function indexProject(
 
   let filesIndexed = 0;
   let symbolsFound = 0;
+  const callScope: CallResolutionScope = { files: [], names: [] };
 
   // Use worker pool if available and files exist
   if (pool && files.length > 0) {
@@ -113,11 +124,13 @@ export async function indexProject(
           }
 
           // Clear old data (vectors first: their ids come from the SQLite rows)
+          noteReplacedFile(callScope, store, result.filePath);
           zvecStore?.deleteByFile(result.filePath, symbolIdsOf(store, result.filePath));
           store.clearSymbols(result.filePath);
           store.clearRelations(result.filePath);
 
           // Insert symbols
+          for (const s of result.symbols) callScope.names.push(s.name);
           if (result.symbols.length > 0) {
             const now = Date.now();
             const rows = result.symbols.map((s) => ({
@@ -182,9 +195,11 @@ export async function indexProject(
 
         const result = await parseFile(file.filePath, profile);
 
+        noteReplacedFile(callScope, store, file.filePath);
         zvecStore?.deleteByFile(file.filePath, symbolIdsOf(store, file.filePath));
         store.clearSymbols(file.filePath);
 
+        for (const s of result.symbols) callScope.names.push(s.name);
         if (result.symbols.length > 0) {
           const now = Date.now();
           const rows = result.symbols.map((s: ExtractedSymbol) => ({
@@ -231,6 +246,18 @@ export async function indexProject(
         log.error({ file: file.filePath, error: message }, 'Failed to index file');
         errors.push(`${file.filePath}: ${message}`);
       }
+    }
+  }
+
+  // Link calls to their targets now that every changed file is in the store
+  // (callees may live in files indexed later in the batch).
+  if (callScope.files.length > 0) {
+    try {
+      resolveCallRelations(store, callScope);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({ error: message }, 'Failed to resolve call relations');
+      errors.push(`call resolution: ${message}`);
     }
   }
 

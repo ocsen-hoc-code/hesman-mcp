@@ -38,10 +38,8 @@ describe('parsers store 1-based, inclusive line numbers', () => {
     const result = await parseFile(file, typescriptProfile);
     const rels = extractRelations(result.symbols, '', file, typescriptProfile);
     const greet = result.symbols.find((s) => s.name === 'tsGreet');
-    const fmt = result.symbols.find((s) => s.name === 'tsFormatName');
-    const calls = rels.filter((r) => r.kind === 'calls' && r.from_id === greet?.id && r.to_id === fmt?.id);
-    // Filter on both ends: the regex extractor also records declarations as
-    // self-calls (M0-13 fixes that).
+    // Callees are recorded by name and linked to symbols after indexing (M0-13).
+    const calls = rels.filter((r) => r.kind === 'calls' && r.from_id === greet?.id && r.to_name === 'tsFormatName');
     expect(calls).toHaveLength(1);
     const call = calls[0];
     // `tsFormatName(name)` is called on file line 6.

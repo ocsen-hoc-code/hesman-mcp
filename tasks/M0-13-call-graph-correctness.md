@@ -1,7 +1,7 @@
 ---
 id: M0-13
 title: Correct call graph — no self-calls, cross-file calls, innermost caller
-status: todo
+status: done
 priority: P0
 depends_on: [M0-14]
 updated: 2026-10-06
@@ -37,10 +37,10 @@ Symbol ids include the start line (`makeSymbolId(filePath, name, kind, row)`), s
 
 ## Acceptance criteria
 
-- [ ] All failing tests above turn green.
-- [ ] On `polyglot-basic` the relations table contains no self-call at a declaration line.
-- [ ] Incremental re-index of the callee's file keeps cross-file callers.
-- [ ] Re-running the M0-12 smoke test step 5 passes (`get_callers(GoGreet)` returns `main`).
+- [x] All failing tests above turn green.
+- [x] On `polyglot-basic` the relations table contains no self-call at a declaration line.
+- [x] Incremental re-index of the callee's file keeps cross-file callers.
+- [x] Re-running the M0-12 smoke test step 5 passes (`get_callers(GoGreet)` returns `main`) — verified through the MCP e2e harness against `dist/index.js` (`tests/e2e/call-graph.test.ts`), not in a live Claude Code session.
 
 ## Verification
 
@@ -50,4 +50,11 @@ npm test && npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-06: done.
+  - **Extraction** (`relation-extractor.ts`): a call matching the symbol's own name in its declaration (first whole-word occurrence of the name from the symbol's first line) is skipped; recursion in the body is still recorded. Each call belongs to the innermost enclosing function/method (falling back to the innermost symbol of any kind). Calls are stored by callee name: `to_name` plus placeholder `to_id = call:<name>`; calls with no enclosing symbol are still dropped.
+  - **Resolution** (`src/indexing/call-resolver.ts`, post-index pass): candidates are same-named symbols except interface/type/enum/namespace. Tiers, closest first: (1) caller's file, (2) files the caller imports (relative TS/JS specifiers; `./x.js` also maps to `x.ts`), (3) caller's directory (Go package, Python sibling module), (4) whole project. The first tier with any candidate decides: exactly one → linked; more than one → **ambiguous, left unresolved** (no fan-out, no fallback to farther tiers). Unresolved calls keep the `call:<name>` placeholder and never show up in `get_callers`/`get_callees`/`get_references`.
+  - **Incremental**: `indexProject` and the watcher re-resolve only the calls made in the changed files plus every call whose `to_name` is an old or new symbol name of those files, so callers in untouched files are re-linked to the callee's new id (ids embed the start line). Watcher deletes do the same and now also drop the file hash, so re-adding identical content is re-indexed.
+  - **Schema**: `relations.to_name` column (added by `ALTER TABLE` on old databases) + index; `INDEX_SCHEMA_VERSION` 1 → 2 so existing indexes are rebuilt. Tool outputs/schemas unchanged.
+  - **Current behavior of `obj.method()`**: resolved by the bare method name with the same rules, so a method name that is unique project-wide links, and a common one (`get`, `run`) is left unresolved. Python `from x import y` and Go imports are not parsed as imports, so those languages rely on tiers 1, 3 and 4.
+  - Tests: `tests/unit/parsers/call-extraction.test.ts`, `tests/unit/indexing/call-resolver.test.ts`, `tests/unit/stores/sqlite-call-targets.test.ts`, `tests/integration/call-graph-incremental.test.ts`, `tests/e2e/call-graph.test.ts`; `one-based-lines.test.ts` now asserts the real `tsGreet → tsFormatName` call by name.
 - 2026-10-06: task created from the M0-12 smoke test findings.

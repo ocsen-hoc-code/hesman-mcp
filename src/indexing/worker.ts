@@ -34,6 +34,7 @@ interface WorkerResult {
     file_path: string;
     line: number;
     col: number;
+    to_name: string | null;
   }>;
   contentHash: string;
   error?: string;
@@ -77,6 +78,7 @@ parentPort.on('message', async (task: WorkerTask) => {
         file_path: r.file_path,
         line: r.line,
         col: r.col,
+        to_name: r.to_name ?? null,
       }));
     }
 
