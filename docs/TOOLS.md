@@ -386,12 +386,16 @@ Check the indexing status of the project.
     "sqliteOk": true,
     "zvecOk": true,
     "zvecDocCount": 315,
-    "embeddingModelLoaded": true,
-    "kuzuOk": false
+    "embeddingModelLoaded": true
   },
-  "languages": []
+  "languages": [
+    { "language": "typescript", "files": 30, "symbols": 240 },
+    { "language": "go", "files": 12, "symbols": 75 }
+  ]
 }
 ```
+
+`languages` lists every indexed language with the number of files and symbols stored for it in SQLite, most files first. `totalFiles` and the per-language `files` count files that produced at least one symbol. `index_status` is not compressed and carries no `_meta` block.
 
 ---
 
@@ -426,7 +430,7 @@ All error responses follow the format:
 
 ## Response Structure
 
-Every successful response includes a `_meta` block:
+Every successful response (except `index_status`) includes a `_meta` block:
 
 ```json
 {
@@ -434,12 +438,19 @@ Every successful response includes a `_meta` block:
     "originalTokens": 1240,
     "compressedTokens": 186,
     "reduction": "85.0%",
-    "layers": ["compact"]
+    "compressed": true,
+    "layers": ["compact", "prune"]
   }
 }
 ```
 
-Tools with list responses also include `_summary`:
+- `originalTokens` — the baseline: the plain (uncompressed) payload, or the pre-pruning size (e.g. the whole file for `get_context`) when that is larger.
+- `compressedTokens` — the size of the payload actually returned (excluding `_meta`).
+- `reduction` — `1 - compressedTokens / originalTokens`, never negative.
+- `compressed` — `true` when compaction / `_summary` made the payload smaller and were kept; `false` when they would not have reduced size, in which case the plain payload is returned unchanged (and `reduction` is `0.0%` unless pruning saved tokens).
+- `layers` — the layers that actually contributed: `compact`, `summary`, `prune`.
+
+Hesman never returns a response larger than its uncompressed form. Tools with list responses may include `_summary`, but only when the result is still smaller than the plain payload:
 
 ```json
 {

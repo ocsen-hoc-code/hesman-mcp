@@ -1,8 +1,23 @@
+import type { SyntaxNode } from 'web-tree-sitter';
 import type { LanguageProfile, RelationQueries } from '../language-profile.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Python convention: a name is public unless it starts with `_`; dunder names
+ * (`__init__`) are public protocol methods. Functions and classes defined
+ * inside a function body are local and never exported.
+ */
+export function isPythonExported(name: string, node: SyntaxNode): boolean {
+  const isDunder = name.length > 4 && name.startsWith('__') && name.endsWith('__');
+  if (name.startsWith('_') && !isDunder) return false;
+  for (let p = node.parent; p; p = p.parent) {
+    if (p.type === 'function_definition') return false;
+  }
+  return true;
+}
 
 export const pythonProfile: LanguageProfile = {
   language: 'python',
@@ -33,6 +48,8 @@ export const pythonProfile: LanguageProfile = {
         superclasses: (argument_list (identifier) @parent))
     `,
   } as RelationQueries,
+
+  isExported: isPythonExported,
 
   extractSignature(nodeText: string, _sourceText: string): string {
     const lines = nodeText.split('\n');

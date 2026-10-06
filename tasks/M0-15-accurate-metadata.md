@@ -1,7 +1,7 @@
 ---
 id: M0-15
 title: Accurate metadata — Go exports, index_status, token-reduction stats
-status: todo
+status: done
 priority: P1
 depends_on: [M0-12]
 updated: 2026-10-06
@@ -27,9 +27,9 @@ Found by the real-client smoke test (M0-12):
 
 ## Acceptance criteria
 
-- [ ] `find_symbol('GoGreet')` reports `isExported: true`; a lowercase Go function reports `false`.
-- [ ] `index_status` on `polyglot-basic` lists typescript, python and go with file counts; no `kuzuOk`.
-- [ ] For every tool, `_meta.reduction ≥ 0` on the `polyglot-basic` fixture (test covers small responses of `get_callers` and `get_context`).
+- [x] `find_symbol('GoGreet')` reports `isExported: true`; a lowercase Go function reports `false`.
+- [x] `index_status` on `polyglot-basic` lists typescript, python and go with file counts; no `kuzuOk`.
+- [x] For every tool, `_meta.reduction ≥ 0` on the `polyglot-basic` fixture (test covers small responses of `get_callers` and `get_context`).
 
 ## Verification
 
@@ -39,4 +39,5 @@ npm test && npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-06: done. (1) `LanguageProfile.isExported?(name, node)` hook; `core.ts` uses it when present, else the `export_statement` rule. Go: exported iff the name starts with a Unicode uppercase letter (`\p{Lu}`) and is not declared inside a function body. Python was equally wrong (always `false`): now public unless `_`-prefixed (dunders public) and not nested in a function. TypeScript unchanged. (2) `index_status`: `languages` is `[{ language, files, symbols }]` from new read-only `SqliteStore.getLanguageStats()`; `health.kuzuOk` removed; other fields unchanged. (3) `compressToolResponse` keeps compaction/`_summary` only if the result is strictly smaller than the plain payload, otherwise returns the plain payload; baseline = max(plain payload, pre-pruning size), so `reduction` is never negative; `_meta.compressed` added. Since `_summary` is purely additive, it is now effectively never emitted; the two older tests asserting `_summary` on tiny inputs were updated. Tests: `tests/unit/parsers/exports.test.ts`, `tests/unit/server/compressor.test.ts`, `tests/unit/stores/sqlite.test.ts`, `tests/e2e/metadata.test.ts`. `npm test`: 58 files, 395 passed + 1 skipped; `npm run test:e2e`: 10 files, 47 passed.
 - 2026-10-06: task created from the M0-12 smoke test findings.

@@ -274,6 +274,14 @@ export class SqliteStore {
     };
   }
 
+  /** Indexed files and symbols per language, most files first (ties by name). */
+  getLanguageStats(): Array<{ language: string; files: number; symbols: number }> {
+    return this.db.prepare(
+      `SELECT language, COUNT(DISTINCT file_path) AS files, COUNT(*) AS symbols
+       FROM symbols GROUP BY language ORDER BY files DESC, language ASC`,
+    ).all() as Array<{ language: string; files: number; symbols: number }>;
+  }
+
   upsertFileHash(filePath: string, sha256: string): void {
     withRetry(() => {
       this.db.prepare('INSERT OR REPLACE INTO file_hashes (file_path, sha256, parsed_at) VALUES (?, ?, ?)').run(filePath, sha256, Date.now());
