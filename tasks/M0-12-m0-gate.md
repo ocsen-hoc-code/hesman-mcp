@@ -24,6 +24,8 @@ M0 is done only when both blocking problems (broken core, security holes) are pr
 4. Review the backlog in `STATUS.md`; pick and specify the next milestone (M1).
 5. Remove test flakiness found during M0: `tests/e2e/cli.test.ts` uses a fixed shared directory `join(tmpdir(), 'hesman-cli-e2e')`, so concurrent test runs (e.g. parallel worktrees, CI retries) collide — switch to `mkdtemp`. Also re-check `tests/unit/indexing/index-coordinator.test.ts`, which failed once during a parallel run and passed on rerun. The Claude Desktop path tests in `tests/unit/cli/install.test.ts` assume the macOS location; make them platform-aware so they pass on the Linux and Windows CI runners.
 6. Fix CLI argument parsing found during M0-08: `runClean` (and likely `runStatus`/`runDiag`/`runIndex`) treats `args[0]` as the project path even when it is a flag, so `hesman clean --force` without a path resolves the project root to `./--force` and never cleans the current directory. Parse positional arguments separately from flags and add a test for the no-path form.
+7. The server does not exit when stdin closes (found during M0-02). When the agent client dies, Hesman keeps running as an orphan process holding the SQLite and ZVec files. Shut down gracefully on stdin `end`/`close` (same path as SIGTERM) and add an e2e test that closes stdin and expects the process to exit within a few seconds.
+8. Follow-up from M0-06: `find_pattern` still runs `scanProject` (a full directory walk) on the main thread for every call. Move the scan into the worker or reuse the indexed file list from SQLite.
 
 ## Out of scope
 
