@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { chunkSymbols } from '../../../src/parsers/chunker';
+import { chunkSymbols, splitIdentifier } from '../../../src/parsers/chunker';
 import type { ExtractedSymbol } from '../../../src/parsers/core';
 
 describe('chunkSymbols', () => {
@@ -46,7 +46,7 @@ describe('chunkSymbols', () => {
     const sym = makeSym({ signature: null, doc_comment: null });
     const chunks = chunkSymbols([sym], sourceLines);
     expect(chunks).toHaveLength(1);
-    expect(chunks[0].text).toBe(sourceLines.join('\n'));
+    expect(chunks[0].text.endsWith(sourceLines.join('\n'))).toBe(true);
   });
 
   it('handles empty symbols array', () => {
@@ -57,6 +57,28 @@ describe('chunkSymbols', () => {
   it('chunk text includes only the symbol line range', () => {
     const sym = makeSym({ start_line: 1, end_line: 1, signature: null, doc_comment: null });
     const chunks = chunkSymbols([sym], sourceLines);
-    expect(chunks[0].text).toBe('function myFunc(x: number): number {');
+    expect(chunks[0].text.endsWith('\nfunction myFunc(x: number): number {')).toBe(true);
+    expect(chunks[0].text).not.toContain('return x * 2;');
+  });
+
+  it('starts the chunk text with the kind and the name split into words', () => {
+    const sym = makeSym({ name: 'calculateCartTotal', kind: 'function' });
+    const chunks = chunkSymbols([sym], sourceLines);
+    expect(chunks[0].text.split('\n')[0]).toBe('function calculate cart total');
+  });
+});
+
+describe('splitIdentifier', () => {
+  it('splits camelCase, PascalCase, snake_case and acronyms into lowercase words', () => {
+    expect(splitIdentifier('tsFormatName')).toEqual(['ts', 'format', 'name']);
+    expect(splitIdentifier('GoFormatName')).toEqual(['go', 'format', 'name']);
+    expect(splitIdentifier('py_format_name')).toEqual(['py', 'format', 'name']);
+    expect(splitIdentifier('parseHTTPRequest')).toEqual(['parse', 'http', 'request']);
+    expect(splitIdentifier('EMAIL_PATTERN')).toEqual(['email', 'pattern']);
+    expect(splitIdentifier('sha256Hash')).toEqual(['sha256', 'hash']);
+  });
+
+  it('returns an empty list for a name without letters or digits', () => {
+    expect(splitIdentifier('$_')).toEqual([]);
   });
 });
