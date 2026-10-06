@@ -8,6 +8,8 @@ interface CompressOptions {
    *  When set, _meta.reduction compares against this baseline
    *  instead of the input data size, reflecting the full pipeline. */
   originalTokens?: number;
+  /** Compact code content (Layer 1). Default true; `get_context` passes false for `mode: "full"`. */
+  compact?: boolean;
 }
 
 // Tools that should not be compressed
@@ -33,7 +35,7 @@ export function compressToolResponse(
   const level = options?.level ?? 1;
 
   // Layer 1: Compact any code content
-  if (CODE_TOOLS.has(toolName) && typeof result.content === 'string') {
+  if (CODE_TOOLS.has(toolName) && options?.compact !== false && typeof result.content === 'string') {
     result.content = compactCode(result.content, { level });
   }
 

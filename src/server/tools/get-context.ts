@@ -92,7 +92,11 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore, co
       totalLines,
       symbolsInRange,
     };
-    const compressed = compressToolResponse('get_context', result, { store, originalTokens: fullFileTokens });
+    const compressed = compressToolResponse('get_context', result, {
+      store,
+      originalTokens: fullFileTokens,
+      compact: mode === 'compact',
+    });
     return {
       content: [{ type: 'text', text: JSON.stringify(compressed) }],
     };
