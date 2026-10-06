@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { execSync } from 'node:child_process';
-import { rmSync, existsSync, mkdirSync } from 'node:fs';
+import { rmSync, existsSync, mkdirSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const TEST_DIR = join(tmpdir(), 'hesman-cli-e2e');
+// Unique per test so concurrent runs (parallel worktrees, CI retries) never share a directory.
+function makeTestDir(): string {
+  return mkdtempSync(join(tmpdir(), 'hesman-cli-e2e-'));
+}
 
 describe('CLI E2E', () => {
   it('hesman --version prints version', () => {
@@ -33,12 +36,12 @@ describe('CLI E2E', () => {
 
   it('hesman clean --dry-run does not delete', () => {
     // Create temp data dir
+    const TEST_DIR = makeTestDir();
     const dataDir = join(TEST_DIR, '.hesman');
-    if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
     mkdirSync(dataDir, { recursive: true });
 
     try {
-      execSync(`npx tsx src/index.ts clean ${TEST_DIR} --dry-run`, {
+      execSync(`npx tsx src/index.ts clean "${TEST_DIR}" --dry-run`, {
         encoding: 'utf-8',
         cwd: process.cwd(),
       });
@@ -49,12 +52,12 @@ describe('CLI E2E', () => {
   });
 
   it('hesman clean --force deletes .hesman', () => {
+    const TEST_DIR = makeTestDir();
     const dataDir = join(TEST_DIR, '.hesman');
-    if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
     mkdirSync(dataDir, { recursive: true });
 
     try {
-      execSync(`npx tsx src/index.ts clean ${TEST_DIR} --force`, {
+      execSync(`npx tsx src/index.ts clean "${TEST_DIR}" --force`, {
         encoding: 'utf-8',
         cwd: process.cwd(),
       });
