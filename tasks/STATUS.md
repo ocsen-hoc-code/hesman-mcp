@@ -21,7 +21,7 @@ Goal: resolve the two blocking problems — **(1) broken core** and **(2) securi
 | M0-09 | [Validate and clamp numeric tool arguments](M0-09-numeric-args.md) | Security | P2 | — | done |
 | M0-10 | [Verify checksums of downloaded WASM parsers](M0-10-parser-checksum.md) | Security | P2 | — | done |
 | M0-11 | [Write agent config safely (atomic + backup)](M0-11-install-atomic.md) | Security | P2 | — | done |
-| M0-12 | [M0 gate: full verification + docs update](M0-12-m0-gate.md) | Gate | P0 | M0-01…M0-11 | todo |
+| M0-12 | [M0 gate: full verification + docs update](M0-12-m0-gate.md) | Gate | P0 | M0-01…M0-11 | pending |
 
 Recommended order: 01 → 02 → 03 → 04 → (05, 06, 07 in parallel) → (08, 09, 10, 11 any time) → 12.
 

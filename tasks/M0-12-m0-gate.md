@@ -1,7 +1,7 @@
 ---
 id: M0-12
 title: M0 gate — full verification and docs update
-status: todo
+status: pending
 priority: P0
 depends_on: [M0-01, M0-02, M0-03, M0-04, M0-05, M0-06, M0-07, M0-08, M0-09, M0-10, M0-11]
 updated: 2026-10-06
@@ -25,8 +25,8 @@ M0 is done only when both blocking problems (broken core, security holes) are pr
 5. Remove test flakiness found during M0: `tests/e2e/cli.test.ts` uses a fixed shared directory `join(tmpdir(), 'hesman-cli-e2e')`, so concurrent test runs (e.g. parallel worktrees, CI retries) collide — switch to `mkdtemp`. Also re-check `tests/unit/indexing/index-coordinator.test.ts`, which failed once during a parallel run and passed on rerun. The Claude Desktop path tests in `tests/unit/cli/install.test.ts` assume the macOS location; make them platform-aware so they pass on the Linux and Windows CI runners.
 6. Fix CLI argument parsing found during M0-08: `runClean` (and likely `runStatus`/`runDiag`/`runIndex`) treats `args[0]` as the project path even when it is a flag, so `hesman clean --force` without a path resolves the project root to `./--force` and never cleans the current directory. Parse positional arguments separately from flags and add a test for the no-path form.
 7. The server does not exit when stdin closes (found during M0-02). When the agent client dies, Hesman keeps running as an orphan process holding the SQLite and ZVec files. Shut down gracefully on stdin `end`/`close` (same path as SIGTERM) and add an e2e test that closes stdin and expects the process to exit within a few seconds.
-9. Follow-up from M0-05: `find_symbol` still declares its own inline kind enum; import `SYMBOL_KINDS` from `src/parsers/symbol-kinds.ts` so both tools accept the same kinds (including `constant`).
 8. Follow-up from M0-06: `find_pattern` still runs `scanProject` (a full directory walk) on the main thread for every call. Move the scan into the worker or reuse the indexed file list from SQLite.
+9. Follow-up from M0-05: `find_symbol` still declares its own inline kind enum; import `SYMBOL_KINDS` from `src/parsers/symbol-kinds.ts` so both tools accept the same kinds (including `constant`).
 
 ## Out of scope
 
@@ -34,10 +34,10 @@ M0 is done only when both blocking problems (broken core, security holes) are pr
 
 ## Acceptance criteria
 
-- [ ] `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e` pass locally.
+- [x] `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e` pass locally.
 - [ ] CI is green on all 3 OSes × Node 20/22.
 - [ ] The step-2 smoke test passes; results recorded in *Progress notes*.
-- [ ] Every task M0-01…M0-11 has `status: done` in both its file and `STATUS.md`.
+- [x] Every task M0-01…M0-11 has `status: done` in both its file and `STATUS.md`.
 
 ## Verification
 
@@ -47,6 +47,10 @@ npm ci && npm run typecheck && npm run lint && npm test && npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-06: **pending — waiting on the project owner** for the two remaining acceptance criteria:
+  - CI on all 3 OSes needs the branch `rebuild/m0-foundation` pushed (not done without the owner's go-ahead).
+  - The real-client smoke test (step 2) writes into the owner's agent configuration, so it is left to the owner. The same checks already pass through the MCP SDK client in `tests/e2e/languages.test.ts` (Python + Go `find_symbol`) and `tests/e2e/path-containment.test.ts` (`/etc/hosts` refused).
+  - Done: step 1 on a fresh clone (`npm ci`, parsers sha256-verified, typecheck 0 errors, `npm test` 56 files / 380 passed + 1 skipped, `npm run test:e2e` 9 files / 42 passed); step 3 (`CHANGELOG.md` Unreleased, `docs/SECURITY.md`, README registry + security links, `CLAUDE.md`, `PROJECT-CONTEXT.md`); step 4 (M1 and M2 already specified in `tasks/`); items 5–9. The README language table is now accurate (Python/Go really work); `docs/i18n/README.*.md` were not edited — their translations of the symlink note need a translator.
 - 2026-10-06: task created.
 - 2026-10-06: scope items 5–8 done (items 1–4 still open):
   - Item 5: `tests/unit/cli/install.test.ts` derives the Claude Desktop path per platform (macOS / `%APPDATA%` / `~/.config`), stubs `APPDATA` into the temp home, and covers darwin/win32/linux explicitly. `index-coordinator.test.ts` passed 10/10 in a row; it used a fixed `.hesman-test-coordinator` dir in the cwd (likely cause of the parallel-run failure), now `mkdtemp`. `tookMs > 0` relaxed to `>= 0` (1 ms clock resolution).

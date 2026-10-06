@@ -404,7 +404,7 @@ hesman --help, -h              Show help text
 | Python | `.py`, `.pyw`, `.pyi` | Full support |
 | Go | `.go` | Full support |
 
-The architecture supports up to **158 languages** via Tree-sitter. Adding a new language requires implementing a `LanguageProfile` — see the [Contributing Guide](./docs/CONTRIBUTING.md) for step-by-step instructions.
+The architecture supports up to **158 languages** via Tree-sitter. Adding a new language requires a `LanguageProfile` plus one entry in the language registry (`src/parsers/languages.ts`) — see the [Contributing Guide](./docs/CONTRIBUTING.md) for step-by-step instructions.
 
 ---
 
@@ -534,6 +534,7 @@ The embedding model (`all-MiniLM-L6-v2`) is downloaded on first use and cached i
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Full architecture: data flow, module map, store schemas, worker pool design |
 | [docs/TOOLS.md](./docs/TOOLS.md) | Complete input/output schemas for all 11 tools with examples |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Development setup, test guide, language profile authoring, PR checklist |
+| [docs/SECURITY.md](./docs/SECURITY.md) | Threat model, guards on tool input, how to report a vulnerability |
 | [CHANGELOG.md](./CHANGELOG.md) | Version history and changes |
 
 ---
