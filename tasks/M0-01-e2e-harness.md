@@ -1,7 +1,7 @@
 ---
 id: M0-01
 title: Real-server e2e harness + polyglot fixture
-status: todo
+status: done
 priority: P0
 depends_on: []
 updated: 2026-10-06
@@ -37,12 +37,12 @@ Every other M0 task needs this harness to write its failing test first.
 
 ## Acceptance criteria
 
-- [ ] `npm run test:e2e` builds first and runs against `dist/index.js`.
-- [ ] The helper exposes the raw stdout lines to tests.
-- [ ] `polyglot-basic` contains TS, Python and Go sources.
-- [ ] No fixed `setTimeout` in the helper; readiness wait has an explicit timeout.
-- [ ] The temp data dir is removed after tests; nothing is left in `tests/fixtures/`.
-- [ ] Works on macOS, Linux and Windows (use `path`, never string-join `/`).
+- [x] `npm run test:e2e` builds first and runs against `dist/index.js`.
+- [x] The helper exposes the raw stdout lines to tests.
+- [x] `polyglot-basic` contains TS, Python and Go sources.
+- [x] No fixed `setTimeout` in the helper; readiness wait has an explicit timeout.
+- [x] The temp data dir is removed after tests; nothing is left in `tests/fixtures/`.
+- [x] Works on macOS, Linux and Windows (use `path`, never string-join `/`).
 
 ## Verification
 
@@ -53,4 +53,5 @@ git status   # no stray files under tests/fixtures/
 
 ## Progress notes
 
+- 2026-10-06: done. Added `tests/e2e/helpers/server.ts` (custom `RecordingStdioTransport` over `node dist/index.js`, records raw stdout/stderr, filters non-JSON-RPC lines before the MCP `Client`; temp data dir via `mkdtemp`, removed in `stop()`; readiness polls `index_status` with an explicit deadline), fixture `tests/fixtures/polyglot-basic/` (ts/, py/, go/), `tests/e2e/harness.test.ts`, and the `pretest:e2e` script. Deviation: with `--no-semantic` the server registers only 10 tools (`semantic_search` needs the vector store), so the baseline asserts 10 tools in the default mode and all 11 in a second block started with `semantic: true`. The only `setTimeout` uses are the poll interval inside the deadline-bounded readiness loop and the SIGKILL fallback in `close()`; there is no fixed startup sleep. Probe: today the server writes ~15 pino lines to stdout, all captured in `nonProtocolStdoutLines` (input for M0-02). Verified: typecheck clean, lint 0 errors / 36 warnings, `npm test` 37 files / 226 tests, `npm run test:e2e` 4 files / 27 tests (`cli.test.ts` "clean --dry-run" failed once under load and passed on rerun; that flakiness is pre-existing).
 - 2026-10-06: task created.
