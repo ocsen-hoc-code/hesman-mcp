@@ -13,6 +13,7 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { createLogger } from '../utils/logger.js';
 import { isLanguageId } from '../parsers/languages.js';
 import { isSymbolKind } from '../parsers/symbol-kinds.js';
+import { splitIdentifier } from '../parsers/chunker.js';
 
 const log = createLogger('zvec');
 
@@ -44,6 +45,8 @@ export interface SearchResult {
 
 export interface SearchParams {
   queryVector: Float32Array;
+  /** Raw query text. When set, a lexical match on the symbol name is blended into the score. */
+  queryText?: string;
   topK: number;
   filePattern?: string;
   language?: string;
@@ -112,6 +115,58 @@ export function quoteFilterValue(value: string): string {
 export function canQuoteFilterValue(value: string): boolean {
   // eslint-disable-next-line no-control-regex
   return !/[\\\u0000-\u001f\u007f]/.test(value);
+}
+
+/**
+ * ZVec's COSINE metric reports a *distance* (1 - cosine similarity, range [0, 2];
+ * lower is closer), not a similarity. Convert it to a similarity clamped to
+ * [0, 1] so that higher means more relevant.
+ */
+function cosineDistanceToScore(distance: number): number {
+  return Math.min(1, Math.max(0, 1 - distance));
+}
+
+/** Weight of the lexical name match in the hybrid score (the vector similarity gets the rest). */
+const LEXICAL_WEIGHT = 0.3;
+/** Vector candidates fetched before re-ranking / filtering, as a multiple of topK (and a floor). */
+const CANDIDATE_MULTIPLIER = 5;
+const MIN_CANDIDATES = 50;
+
+const STOP_WORDS = new Set([
+  'a', 'an', 'and', 'any', 'are', 'as', 'at', 'be', 'by', 'do', 'does', 'for', 'from', 'get', 'how',
+  'i', 'in', 'into', 'is', 'it', 'its', 'of', 'on', 'or', 'some', 'that', 'the', 'their', 'this',
+  'to', 'what', 'when', 'where', 'whether', 'which', 'with',
+]);
+
+/** Very light suffix stripping so that `greeting`/`greet` and `items`/`item` match. */
+function stem(word: string): string {
+  if (word.length > 4 && word.endsWith('ies')) return `${word.slice(0, -3)}y`;
+  if (word.length > 5 && word.endsWith('ing')) return word.slice(0, -3);
+  if (word.length > 4 && word.endsWith('ed')) return word.slice(0, -2);
+  if (word.length > 4 && word.endsWith('es')) return word.slice(0, -2);
+  if (word.length > 3 && word.endsWith('s') && !word.endsWith('ss')) return word.slice(0, -1);
+  if (word.length >= 4 && word.endsWith('e')) return word.slice(0, -1);
+  return word;
+}
+
+function contentWords(text: string): Set<string> {
+  return new Set(splitIdentifier(text).filter(w => !STOP_WORDS.has(w)).map(stem));
+}
+
+/**
+ * Share of the query's content words (stop words removed, lightly stemmed) that
+ * appear among the words of the symbol name split from camelCase/snake_case.
+ * Returns a value in [0, 1].
+ */
+export function lexicalScore(queryText: string, name: string): number {
+  const queryWords = contentWords(queryText);
+  if (queryWords.size === 0) return 0;
+  const nameWords = contentWords(name);
+  let matched = 0;
+  for (const word of queryWords) {
+    if (nameWords.has(word)) matched++;
+  }
+  return matched / queryWords.size;
 }
 
 function matchesGlob(filePath: string, pattern: string): boolean {
@@ -233,10 +288,16 @@ export class ZVecStore {
     if (params.kind) conditions.push(`kind = ${quoteFilterValue(params.kind)}`);
     const filter = conditions.length > 0 ? conditions.join(' AND ') : undefined;
 
+    // Fetch a wider candidate pool so re-ranking and the file filter work on more than topK docs.
+    const reranks = params.queryText !== undefined || params.filePattern !== undefined;
+    const candidateK = reranks
+      ? Math.max(params.topK * CANDIDATE_MULTIPLIER, MIN_CANDIDATES)
+      : params.topK;
+
     const queryParams: Record<string, unknown> = {
       fieldName: 'embedding',
       vector: params.queryVector,
-      topk: params.topK,
+      topk: candidateK,
       includeVector: false,
     };
     if (filter !== undefined) {
@@ -245,24 +306,31 @@ export class ZVecStore {
 
     const results: ZVecDoc[] = this.collection.querySync(queryParams);
 
-    let mapped: SearchResult[] = results.map(r => ({
-      symbolId: r.fields.symbolId as string,
-      name: r.fields.name as string,
-      kind: r.fields.kind as string,
-      filePath: r.fields.filePath as string,
-      startLine: r.fields.startLine as number,
-      endLine: r.fields.endLine as number,
-      signature: (r.fields.signature as string) || null,
-      snippet: r.fields.code as string,
-      score: r.score,
-      matchType: r.score > 0.5 ? 'semantic' as const : 'keyword' as const,
-    })).sort((a, b) => b.score - a.score);
+    const queryText = params.queryText?.trim();
+
+    let mapped: SearchResult[] = results.map(r => {
+      const name = r.fields.name as string;
+      const semantic = cosineDistanceToScore(r.score);
+      const lexical = queryText ? lexicalScore(queryText, name) : 0;
+      return {
+        symbolId: r.fields.symbolId as string,
+        name,
+        kind: r.fields.kind as string,
+        filePath: r.fields.filePath as string,
+        startLine: r.fields.startLine as number,
+        endLine: r.fields.endLine as number,
+        signature: (r.fields.signature as string) || null,
+        snippet: r.fields.code as string,
+        score: queryText ? (1 - LEXICAL_WEIGHT) * semantic + LEXICAL_WEIGHT * lexical : semantic,
+        matchType: lexical > 0 ? 'both' as const : 'semantic' as const,
+      };
+    }).sort((a, b) => b.score - a.score);
 
     if (params.filePattern) {
       mapped = mapped.filter(r => matchesGlob(r.filePath, params.filePattern!));
     }
 
-    return mapped;
+    return mapped.slice(0, params.topK);
   }
 
   stats(): { docCount: number; collectionPath: string } {

@@ -97,6 +97,7 @@ export function registerSemanticSearchTool(
     const searchStart = Date.now();
     let results = zvecStore.search({
       queryVector,
+      queryText: query,
       topK,
       filePattern,
       language,
