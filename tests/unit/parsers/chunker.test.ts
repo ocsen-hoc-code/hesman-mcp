@@ -61,6 +61,32 @@ describe('chunkSymbols', () => {
     expect(chunks[0].text).not.toContain('return x * 2;');
   });
 
+  it('skips variables and constants declared inside a function or method body', () => {
+    const fn = makeSym({ id: 'fn', name: 'calc', kind: 'function', start_line: 2, end_line: 4 });
+    const local = makeSym({ id: 'local', name: 'total', kind: 'variable', start_line: 3, end_line: 3 });
+    const localConst = makeSym({ id: 'localConst', name: 'LIMIT', kind: 'constant', start_line: 3, end_line: 3 });
+    const method = makeSym({ id: 'm', name: 'run', kind: 'method', start_line: 6, end_line: 8 });
+    const methodLocal = makeSym({ id: 'mLocal', name: 'err', kind: 'variable', start_line: 7, end_line: 7 });
+    const lines = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`);
+
+    const ids = chunkSymbols([fn, local, localConst, method, methodLocal], lines).map(c => c.symbolId);
+
+    expect(ids).toEqual(['fn', 'm']);
+  });
+
+  it('keeps module-level variables, class fields and nested functions', () => {
+    const moduleVar = makeSym({ id: 'moduleVar', name: 'EMAIL_PATTERN', kind: 'constant', start_line: 1, end_line: 1 });
+    const cls = makeSym({ id: 'cls', name: 'Cart', kind: 'class', start_line: 2, end_line: 9 });
+    const field = makeSym({ id: 'field', name: 'items', kind: 'variable', start_line: 3, end_line: 3 });
+    const fn = makeSym({ id: 'fn', name: 'outer', kind: 'function', start_line: 10, end_line: 14 });
+    const inner = makeSym({ id: 'inner', name: 'inner', kind: 'function', start_line: 11, end_line: 13 });
+    const lines = Array.from({ length: 14 }, (_, i) => `line ${i + 1}`);
+
+    const ids = chunkSymbols([moduleVar, cls, field, fn, inner], lines).map(c => c.symbolId);
+
+    expect(ids).toEqual(['moduleVar', 'cls', 'field', 'fn', 'inner']);
+  });
+
   it('starts the chunk text with the kind and the name split into words', () => {
     const sym = makeSym({ name: 'calculateCartTotal', kind: 'function' });
     const chunks = chunkSymbols([sym], sourceLines);

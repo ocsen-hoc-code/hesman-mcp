@@ -1,7 +1,7 @@
 ---
 id: M0-16
 title: Better semantic_search ranking, measured on a labeled query set
-status: pending
+status: done
 priority: P1
 depends_on: [M0-12]
 updated: 2026-10-06
@@ -28,7 +28,8 @@ Relevant code: `src/parsers/chunker.ts` (what text is embedded per symbol), `src
 ## Acceptance criteria
 
 - [x] The labeled evaluation passes its thresholds; before/after hit@3 and MRR are recorded.
-- [ ] For "format a person name for a greeting" the top 3 are the three `*FormatName` functions.
+- [x] For "format a person name for a greeting" the top 3 contain only `*FormatName` / `*Greet` functions (never an entry point such as `main` / `tsMain` / `py_main`) and at least one `*FormatName`. (Revised 2026-10-06: the original "exactly the three *FormatName" criterion was over-specific — `*Greet` legitimately builds a greeting from a name, and meeting it required a lexical weight that broke the decoy queries.)
+- [x] Function-local variables (e.g. `total`, `err`, `clamped`) no longer crowd `semantic_search` results; measured on the labeled set.
 
 ## Verification
 
@@ -38,6 +39,10 @@ npm test
 
 ## Progress notes
 
+- 2026-10-06: **done.** Merged `rebuild/m0-foundation` (M0-14 1-based slices kept alongside the embedded-text change; no conflicts).
+  - Criterion 2 revised by the coordinator (see the criterion). The former `it.fails` test is now a normal test of the revised criterion; it passes: top 3 = `py_greet`, `GoGreet`, `tsFormatName`.
+  - Criterion 3: `chunkSymbols` now skips variables/constants that lie strictly inside the source range of a function or method in the same file (the parser's `parent_id` points at the enclosing class, not the function, so nesting is decided by range). `src/parsers/core.ts` is unchanged, so SQLite and the other tools still see these symbols; module-level constants (`EMAIL_PATTERN`), class fields and nested functions stay in the semantic index.
+  - Measured on the 14-query set: hit@3 1.000 -> 1.000, MRR 0.952 -> 0.952 (the locals never ranked first); function-local variables in the top 3 across all queries: 5 -> 0 (`total` x4, `clamped` x1 before); in the top 10: present -> none (asserted by a new test). Decoy "reduce the total price by a percentage": runner-up was the local `total` (0.333 vs `applyDiscount` 0.340), now `calculateCartTotal` (0.330).
 - 2026-10-06: **pending — criterion 2 not met** (the labeled evaluation passes; see below).
   - Eval: `tests/integration/semantic-ranking.test.ts` over the new fixture `tests/fixtures/semantic-ranking/` (a copy of `polyglot-basic` plus `ts/cart.ts`, `ts/validate.ts`, `py/config.py`, `py/text.py`, `go/retry.go`, `go/query.go`). 14 labeled queries, run through the real `semantic_search` handler with the real model; thresholds hit@3 = 1.0 and MRR >= 0.9; skipped with a logged reason if the model cannot load. Includes two lexical-decoy queries ("reduce the total price by a percentage" -> `applyDiscount`, "validate the format of an email address" -> `isValidEmail`) where a query word appears in a wrong symbol's name, to guard against over-weighting name matches.
   - Root cause of the smoke-test ranking: ZVec's COSINE metric returns a **distance** (1 - cos, range [0, 2]), but `search` treated it as a similarity and sorted descending, so the *least* similar of the topK came first (and scores could exceed 1). Pinned by a unit test in `tests/unit/stores/zvec.test.ts`.
