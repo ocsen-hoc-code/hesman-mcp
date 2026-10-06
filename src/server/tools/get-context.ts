@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { extname } from 'node:path';
 import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
 import type { HesmanConfig } from '../../config/schema.js';
@@ -7,6 +6,7 @@ import { compactCode } from '../../parsers/compact-mode.js';
 import { compressToolResponse, estimateTokens } from '../response-compressor.js';
 import { intArg, withArgValidation } from '../args.js';
 import { ProjectPathError, projectPathErrorResult, resolveProjectPath } from '../paths.js';
+import { languageForPath } from '../../parsers/languages.js';
 
 const MAX_LINE = 10_000_000;
 const MAX_CONTEXT_LINES = 200;
@@ -81,12 +81,7 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore, co
     }
 
     // Detect language
-    const ext = extname(filePath).toLowerCase();
-    const langMap: Record<string, string> = {
-      '.ts': 'typescript', '.tsx': 'typescript', '.js': 'typescript', '.jsx': 'typescript',
-      '.py': 'python', '.go': 'go',
-    };
-    const language = langMap[ext] || 'unknown';
+    const language = languageForPath(filePath) ?? 'unknown';
 
     const result = {
       filePath,

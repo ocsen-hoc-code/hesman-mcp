@@ -1,24 +1,15 @@
 import { watch, type FSWatcher } from 'chokidar';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { extname } from 'node:path';
 import type { WorkerPool } from './worker-pool.js';
 import type { SqliteStore } from '../stores/sqlite.js';
 import type { ZVecStore } from '../stores/zvec.js';
 import { chunkSymbols } from '../parsers/chunker.js';
 import { embedBatch } from '../stores/embedding.js';
 import { createLogger } from '../utils/logger.js';
+import { languageForPath } from '../parsers/languages.js';
 
 const log = createLogger('file-watcher');
-
-const EXT_TO_LANG: Record<string, string> = {
-  '.ts': 'typescript',
-  '.tsx': 'typescript',
-  '.js': 'typescript',
-  '.jsx': 'typescript',
-  '.mjs': 'typescript',
-  '.cjs': 'typescript',
-};
 
 export interface FileWatcherConfig {
   projectRoot: string;
@@ -64,7 +55,7 @@ export class FileWatcher {
   }
 
   private async handleChange(filePath: string): Promise<void> {
-    const lang = EXT_TO_LANG[extname(filePath)];
+    const lang = languageForPath(filePath);
     if (!lang) return;
 
     const now = Date.now();

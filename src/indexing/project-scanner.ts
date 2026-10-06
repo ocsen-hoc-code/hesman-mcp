@@ -2,24 +2,9 @@ import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 import { createLogger } from '../utils/logger.js';
 import type { HesmanConfig } from '../config/schema.js';
+import { languageForPath } from '../parsers/languages.js';
 
 const log = createLogger('scanner');
-
-/** Mapping from file extension to language ID */
-const EXTENSION_MAP: Record<string, string> = {
-  '.ts': 'typescript',
-  '.tsx': 'typescript',
-  '.js': 'typescript',
-  '.jsx': 'typescript',
-  '.mjs': 'typescript',
-  '.cjs': 'typescript',
-  '.mts': 'typescript',
-  '.cts': 'typescript',
-  '.py': 'python',
-  '.pyw': 'python',
-  '.pyi': 'python',
-  '.go': 'go',
-};
 
 /** Patterns to always skip */
 const ALWAYS_IGNORE = new Set([
@@ -45,8 +30,7 @@ export interface ScannedFile {
 }
 
 export function detectLanguage(filePath: string, config: HesmanConfig): string | null {
-  const ext = filePath.slice(filePath.lastIndexOf('.'));
-  const lang = EXTENSION_MAP[ext];
+  const lang = languageForPath(filePath);
   if (!lang) return null;
   if (config.languages.includes('*')) return lang;
   if (config.languages.includes(lang)) return lang;

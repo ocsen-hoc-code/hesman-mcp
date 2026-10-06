@@ -1,7 +1,7 @@
 ---
 id: M0-03
 title: Single language registry; index Python/Go
-status: todo
+status: done
 priority: P0
 depends_on: [M0-01]
 updated: 2026-10-06
@@ -42,9 +42,9 @@ Reproduced on 2026-10-06 with the `py-basic` fixture: without the worker pool â†
 
 ## Acceptance criteria
 
-- [ ] The 3 failing tests turn green.
-- [ ] `grep -rnE "'\.(py|go|ts)'" src` only matches in `src/parsers/languages.ts` (and profile files).
-- [ ] `CLAUDE.md` and `docs/CONTRIBUTING.md` describe the new process.
+- [x] The 3 failing tests turn green.
+- [x] `grep -rnE "'\.(py|go|ts)'" src` only matches in `src/parsers/languages.ts` (and profile files).
+- [x] `CLAUDE.md` and `docs/CONTRIBUTING.md` describe the new process. (`CLAUDE.md` is gitignored; replacement text handed to the coordinator.)
 
 ## Verification
 
@@ -55,4 +55,5 @@ grep -rnE "'\.(py|go|ts)'" src
 
 ## Progress notes
 
+- 2026-10-06: done. Added `src/parsers/languages.ts` (`LANGUAGES`, `LANGUAGE_IDS`, `isLanguageId`, `languageById`, `profileFor`, `languageForExtension`, `languageForPath`; validated at load). Replaced all 6 copies (core, index-coordinator, worker, file-watcher, project-scanner, get-context). Tests written first and seen failing: `tests/e2e/languages.test.ts` (Python/Go via real server), `tests/integration/language-registry.test.ts` (WorkerPool indexes 3 languages; watcher re-indexes edited `.py`), plus `tests/unit/parsers/languages.test.ts`. `npm test`: 44 files / 295 tests pass; `npm run test:e2e`: 5 files / 30 tests pass. Extension lookup is now case-insensitive. Profiles still carry their own `extensions`/`parserWasmPath`; the unit test pins them to the registry entry.
 - 2026-10-06: task created.
