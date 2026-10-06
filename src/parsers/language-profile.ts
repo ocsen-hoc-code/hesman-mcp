@@ -1,3 +1,5 @@
+import type { SyntaxNode } from 'web-tree-sitter';
+
 export interface RelationQueries {
   /** Tree-sitter query string to extract call expressions */
   calls?: string;
@@ -34,4 +36,12 @@ export interface LanguageProfile {
    * @param sourceLines - the full file source split into lines
    */
   extractDocComment(nodeStartLine: number, sourceLines: string[]): string | null;
+  /**
+   * Decide whether a named symbol is visible outside its module/package,
+   * using the language's own rules. When absent, a symbol is exported iff it
+   * sits inside an `export_statement` (TypeScript/JavaScript semantics).
+   * @param name - the symbol's identifier
+   * @param node - the declaration node
+   */
+  isExported?(name: string, node: SyntaxNode): boolean;
 }

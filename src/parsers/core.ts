@@ -118,7 +118,7 @@ function extractSymbols(
           ),
           parent_id: parentId,
           language: profile.language,
-          is_exported: isNodeExported(child) ? 1 : 0,
+          is_exported: (profile.isExported ? profile.isExported(name, child) : isNodeExported(child)) ? 1 : 0,
         });
 
         // For classes / interfaces: recurse inside so methods / properties

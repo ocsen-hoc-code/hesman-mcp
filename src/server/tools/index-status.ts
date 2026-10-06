@@ -34,9 +34,8 @@ export function registerIndexStatusTool(
               zvecOk: zvecStore !== undefined,
               zvecDocCount: zvecStats?.docCount ?? 0,
               embeddingModelLoaded: isEmbeddingReady(),
-              kuzuOk: false, // Phase 1: no Kuzu
             },
-            languages: [], // Phase 1: no per-language breakdown
+            languages: store.getLanguageStats(),
           }),
         },
       ],

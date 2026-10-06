@@ -95,27 +95,37 @@ export function compressToolResponse(
     };
   }
 
-  // Always add _meta
-  const pipelineBaseline = options?.originalTokens ?? estimateTokens(JSON.stringify(data));
-  const compressedTokens = estimateTokens(JSON.stringify(result));
+  // Never return something larger than the plain payload: if compaction and
+  // _summary did not shrink the response, drop them and return `data` as-is.
+  const plainTokens = estimateTokens(JSON.stringify(data));
+  const candidateTokens = estimateTokens(JSON.stringify(result));
+  const compressed = candidateTokens < plainTokens;
+  const output = compressed ? result : { ...data };
+  const outputTokens = compressed ? candidateTokens : plainTokens;
+
+  // Baseline: the plain payload, or the pre-pipeline size (e.g. the full file
+  // before pruning) when that is larger. Taking the max guarantees the output
+  // never exceeds the baseline, so reduction is never negative.
+  const pipelineBaseline = Math.max(plainTokens, options?.originalTokens ?? 0);
   const reduction = pipelineBaseline > 0
-    ? `${((1 - compressedTokens / pipelineBaseline) * 100).toFixed(1)}%`
-    : '0%';
+    ? `${(Math.max(0, 1 - outputTokens / pipelineBaseline) * 100).toFixed(1)}%`
+    : '0.0%';
 
   // Determine which layers were active
   const layers: string[] = [];
-  if (CODE_TOOLS.has(toolName)) layers.push('compact');
-  if (LIST_TOOLS.has(toolName) || CHAIN_TOOLS.has(toolName)) layers.push('summary');
-  if (options?.originalTokens !== undefined) layers.push('prune');
+  if (compressed && CODE_TOOLS.has(toolName)) layers.push('compact');
+  if (compressed && (LIST_TOOLS.has(toolName) || CHAIN_TOOLS.has(toolName))) layers.push('summary');
+  if (options?.originalTokens !== undefined && options.originalTokens > plainTokens) layers.push('prune');
 
-  (result as any)._meta = {
+  (output as any)._meta = {
     originalTokens: pipelineBaseline,
-    compressedTokens,
+    compressedTokens: outputTokens,
     reduction,
+    compressed,
     layers,
   };
 
-  return result;
+  return output;
 }
 
 export function estimateTokens(text: string): number {
