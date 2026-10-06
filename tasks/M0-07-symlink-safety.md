@@ -1,7 +1,7 @@
 ---
 id: M0-07
 title: Scanner and watcher ignore symlinks
-status: todo
+status: done
 priority: P1
 depends_on: [M0-03]
 updated: 2026-10-06
@@ -29,8 +29,8 @@ updated: 2026-10-06
 
 ## Acceptance criteria
 
-- [ ] The step-1 test passes on macOS and Linux. On Windows (symlink creation needs privileges) the test is conditionally skipped with a stated reason.
-- [ ] The README documents symlink behavior.
+- [x] The step-1 test passes on macOS and Linux. On Windows (symlink creation needs privileges) the test is conditionally skipped with a stated reason.
+- [x] The README documents symlink behavior.
 
 ## Verification
 
@@ -40,4 +40,5 @@ npm test
 
 ## Progress notes
 
+- 2026-10-06: done. Scanner uses `lstatSync` and skips every symlink (debug log); watcher sets `followSymlinks: false`; README Configuration section notes that symlinks are skipped. Tests: `scanProject symlink safety` (temp project with `loop -> .`, `outside -> <other temp dir>`, `link.ts -> src/a.ts`; failed before the fix with recursive `loop/loop/...` paths and outside files) and `FileWatcher symlink safety` (editing a file behind a symlinked directory dispatches nothing, with a real-file positive control; failed before the fix). Both use `it.skipIf(process.platform === 'win32')` because symlink creation needs privileges there. Verified locally on macOS only; Linux is expected to behave the same (POSIX symlinks) but was not run here. `npm test`: 50 files, 350 passed + 1 skipped.
 - 2026-10-06: task created.

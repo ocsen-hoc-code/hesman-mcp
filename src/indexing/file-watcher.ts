@@ -41,6 +41,9 @@ export class FileWatcher {
     this.watcher = watch(this.config.projectRoot, {
       ignored,
       ignoreInitial: true,
+      // Never follow symlinks: they can loop back into the project or expose
+      // files outside it. Matches the scanner, which skips symlinks entirely.
+      followSymlinks: false,
       awaitWriteFinish: {
         stabilityThreshold: 100,
         pollInterval: 20,
