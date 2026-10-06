@@ -9,19 +9,59 @@ let TEST_HOME = '';
 describe('install command', () => {
   beforeEach(() => {
     TEST_HOME = mkdtempSync(join(tmpdir(), 'hesman-install-test-'));
+    // On Windows the Claude Desktop config lives under %APPDATA%; point it into
+    // the temp home so tests never touch the real user profile.
+    vi.stubEnv('APPDATA', join(TEST_HOME, 'AppData', 'Roaming'));
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     rmSync(TEST_HOME, { recursive: true, force: true });
   });
 
+  /** Expected Claude Desktop config directory for the current platform (mirrors src/cli/install.ts). */
+  function claudeDesktopDir(platform: NodeJS.Platform = process.platform): string {
+    if (platform === 'darwin') return join(TEST_HOME, 'Library', 'Application Support', 'Claude');
+    if (platform === 'win32') return join(TEST_HOME, 'AppData', 'Roaming', 'Claude');
+    return join(TEST_HOME, '.config', 'Claude');
+  }
+
   function makeClaudeConfigDir(): string {
-    const dir = join(TEST_HOME, 'Library', 'Application Support', 'Claude');
+    const dir = claudeDesktopDir();
     mkdirSync(dir, { recursive: true });
     return dir;
   }
+
+  describe('Claude Desktop config location per platform', () => {
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+
+    afterEach(() => {
+      if (originalPlatform) Object.defineProperty(process, 'platform', originalPlatform);
+    });
+
+    it.each(['darwin', 'win32', 'linux'] as const)('writes to the %s location', async (platform) => {
+      Object.defineProperty(process, 'platform', { ...originalPlatform, value: platform });
+      const { installAgent } = await import('../../../src/cli/install');
+
+      const result = installAgent('claude', '/fake/project', false, TEST_HOME);
+
+      const expected = join(claudeDesktopDir(platform), 'claude_desktop_config.json');
+      expect(result.configPath).toBe(expected);
+      expect(existsSync(expected)).toBe(true);
+    });
+
+    it('falls back to <home>/AppData/Roaming on Windows when APPDATA is unset', async () => {
+      Object.defineProperty(process, 'platform', { ...originalPlatform, value: 'win32' });
+      vi.stubEnv('APPDATA', '');
+      const { installAgent } = await import('../../../src/cli/install');
+
+      const result = installAgent('claude', '/fake/project', false, TEST_HOME);
+
+      expect(result.configPath).toBe(join(TEST_HOME, 'AppData', 'Roaming', 'Claude', 'claude_desktop_config.json'));
+    });
+  });
 
   function makeCursorConfigDir(): string {
     const dir = join(TEST_HOME, '.cursor');

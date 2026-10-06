@@ -5,10 +5,17 @@ import { getHeapStatistics } from 'node:v8';
 import { loadConfig } from '../config/loader.js';
 import { SqliteStore } from '../stores/sqlite.js';
 import { indexProject } from '../indexing/index-coordinator.js';
+import { splitArgs } from './args.js';
+
+/** The project root is the first positional argument; flags never count as a path. */
+function projectRootFrom(positionals: string[], fallback: string): string {
+  return resolve(positionals[0] || fallback);
+}
 
 export async function runIndex(args: string[]): Promise<void> {
   const config = loadConfig();
-  const projectRoot = resolve(args[0] || config.projectRoot);
+  const { positionals } = splitArgs(args);
+  const projectRoot = projectRootFrom(positionals, config.projectRoot);
   const dataDir = resolve(projectRoot, config.dataDir);
   const store = new SqliteStore(dataDir);
 
@@ -29,7 +36,8 @@ export async function runIndex(args: string[]): Promise<void> {
 
 export async function runStatus(args: string[]): Promise<void> {
   const config = loadConfig();
-  const projectRoot = resolve(args[0] || config.projectRoot);
+  const { positionals } = splitArgs(args);
+  const projectRoot = projectRootFrom(positionals, config.projectRoot);
   const dataDir = resolve(projectRoot, config.dataDir);
   const store = new SqliteStore(dataDir);
 
@@ -92,16 +100,9 @@ Supported languages: TypeScript, JavaScript, Python, Go
 export async function runInstall(args: string[]): Promise<void> {
   const { installAgent } = await import('./install.js');
 
-  let agent = '';
-  let global = false;
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--agent' && args[i + 1]) {
-      agent = args[++i];
-    } else if (args[i] === '--global') {
-      global = true;
-    }
-  }
+  const { values, flags } = splitArgs(args, ['--agent']);
+  const agent = values.get('--agent') ?? '';
+  const global = flags.has('--global');
 
   if (!agent) {
     console.log('Usage: hesman install --agent <claude|cursor|vscode> [--global]');
@@ -207,10 +208,11 @@ function cleanRefusalReason(dataDir: string, projectRoot: string): string | null
 
 export async function runClean(args: string[]): Promise<void> {
   const config = loadConfig();
-  const projectRoot = resolve(args[0] || config.projectRoot);
+  const { positionals, flags } = splitArgs(args);
+  const projectRoot = projectRootFrom(positionals, config.projectRoot);
   const dataDir = resolve(projectRoot, config.dataDir);
-  const force = args.includes('--force');
-  const dryRun = args.includes('--dry-run');
+  const force = flags.has('--force');
+  const dryRun = flags.has('--dry-run');
 
   if (!existsSync(dataDir)) {
     console.log(`Nothing to clean. ${dataDir} does not exist.`);
@@ -249,7 +251,8 @@ export async function runClean(args: string[]): Promise<void> {
 
 export async function runDiag(args: string[]): Promise<void> {
   const config = loadConfig();
-  const projectRoot = resolve(args[0] || config.projectRoot);
+  const { positionals, flags } = splitArgs(args);
+  const projectRoot = projectRootFrom(positionals, config.projectRoot);
   const dataDir = resolve(projectRoot, config.dataDir);
 
   const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
@@ -376,7 +379,7 @@ export async function runDiag(args: string[]): Promise<void> {
     }
   }
 
-  const asJson = args.includes('--json');
+  const asJson = flags.has('--json');
   if (asJson) {
     console.log(JSON.stringify(diag, null, 2));
   } else {

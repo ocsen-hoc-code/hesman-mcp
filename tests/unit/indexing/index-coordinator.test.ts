@@ -2,27 +2,29 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { indexProject } from '../../../src/indexing/index-coordinator';
 import { SqliteStore } from '../../../src/stores/sqlite';
 import { defaultConfig } from '../../../src/config/defaults';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { rmSync, mkdirSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = resolve(__dirname, '..', '..', 'fixtures', 'ts-basic');
-const TEST_DATA_DIR = '.hesman-test-coordinator';
 
 describe('indexProject', () => {
   let store: SqliteStore;
+  // A unique data dir per test: a fixed directory in the cwd collided when two
+  // test runs shared a checkout, so one run deleted the other's SQLite file.
+  let testDataDir: string;
 
   beforeEach(() => {
-    if (existsSync(TEST_DATA_DIR)) rmSync(TEST_DATA_DIR, { recursive: true });
-    mkdirSync(TEST_DATA_DIR, { recursive: true });
-    store = new SqliteStore(TEST_DATA_DIR);
+    testDataDir = mkdtempSync(join(tmpdir(), 'hesman-test-coordinator-'));
+    store = new SqliteStore(testDataDir);
     store.open();
   });
 
   afterEach(() => {
     store.close();
-    if (existsSync(TEST_DATA_DIR)) rmSync(TEST_DATA_DIR, { recursive: true });
+    rmSync(testDataDir, { recursive: true, force: true });
   });
 
   it('indexes a TypeScript project and stores symbols', async () => {
@@ -30,7 +32,7 @@ describe('indexProject', () => {
     expect(result.filesIndexed).toBeGreaterThanOrEqual(2);
     expect(result.symbolsFound).toBeGreaterThan(5);
     expect(result.errors).toHaveLength(0);
-    expect(result.tookMs).toBeGreaterThan(0);
+    expect(result.tookMs).toBeGreaterThanOrEqual(0); // Date.now() has 1 ms resolution
   });
 
   it('stores symbols in SQLite after indexing', async () => {
