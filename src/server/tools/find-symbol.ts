@@ -3,6 +3,8 @@ import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
 import { ErrorCode, formatError } from '../error-codes.js';
 import { intArg, withArgValidation } from '../args.js';
+import type { HesmanConfig } from '../../config/schema.js';
+import { normalizeProjectPath } from '../paths.js';
 
 const inputSchema = {
   type: 'object',
@@ -24,11 +26,16 @@ const inputSchema = {
   required: ['name'],
 };
 
-export function registerFindSymbolTool(server: McpServer, store: SqliteStore): void {
+export function registerFindSymbolTool(server: McpServer, store: SqliteStore, config: HesmanConfig): void {
   const handler: ToolHandler = async (args) => {
     const name = args.name as string;
     const kind = args.kind as string | undefined;
-    const filePath = args.filePath as string | undefined;
+    const rawPath = args.filePath;
+    // The index keys files by absolute path; resolve relative input against the root.
+    const filePath =
+      typeof rawPath === 'string' && rawPath.length > 0
+        ? normalizeProjectPath(config.projectRoot, rawPath)
+        : undefined;
     const topK = intArg(args, 'topK', { default: 20, min: 1, max: 200 });
 
     if (!name || typeof name !== 'string') {

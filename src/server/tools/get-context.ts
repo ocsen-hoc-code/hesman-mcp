@@ -1,11 +1,12 @@
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
+import type { HesmanConfig } from '../../config/schema.js';
 import { compactCode } from '../../parsers/compact-mode.js';
 import { compressToolResponse, estimateTokens } from '../response-compressor.js';
-import { ErrorCode, formatError } from '../error-codes.js';
 import { intArg, withArgValidation } from '../args.js';
+import { ProjectPathError, projectPathErrorResult, resolveProjectPath } from '../paths.js';
 
 const MAX_LINE = 10_000_000;
 const MAX_CONTEXT_LINES = 200;
@@ -23,16 +24,22 @@ const inputSchema = {
   required: ['filePath', 'startLine'],
 };
 
-export function registerGetContextTool(server: McpServer, store: SqliteStore): void {
+export function registerGetContextTool(server: McpServer, store: SqliteStore, config: HesmanConfig): void {
   const handler: ToolHandler = async (args) => {
-    const filePath = args.filePath as string;
     const startLine = intArg(args, 'startLine', { default: 1, min: 1, max: MAX_LINE });
     const endLine = intArg(args, 'endLine', { default: startLine, min: startLine, max: MAX_LINE });
     const contextLines = intArg(args, 'contextLines', { default: 5, min: 0, max: MAX_CONTEXT_LINES });
     const mode = (args.mode as string) || 'compact';
 
-    if (!existsSync(filePath)) {
-      return { content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.FILE_NOT_FOUND, `File not found: ${filePath}`)) }], isError: true };
+    // Untrusted input: confine to the project root, regular files, size limit.
+    let filePath: string;
+    try {
+      filePath = resolveProjectPath(config.projectRoot, args.filePath as string, {
+        maxFileSizeBytes: config.maxFileSizeBytes,
+      });
+    } catch (err) {
+      if (err instanceof ProjectPathError) return projectPathErrorResult(err);
+      throw err;
     }
 
     const source = readFileSync(filePath, 'utf-8');

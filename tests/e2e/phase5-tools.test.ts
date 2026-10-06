@@ -84,7 +84,7 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
 
     it('returns error for nonexistent file', async () => {
       const result = await client.callTool(
-        { name: 'get_context', arguments: { filePath: '/nonexistent/path.ts', startLine: 1 } },
+        { name: 'get_context', arguments: { filePath: resolve(PROJECT_DIR, 'nonexistent/path.ts'), startLine: 1 } },
         undefined,
         { timeout: 5000 },
       );

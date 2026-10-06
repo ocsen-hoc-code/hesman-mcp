@@ -2,6 +2,8 @@ import { compressToolResponse } from '../response-compressor.js';
 import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
 import { ErrorCode, formatError } from '../error-codes.js';
+import type { HesmanConfig } from '../../config/schema.js';
+import { normalizeProjectPath } from '../paths.js';
 
 const inputSchema = {
   type: 'object',
@@ -18,9 +20,14 @@ const inputSchema = {
   },
 };
 
-export function registerListDependenciesTool(server: McpServer, store: SqliteStore): void {
+export function registerListDependenciesTool(server: McpServer, store: SqliteStore, config: HesmanConfig): void {
   const handler: ToolHandler = async (args) => {
-    const filePath = args.filePath as string | undefined;
+    const rawPath = args.filePath;
+    // The index keys files by absolute path; resolve relative input against the root.
+    const filePath =
+      typeof rawPath === 'string' && rawPath.length > 0
+        ? normalizeProjectPath(config.projectRoot, rawPath)
+        : undefined;
     const direction = (args.direction as string) || 'imports';
 
     if (!['imports', 'imported_by', 'both'].includes(direction)) {
