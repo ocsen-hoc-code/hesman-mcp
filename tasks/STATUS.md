@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-06 · **M0: 11/16 done** · **M1: 0/7 done** · **M2: 0/7 done**
+Updated: 2026-10-06 · **M0: 12/16 done** · **M1: 0/7 done** · **M2: 0/7 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -24,7 +24,7 @@ Goal: resolve the two blocking problems — **(1) broken core** and **(2) securi
 | M0-12 | [M0 gate: full verification + docs update](M0-12-m0-gate.md) | Gate | P0 | M0-01…M0-11, M0-13…M0-16 | pending |
 | M0-13 | [Correct call graph: no self-calls, cross-file calls](M0-13-call-graph-correctness.md) | Core | P0 | M0-14 | todo |
 | M0-14 | [One line-number convention: 1-based everywhere](M0-14-one-based-lines.md) | Core | P0 | — | todo |
-| M0-15 | [Accurate metadata: Go exports, index_status, reduction stats](M0-15-accurate-metadata.md) | Core | P1 | — | todo |
+| M0-15 | [Accurate metadata: Go exports, index_status, reduction stats](M0-15-accurate-metadata.md) | Core | P1 | — | done |
 | M0-16 | [Better semantic_search ranking (labeled eval)](M0-16-semantic-ranking.md) | Quality | P1 | — | todo |
 
 Recommended order: 01 → 02 → 03 → 04 → (05, 06, 07 in parallel) → (08, 09, 10, 11 any time) → (14, 15, 16 in parallel) → 13 → 12.
@@ -70,5 +70,6 @@ Recommended order: (01, 02 in parallel) → 03 → 04 → (05, 06, 07 in paralle
 - **Multi-project support** and **web dashboard** (bind 127.0.0.1, token-protected).
 - **Dead code cleanup:** 7 config fields never read (`indexOnStartup`, `batchSize`, `maxMemoryMB`, `cacheSize`, `logFile`, `autoCleanDataDir`, `semanticSearch.embeddingCacheDir`), `src/monorepo/` module never wired in. (The no-op `install --global` flag is removed in M2-03.)
 - **Minor functional bugs:** `get_references` cursor splits on `':'` and breaks on Windows paths; naive `.gitignore` matching (`build` also skips `buildscripts/`, no `*.log`, no `!negation`).
+- **Make `_summary` actually save tokens:** today it is purely additive, so M0-15 drops it whenever it would enlarge a response (always, in practice). Replace long lists with the summary plus the top-N entries so list tools (`get_references`, `get_callers`, `list_dependencies`, …) really shrink, and measure it.
 - **Zod validation** for every tool input (replace `as` casts).
 - Evaluate replacing ZVec with an in-SQLite vector store to drop one store.
