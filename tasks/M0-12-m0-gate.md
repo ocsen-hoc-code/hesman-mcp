@@ -36,7 +36,7 @@ M0 is done only when both blocking problems (broken core, security holes) are pr
 
 - [x] `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e` pass locally.
 - [ ] CI is green on all 3 OSes × Node 20/22.
-- [ ] The step-2 smoke test passes; results recorded in *Progress notes*.
+- [x] The step-2 smoke test passes; results recorded in *Progress notes*.
 - [x] Every task M0-01…M0-11 has `status: done` in both its file and `STATUS.md`.
 
 ## Verification
@@ -47,6 +47,13 @@ npm ci && npm run typecheck && npm run lint && npm test && npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-06: **real-client smoke test done** with Claude Code 2.1.291 (`claude -p --strict-mcp-config --mcp-config <temp file>`, so the owner's agent config was not touched) against `dist/index.js` on a scratch copy of `polyglot-basic`. 8/9 checks passed: `index_status` (6 files, 9 symbols), `find_symbol` for TS/Python/Go, `get_context` on `/etc/hosts` refused with `PATH_OUTSIDE_PROJECT` and no content, `get_context` on a project file, `semantic_search`, `find_pattern`. After the client exited no Hesman process was left running (stdin-close shutdown confirmed). Problems found (verified against the SQLite index, not yet fixed):
+  1. **Call graph is wrong:** every function gets a `calls` relation to itself at its own declaration line (e.g. `GoGreet → GoGreet` at `greet.go:13`), and cross-file calls are missing (`main → GoGreet` in `go/main.go` is absent). `get_callers(GoGreet)` returned only GoGreet itself. Affects `get_callers`, `get_callees`, `impact_analysis`.
+  2. **Line numbers are inconsistent:** symbols are stored and returned 0-based (`py_format_name` has `start_line 0`; `py_greet` is on file line 5 but reported as 4), while `get_context` input and `find_pattern` output are 1-based. An agent that passes a symbol's `startLine` to `get_context` lands one line too early.
+  3. Go `isExported` is false for capitalized (exported) names.
+  4. `_meta.reduction` is negative for small responses (-64.8% for `get_callers`, -294.4% for `get_context`): the `_summary`/`_meta` overhead makes small outputs larger than the raw data.
+  5. `index_status` reports `kuzuOk: false` (Kuzu is not used) and `languages: []` although three languages are indexed.
+  6. `semantic_search` ranking is weak: for "format a person name for a greeting" the entry points `main`/`tsMain` outrank `*FormatName`.
 - 2026-10-06: **pending — waiting on the project owner** for the two remaining acceptance criteria:
   - CI on all 3 OSes needs the branch `rebuild/m0-foundation` pushed (not done without the owner's go-ahead).
   - The real-client smoke test (step 2) writes into the owner's agent configuration, so it is left to the owner. The same checks already pass through the MCP SDK client in `tests/e2e/languages.test.ts` (Python + Go `find_symbol`) and `tests/e2e/path-containment.test.ts` (`/etc/hosts` refused).
