@@ -1,7 +1,7 @@
 ---
 id: M0-14
 title: One line-number convention — 1-based everywhere
-status: todo
+status: done
 priority: P0
 depends_on: [M0-12]
 updated: 2026-10-06
@@ -32,10 +32,10 @@ Sources of 0-based values:
 
 ## Acceptance criteria
 
-- [ ] The failing tests turn green.
-- [ ] `grep -rn "startPosition.row\|endPosition.row" src` shows every use converted (or a comment explaining why not).
-- [ ] Opening an index created before this change triggers a full re-index (test).
-- [ ] `docs/TOOLS.md` states the convention.
+- [x] The failing tests turn green.
+- [x] `grep -rn "startPosition.row\|endPosition.row" src` shows every use converted (or a comment explaining why not).
+- [x] Opening an index created before this change triggers a full re-index (test).
+- [x] `docs/TOOLS.md` states the convention.
 
 ## Verification
 
@@ -45,4 +45,5 @@ npm test && npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-06: done. Symbols, relations and parse errors are stored 1-based (`core.ts`, `relation-extractor.ts`); slices in `chunker.ts`, `index-coordinator.ts` and `file-watcher.ts` use `start_line - 1 .. end_line`; the context pruner's doc-comment range lost a stray extra line. The SQLite `metadata` table holds `index_schema_version` (`INDEX_SCHEMA_VERSION = 1`); `indexProject` clears symbols, relations, file hashes and ZVec docs, then records the version, when the stored version is older (a pre-M0-14 index has none, read as 0). The only remaining raw `startPosition.row` passes a 0-based array index to `extractDocComment` and is commented. Tests: `tests/e2e/line-numbers.test.ts`, `tests/unit/parsers/one-based-lines.test.ts`, `tests/unit/indexing/index-schema-version.test.ts`, plus a pruner case; chunker fixtures moved to 1-based. Note: the regex call extractor also records declarations as calls (e.g. a `tsGreet` → `tsGreet` self-call on its declaration line 5); left for M0-13.
 - 2026-10-06: task created from the M0-12 smoke test findings.

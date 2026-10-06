@@ -8,8 +8,8 @@ describe('chunkSymbols', () => {
     name: 'myFunc',
     kind: 'function',
     file_path: 'src/test.ts',
-    start_line: 0,
-    end_line: 3,
+    start_line: 1, // 1-based, inclusive
+    end_line: 4,
     start_col: 0,
     end_col: 10,
     signature: 'function myFunc(x: number): number',
@@ -55,7 +55,7 @@ describe('chunkSymbols', () => {
   });
 
   it('chunk text includes only the symbol line range', () => {
-    const sym = makeSym({ start_line: 1, end_line: 1, signature: null, doc_comment: null });
+    const sym = makeSym({ start_line: 2, end_line: 2, signature: null, doc_comment: null });
     const chunks = chunkSymbols([sym], sourceLines);
     expect(chunks[0].text).toBe('function myFunc(x: number): number {');
   });

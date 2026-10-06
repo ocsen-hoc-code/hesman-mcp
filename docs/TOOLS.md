@@ -2,6 +2,8 @@
 
 Hesman exposes 11 MCP tools over stdio transport. All responses include a `_meta` block with token reduction statistics.
 
+**Line numbers:** every line number Hesman accepts or returns (`startLine`, `endLine`, `line`, parse-error lines) is **1-based and inclusive**. The first line of a file is line 1. A symbol's `startLine` can be passed straight to `get_context`, and it matches the `line` that `find_pattern` reports for the same declaration. Indexes built before this convention (0-based) are detected by their schema version and rebuilt automatically on the next start.
+
 ---
 
 ## `find_symbol`

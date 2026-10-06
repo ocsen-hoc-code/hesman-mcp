@@ -100,18 +100,20 @@ function extractSymbols(
         const kind = mapNodeTypeToKind(child.type);
 
         results.push({
-          id: makeSymbolId(filePath, name, kind, child.startPosition.row),
+          id: makeSymbolId(filePath, name, kind, child.startPosition.row + 1),
           name,
           kind,
           file_path: filePath,
-          start_line: child.startPosition.row,
-          end_line: child.endPosition.row,
+          // Tree-sitter rows are 0-based; stored lines are 1-based, inclusive.
+          start_line: child.startPosition.row + 1,
+          end_line: child.endPosition.row + 1,
           start_col: child.startPosition.column,
           end_col: child.endPosition.column,
           signature: profile.extractSignature(
             source.slice(child.startIndex, child.endIndex),
             source,
           ),
+          // 0-based on purpose: it indexes the `sourceLines` array.
           doc_comment: profile.extractDocComment(
             child.startPosition.row,
             sourceLines,
@@ -132,7 +134,7 @@ function extractSymbols(
             filePath,
             name,
             kind,
-            child.startPosition.row,
+            child.startPosition.row + 1,
           );
           const nested = extractSymbols(
             child,
@@ -245,9 +247,10 @@ function collectErrorNodes(
   errors: Array<{ line: number; message: string }>,
 ): void {
   if (node.type === 'ERROR') {
+    const line = node.startPosition.row + 1; // 1-based like every stored line
     errors.push({
-      line: node.startPosition.row,
-      message: `Unexpected token at line ${node.startPosition.row}: ${source.slice(node.startIndex, node.endIndex).trim().slice(0, 80)}`,
+      line,
+      message: `Unexpected token at line ${line}: ${source.slice(node.startIndex, node.endIndex).trim().slice(0, 80)}`,
     });
   }
   for (let i = 0; i < node.childCount; i++) {

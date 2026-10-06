@@ -68,6 +68,16 @@ export interface DependencyResult {
   count: number;
 }
 
+/**
+ * Version of the data written into an index. Bump it whenever stored values
+ * change meaning; an index with an older version is cleared and rebuilt.
+ *   0 — no version recorded (pre-M0-14): 0-based line numbers.
+ *   1 — every stored line number is 1-based, inclusive (M0-14).
+ */
+export const INDEX_SCHEMA_VERSION = 1;
+
+const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
+
 const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS symbols (
     id          TEXT PRIMARY KEY,
@@ -113,6 +123,10 @@ const MIGRATIONS = [
     signature,
     content='symbols',
     content_rowid='rowid'
+  )`,
+  `CREATE TABLE IF NOT EXISTS metadata (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
   )`,
 ];
 
@@ -184,6 +198,32 @@ export class SqliteStore {
         VALUES (new.rowid, new.name, new.kind, new.signature);
       END;
     `);
+  }
+
+  /** Version of the indexed data, or 0 when the index predates versioning. */
+  getIndexSchemaVersion(): number {
+    const row = this.db
+      .prepare('SELECT value FROM metadata WHERE key = ?')
+      .get(INDEX_SCHEMA_VERSION_KEY) as { value: string } | undefined;
+    const version = row ? Number(row.value) : 0;
+    return Number.isInteger(version) ? version : 0;
+  }
+
+  setIndexSchemaVersion(version: number): void {
+    withRetry(() => {
+      this.db
+        .prepare('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)')
+        .run(INDEX_SCHEMA_VERSION_KEY, String(version));
+    });
+  }
+
+  /** Drop every symbol, relation and file hash so the next index run starts from scratch. */
+  clearIndex(): void {
+    withRetry(() => {
+      this.db.transaction(() => {
+        this.db.exec('DELETE FROM symbols; DELETE FROM relations; DELETE FROM file_hashes;');
+      })();
+    });
   }
 
   upsertSymbols(symbols: SymbolRow[]): void {

@@ -5,7 +5,7 @@ import { embedBatch } from '../stores/embedding.js';
 import type { ZVecStore } from '../stores/zvec.js';
 import { createLogger } from '../utils/logger.js';
 import type { HesmanConfig } from '../config/schema.js';
-import type { SqliteStore } from '../stores/sqlite.js';
+import { INDEX_SCHEMA_VERSION, type SqliteStore } from '../stores/sqlite.js';
 import { scanProject } from './project-scanner.js';
 import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core.js';
 import { extractRelations } from '../parsers/relation-extractor.js';
@@ -27,6 +27,20 @@ function symbolIdsOf(store: SqliteStore, filePath: string): string[] {
   return store.getSymbolsByFile(filePath).map((s) => s.id);
 }
 
+/**
+ * An index written by an older schema holds values with a different meaning
+ * (e.g. 0-based lines before M0-14). File hashes would make the incremental
+ * run skip those files, so clear everything and rebuild from scratch.
+ */
+function resetOutdatedIndex(store: SqliteStore, zvecStore?: ZVecStore): void {
+  const version = store.getIndexSchemaVersion();
+  if (version >= INDEX_SCHEMA_VERSION) return;
+  log.info({ from: version, to: INDEX_SCHEMA_VERSION }, 'Index schema is outdated — forcing a full re-index');
+  zvecStore?.clear();
+  store.clearIndex();
+  store.setIndexSchemaVersion(INDEX_SCHEMA_VERSION);
+}
+
 export async function indexProject(
   rootDir: string,
   store: SqliteStore,
@@ -36,6 +50,8 @@ export async function indexProject(
 ): Promise<IndexResult> {
   const startTime = Date.now();
   const errors: string[] = [];
+
+  resetOutdatedIndex(store, zvecStore);
 
   // Scan for files
   const files = scanProject(rootDir, config);
@@ -116,7 +132,7 @@ export async function indexProject(
                 startLine: c.symbol.start_line,
                 endLine: c.symbol.end_line,
                 signature: c.symbol.signature,
-                code: sourceLines.slice(c.symbol.start_line, c.symbol.end_line + 1).join('\n'),
+                code: sourceLines.slice(c.symbol.start_line - 1, c.symbol.end_line).join('\n'),
                 docComment: c.symbol.doc_comment,
                 language: c.symbol.language,
               }));
@@ -184,7 +200,7 @@ export async function indexProject(
               startLine: c.symbol.start_line,
               endLine: c.symbol.end_line,
               signature: c.symbol.signature,
-              code: sourceLines.slice(c.symbol.start_line, c.symbol.end_line + 1).join('\n'),
+              code: sourceLines.slice(c.symbol.start_line - 1, c.symbol.end_line).join('\n'),
               docComment: c.symbol.doc_comment,
               language: c.symbol.language,
             }));
