@@ -8,6 +8,7 @@ import { chunkSymbols } from '../parsers/chunker.js';
 import { embedBatch } from '../stores/embedding.js';
 import { createLogger } from '../utils/logger.js';
 import { languageForPath } from '../parsers/languages.js';
+import { resolveCallRelations } from './call-resolver.js';
 
 const log = createLogger('file-watcher');
 
@@ -89,7 +90,8 @@ export class FileWatcher {
       }
 
       // Update stores (vectors first: their ids come from the SQLite rows)
-      this.config.zvecStore?.deleteByFile(filePath, this.config.store.getSymbolsByFile(filePath).map((s) => s.id));
+      const oldSymbols = this.config.store.getSymbolsByFile(filePath);
+      this.config.zvecStore?.deleteByFile(filePath, oldSymbols.map((s) => s.id));
       this.config.store.clearSymbols(filePath);
       this.config.store.clearRelations(filePath);
 
@@ -102,6 +104,13 @@ export class FileWatcher {
       if (result.relations.length > 0) {
         this.config.store.upsertRelations(result.relations);
       }
+
+      // Symbol ids embed the start line, so calls from other files into this
+      // one must be re-linked; so must this file's own calls.
+      resolveCallRelations(this.config.store, {
+        files: [filePath],
+        names: [...oldSymbols, ...result.symbols].map((s) => s.name),
+      });
 
       if (this.config.zvecStore) {
         const sourceLines = content.split('\n');
@@ -139,13 +148,18 @@ export class FileWatcher {
   }
 
   private handleDelete(filePath: string): void {
+    const oldSymbols = this.config.store.getSymbolsByFile(filePath);
     try {
-      this.config.zvecStore?.deleteByFile(filePath, this.config.store.getSymbolsByFile(filePath).map((s) => s.id));
+      this.config.zvecStore?.deleteByFile(filePath, oldSymbols.map((s) => s.id));
     } catch {
       log.warn({ file: filePath }, 'Failed to remove file from vector index');
     }
     this.config.store.clearSymbols(filePath);
     this.config.store.clearRelations(filePath);
+    // Forget the hash too, or re-adding the same content would be skipped as unchanged.
+    this.config.store.deleteFileHash(filePath);
+    // Calls into the removed symbols fall back to another definition or become unresolved.
+    resolveCallRelations(this.config.store, { files: [], names: oldSymbols.map((s) => s.name) });
     log.debug({ file: filePath }, 'File removed from index');
   }
 

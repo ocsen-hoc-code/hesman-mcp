@@ -38,6 +38,8 @@ export interface WorkerResult {
     file_path: string;
     line: number;
     col: number;
+    /** Callee name of a `calls` relation (see `resolveCallRelations`). */
+    to_name?: string | null;
   }>;
   contentHash: string;
   error?: string;

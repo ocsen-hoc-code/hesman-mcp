@@ -30,6 +30,28 @@ export interface RelationRow {
   file_path: string;
   line: number;
   col: number;
+  /** Callee name of a `calls` relation (resolved into `to_id` after indexing). */
+  to_name?: string | null;
+}
+
+/** A `calls` relation awaiting (re-)resolution of its target. */
+export interface CallRelationToResolve {
+  rowid: number;
+  file_path: string;
+  to_name: string;
+  to_id: string;
+}
+
+/** Kinds a call can never target (`foo(` is not a call of an interface or type). */
+const NON_CALLABLE_KINDS = ['interface', 'type', 'enum', 'namespace'];
+
+/** SQLite caps bound parameters; stay well below the limit. */
+const IN_CHUNK = 500;
+
+function chunked<T>(items: T[], size = IN_CHUNK): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
 }
 
 export interface CallerResult {
@@ -73,8 +95,10 @@ export interface DependencyResult {
  * change meaning; an index with an older version is cleared and rebuilt.
  *   0 — no version recorded (pre-M0-14): 0-based line numbers.
  *   1 — every stored line number is 1-based, inclusive (M0-14).
+ *   2 — `calls` relations carry the callee name (`to_name`) and are resolved
+ *       across files after indexing; no declaration self-calls (M0-13).
  */
-export const INDEX_SCHEMA_VERSION = 1;
+export const INDEX_SCHEMA_VERSION = 2;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
 
@@ -177,6 +201,12 @@ export class SqliteStore {
     for (const sql of MIGRATIONS) {
       this.db.exec(sql);
     }
+    // `to_name` was added in index schema 2; older databases lack the column.
+    const columns = this.db.prepare('PRAGMA table_info(relations)').all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === 'to_name')) {
+      this.db.exec('ALTER TABLE relations ADD COLUMN to_name TEXT');
+    }
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_relations_to_name ON relations(to_name)');
   }
 
   private ensureFtsTriggers(): void {
@@ -328,6 +358,12 @@ export class SqliteStore {
     });
   }
 
+  deleteFileHash(filePath: string): void {
+    withRetry(() => {
+      this.db.prepare('DELETE FROM file_hashes WHERE file_path = ?').run(filePath);
+    });
+  }
+
   getFileHash(filePath: string): string | null {
     const stmt = this.db.prepare('SELECT sha256 FROM file_hashes WHERE file_path = ?');
     const row = stmt.get(filePath) as { sha256: string } | undefined;
@@ -338,12 +374,72 @@ export class SqliteStore {
     withRetry(() => {
       if (relations.length === 0) return;
       const stmt = this.db.prepare(
-        'INSERT OR REPLACE INTO relations (from_id, to_id, kind, file_path, line, col) VALUES (@from_id, @to_id, @kind, @file_path, @line, @col)',
+        'INSERT OR REPLACE INTO relations (from_id, to_id, kind, file_path, line, col, to_name) VALUES (@from_id, @to_id, @kind, @file_path, @line, @col, @to_name)',
       );
       const insertMany = this.db.transaction((rows: RelationRow[]) => {
-        for (const row of rows) stmt.run(row);
+        for (const row of rows) {
+          stmt.run({
+            from_id: row.from_id,
+            to_id: row.to_id,
+            kind: row.kind,
+            file_path: row.file_path,
+            line: row.line,
+            col: row.col,
+            to_name: row.to_name ?? null,
+          });
+        }
       });
       insertMany(relations);
+    });
+  }
+
+  /**
+   * `calls` relations whose target must be (re-)resolved. Without a scope:
+   * all of them. With a scope: those made in `files`, plus those whose callee
+   * name is in `names` (the set of candidate symbols for that name changed).
+   */
+  getCallRelationsToResolve(scope?: { files: string[]; names: string[] }): CallRelationToResolve[] {
+    const base = 'SELECT rowid, file_path, to_name, to_id FROM relations WHERE kind = \'calls\' AND to_name IS NOT NULL';
+    if (!scope) {
+      return this.db.prepare(`${base} ORDER BY rowid`).all() as CallRelationToResolve[];
+    }
+    const rows = new Map<number, CallRelationToResolve>();
+    const collect = (column: 'file_path' | 'to_name', values: string[]): void => {
+      for (const part of chunked([...new Set(values)])) {
+        const sql = `${base} AND ${column} IN (${part.map(() => '?').join(',')})`;
+        for (const row of this.db.prepare(sql).all(...part) as CallRelationToResolve[]) rows.set(row.rowid, row);
+      }
+    };
+    collect('file_path', scope.files);
+    collect('to_name', scope.names);
+    return [...rows.values()].sort((a, b) => a.rowid - b.rowid);
+  }
+
+  /** Symbols named `name` that a call can target (excludes interfaces, types, …). */
+  getCallTargetCandidates(name: string): Array<{ id: string; file_path: string }> {
+    const placeholders = NON_CALLABLE_KINDS.map(() => '?').join(',');
+    return this.db.prepare(
+      `SELECT id, file_path FROM symbols WHERE name = ? AND kind NOT IN (${placeholders}) ORDER BY file_path, start_line`,
+    ).all(name, ...NON_CALLABLE_KINDS) as Array<{ id: string; file_path: string }>;
+  }
+
+  /** Module specifiers imported by `filePath` (e.g. `./greet.js`). */
+  getImportSpecifiers(filePath: string): string[] {
+    const rows = this.db.prepare(
+      'SELECT DISTINCT to_id FROM relations WHERE kind = \'imports\' AND file_path = ? AND to_id LIKE \'unresolved:%\'',
+    ).all(filePath) as Array<{ to_id: string }>;
+    return rows.map((r) => r.to_id.slice('unresolved:'.length));
+  }
+
+  /** Points relations (by rowid) at new targets. */
+  setRelationTargets(updates: Array<{ rowid: number; to_id: string }>): void {
+    withRetry(() => {
+      if (updates.length === 0) return;
+      // OR REPLACE: a duplicate (same caller, target and line) collapses into one row.
+      const stmt = this.db.prepare('UPDATE OR REPLACE relations SET to_id = ? WHERE rowid = ?');
+      this.db.transaction(() => {
+        for (const u of updates) stmt.run(u.to_id, u.rowid);
+      })();
     });
   }
 
