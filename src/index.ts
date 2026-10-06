@@ -172,6 +172,12 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
+  // When the client dies its end of the stdio pipe closes. The SDK's
+  // StdioServerTransport only fires onclose on an explicit close(), not on
+  // stdin EOF, so watch stdin directly to avoid lingering as an orphan.
+  process.stdin.once('end', () => shutdown('stdin closed (end)'));
+  process.stdin.once('close', () => shutdown('stdin closed (close)'));
+
   await server.connect();
 }
 
