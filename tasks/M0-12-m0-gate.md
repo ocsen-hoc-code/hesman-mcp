@@ -23,6 +23,7 @@ M0 is done only when both blocking problems (broken core, security holes) are pr
    - `PROJECT-CONTEXT.md`: move the phase to "M0 done" and record the next step.
 4. Review the backlog in `STATUS.md`; pick and specify the next milestone (M1).
 5. Remove test flakiness found during M0: `tests/e2e/cli.test.ts` uses a fixed shared directory `join(tmpdir(), 'hesman-cli-e2e')`, so concurrent test runs (e.g. parallel worktrees, CI retries) collide — switch to `mkdtemp`. Also re-check `tests/unit/indexing/index-coordinator.test.ts`, which failed once during a parallel run and passed on rerun. The Claude Desktop path tests in `tests/unit/cli/install.test.ts` assume the macOS location; make them platform-aware so they pass on the Linux and Windows CI runners.
+6. Fix CLI argument parsing found during M0-08: `runClean` (and likely `runStatus`/`runDiag`/`runIndex`) treats `args[0]` as the project path even when it is a flag, so `hesman clean --force` without a path resolves the project root to `./--force` and never cleans the current directory. Parse positional arguments separately from flags and add a test for the no-path form.
 
 ## Out of scope
 
