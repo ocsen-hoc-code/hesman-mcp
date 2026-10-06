@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-06 · **M0: 9/12 done** · **M1: 0/7 done** · **M2: 0/7 done**
+Updated: 2026-10-06 · **M0: 10/12 done** · **M1: 0/7 done** · **M2: 0/7 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -16,7 +16,7 @@ Goal: resolve the two blocking problems — **(1) broken core** and **(2) securi
 | M0-04 | [Confine paths to the project root](M0-04-path-containment.md) | Security | P0 | M0-01 | done |
 | M0-05 | [Safe ZVec filters; validate kind/language](M0-05-zvec-filter.md) | Security | P1 | M0-03 | todo |
 | M0-06 | [Prevent ReDoS and event-loop blocking in find_pattern](M0-06-find-pattern-hardening.md) | Security | P1 | M0-01 | done |
-| M0-07 | [Scanner and watcher ignore symlinks](M0-07-symlink-safety.md) | Security | P1 | M0-03 | todo |
+| M0-07 | [Scanner and watcher ignore symlinks](M0-07-symlink-safety.md) | Security | P1 | M0-03 | done |
 | M0-08 | [Guard rails for `hesman clean`](M0-08-clean-guard.md) | Security | P1 | — | done |
 | M0-09 | [Validate and clamp numeric tool arguments](M0-09-numeric-args.md) | Security | P2 | — | done |
 | M0-10 | [Verify checksums of downloaded WASM parsers](M0-10-parser-checksum.md) | Security | P2 | — | done |
