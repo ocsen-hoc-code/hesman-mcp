@@ -1,5 +1,6 @@
-import { resolve, join } from 'node:path';
-import { readFileSync, existsSync, rmSync, statSync, readdirSync } from 'node:fs';
+import { resolve, join, relative, isAbsolute, parse, sep } from 'node:path';
+import { readFileSync, existsSync, rmSync, statSync, readdirSync, realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { getHeapStatistics } from 'node:v8';
 import { loadConfig } from '../config/loader.js';
 import { SqliteStore } from '../stores/sqlite.js';
@@ -153,6 +154,57 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
+/** Marker file created by SqliteStore.open(); proves a directory is a Hesman data dir. */
+const DATA_DIR_MARKER = 'symbols.db';
+
+/** Resolve symlinks when the path exists so comparisons see the real location. */
+function canonicalPath(p: string): string {
+  const abs = resolve(p);
+  try {
+    return realpathSync.native(abs);
+  } catch {
+    return abs;
+  }
+}
+
+function pathsEqual(a: string, b: string): boolean {
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+/** True when `ancestor` strictly contains `child`. */
+function isStrictAncestor(ancestor: string, child: string): boolean {
+  const rel = relative(ancestor, child);
+  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+/**
+ * Returns the reason `hesman clean` must refuse to delete `dataDir`, or null
+ * when the directory is safe to remove. `--force` never bypasses these checks.
+ */
+function cleanRefusalReason(dataDir: string, projectRoot: string): string | null {
+  const data = canonicalPath(dataDir);
+  const project = canonicalPath(projectRoot);
+
+  if (pathsEqual(data, project)) {
+    return `data directory ${dataDir} equals the project root`;
+  }
+  // Root and home are usually ancestors too; check them first for a precise message.
+  if (pathsEqual(data, parse(data).root)) {
+    return `data directory ${dataDir} is a filesystem root`;
+  }
+  if (pathsEqual(data, canonicalPath(homedir()))) {
+    return `data directory ${dataDir} is the home directory`;
+  }
+  if (isStrictAncestor(data, project)) {
+    return `data directory ${dataDir} is an ancestor of the project root ${projectRoot}`;
+  }
+  // An empty directory holds nothing to lose; anything else must carry the marker.
+  if (readdirSync(dataDir).length > 0 && !existsSync(join(dataDir, DATA_DIR_MARKER))) {
+    return `data directory ${dataDir} does not contain ${DATA_DIR_MARKER}, so it is not a Hesman data directory`;
+  }
+  return null;
+}
+
 export async function runClean(args: string[]): Promise<void> {
   const config = loadConfig();
   const projectRoot = resolve(args[0] || config.projectRoot);
@@ -162,6 +214,13 @@ export async function runClean(args: string[]): Promise<void> {
 
   if (!existsSync(dataDir)) {
     console.log(`Nothing to clean. ${dataDir} does not exist.`);
+    return;
+  }
+
+  const refusal = cleanRefusalReason(dataDir, projectRoot);
+  if (refusal) {
+    console.error(`Refusing to clean: ${refusal}.`);
+    process.exitCode = 1;
     return;
   }
 
