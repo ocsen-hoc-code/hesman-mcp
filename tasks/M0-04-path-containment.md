@@ -1,7 +1,7 @@
 ---
 id: M0-04
 title: Confine paths to the project root
-status: todo
+status: done
 priority: P0
 depends_on: [M0-01]
 updated: 2026-10-06
@@ -32,10 +32,10 @@ updated: 2026-10-06
 
 ## Acceptance criteria
 
-- [ ] Unit tests for the helper, one per case: `../../etc/passwd`, `/etc/hosts`, an in-root symlink pointing outside, `/dev/zero`, a directory, an oversized file, a valid relative path, a valid absolute path.
-- [ ] The e2e test from step 1 turns green.
-- [ ] `get_file_structure` accepts relative paths.
-- [ ] No `readFileSync` in `src/server/tools/` receives a path that bypassed the helper.
+- [x] Unit tests for the helper, one per case: `../../etc/passwd`, `/etc/hosts`, an in-root symlink pointing outside, `/dev/zero`, a directory, an oversized file, a valid relative path, a valid absolute path.
+- [x] The e2e test from step 1 turns green.
+- [x] `get_file_structure` accepts relative paths.
+- [x] No `readFileSync` in `src/server/tools/` receives a path that bypassed the helper.
 
 ## Verification
 
@@ -46,4 +46,5 @@ grep -rn "readFileSync" src/server/tools
 
 ## Progress notes
 
+- 2026-10-06: done. Added `src/server/paths.ts` (`resolveProjectPath`, `normalizeProjectPath`, `ProjectPathError`, `projectPathErrorResult`) and `PATH_OUTSIDE_PROJECT`. `get_context` reads only through `resolveProjectPath`; `get_file_structure`, `list_dependencies` and `find_symbol` normalize `filePath` with `normalizeProjectPath` (no disk access). `registerAllTools` now requires `config`. Returned paths keep the scanner's un-realpathed root form (realpath-form input such as `/private/var/...` is mapped back) so they match DB keys. Missing paths outside the root report `PATH_OUTSIDE_PROJECT`, not `FILE_NOT_FOUND`, so the tool is not an existence oracle; the two older e2e tests that probed `/nonexistent/path.ts` now use a missing path inside the fixture. The `..` check matches the `..` segment only, so in-root names like `..notes.ts` are allowed. Tests: `tests/unit/server/paths.test.ts`, `tests/unit/server/tool-paths.test.ts`, `tests/e2e/path-containment.test.ts` (`/etc/hosts`; `C:\Windows\win.ini` on Windows). The remaining `readFileSync` in `find-pattern.ts` reads scanner output, not tool input (owned by M0-06).
 - 2026-10-06: task created.

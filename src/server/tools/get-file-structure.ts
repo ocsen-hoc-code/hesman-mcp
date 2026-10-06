@@ -2,6 +2,8 @@ import { compressToolResponse } from '../response-compressor.js';
 import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
 import { ErrorCode, formatError } from '../error-codes.js';
+import type { HesmanConfig } from '../../config/schema.js';
+import { normalizeProjectPath } from '../paths.js';
 
 const inputSchema = {
   type: 'object',
@@ -12,12 +14,12 @@ const inputSchema = {
   required: ['filePath'],
 };
 
-export function registerGetFileStructureTool(server: McpServer, store: SqliteStore): void {
+export function registerGetFileStructureTool(server: McpServer, store: SqliteStore, config: HesmanConfig): void {
   const handler: ToolHandler = async (args) => {
-    const filePath = args.filePath as string;
+    const rawPath = args.filePath;
     const includeNested = args.includeNested !== false;
 
-    if (!filePath || typeof filePath !== 'string') {
+    if (!rawPath || typeof rawPath !== 'string') {
       return {
         content: [
           { type: 'text', text: JSON.stringify(formatError(ErrorCode.INVALID_INPUT, 'filePath is required')) },
@@ -26,6 +28,8 @@ export function registerGetFileStructureTool(server: McpServer, store: SqliteSto
       };
     }
 
+    // The index keys files by absolute path; resolve relative input against the root.
+    const filePath = normalizeProjectPath(config.projectRoot, rawPath);
     const allSymbols = store.getSymbolsByFile(filePath);
 
     if (allSymbols.length === 0) {

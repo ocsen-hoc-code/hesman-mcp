@@ -272,7 +272,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
 
   it('get_context returns error for nonexistent file', async () => {
     const result = await client.callTool(
-      { name: 'get_context', arguments: { filePath: '/nonexistent/path.ts', startLine: 1 } },
+      { name: 'get_context', arguments: { filePath: resolve(PROJECT_DIR, 'nonexistent/path.ts'), startLine: 1 } },
       undefined,
       { timeout: 5000 },
     );
