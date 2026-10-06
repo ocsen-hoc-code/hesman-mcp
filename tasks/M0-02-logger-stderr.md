@@ -1,7 +1,7 @@
 ---
 id: M0-02
 title: Log to stderr through one shared logger
-status: todo
+status: done
 priority: P0
 depends_on: [M0-01]
 updated: 2026-10-06
@@ -30,10 +30,10 @@ updated: 2026-10-06
 
 ## Acceptance criteria
 
-- [ ] The clean-stdout test passes at the default `info` level.
-- [ ] Logs still appear on stderr.
-- [ ] At most one transport thread is used for logging.
-- [ ] `tests/unit/utils/logger.test.ts` is updated and passes.
+- [x] The clean-stdout test passes at the default `info` level.
+- [x] Logs still appear on stderr.
+- [x] At most one transport thread is used for logging.
+- [x] `tests/unit/utils/logger.test.ts` is updated and passes.
 
 ## Verification
 
@@ -45,4 +45,5 @@ node dist/index.js --no-watch --no-semantic < /dev/null 2>/dev/null | head -c 20
 
 ## Progress notes
 
+- 2026-10-06: done. `logger.ts` now builds one lazily-created root logger; `createLogger(name)` returns `root.child({ name }, { level })` (level from `HESMAN_LOG_LEVEL`, default `info`). Output goes to fd 2 via `pino.destination(2)`; pino-pretty (with `destination: 2`) is used only when `process.stderr.isTTY`, so at most one transport thread exists. Added `tests/e2e/stdout-clean.test.ts` (failed before: ~15 pino lines on stdout, 0 on stderr) and expanded `tests/unit/utils/logger.test.ts`. No `console.log` outside `src/cli/`. Manual check on a fixture copy: 0 bytes on stdout, 14 JSON log lines on stderr. Observed (out of scope): the server does not exit on stdin EOF, so the spec's `< /dev/null | head -c 200` command hangs; run it with a timeout/kill instead.
 - 2026-10-06: task created.
