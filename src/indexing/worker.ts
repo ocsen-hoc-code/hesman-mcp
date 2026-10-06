@@ -3,8 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { initParser, parseFile } from '../parsers/core.js';
 import { extractRelations } from '../parsers/relation-extractor.js';
-import { tsProfile } from '../parsers/profiles/typescript.js';
-import type { LanguageProfile } from '../parsers/language-profile.js';
+import { profileFor } from '../parsers/languages.js';
 
 interface WorkerTask {
   filePath: string;
@@ -40,16 +39,12 @@ interface WorkerResult {
   error?: string;
 }
 
-const PROFILE_BY_LANG: Record<string, LanguageProfile> = {
-  typescript: tsProfile,
-};
-
 // Initialize parser on worker startup
 let initialized = false;
 
 async function ensureInit(language: string): Promise<void> {
   if (initialized) return;
-  const profile = PROFILE_BY_LANG[language];
+  const profile = profileFor(language);
   if (profile) {
     await initParser(profile);
     initialized = true;
@@ -63,7 +58,7 @@ if (!parentPort) {
 parentPort.on('message', async (task: WorkerTask) => {
   try {
     await ensureInit(task.language);
-    const profile = PROFILE_BY_LANG[task.language];
+    const profile = profileFor(task.language);
     if (!profile) {
       throw new Error(`Unsupported language: ${task.language}`);
     }

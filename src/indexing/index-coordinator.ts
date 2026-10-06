@@ -9,10 +9,7 @@ import type { SqliteStore } from '../stores/sqlite.js';
 import { scanProject } from './project-scanner.js';
 import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core.js';
 import { extractRelations } from '../parsers/relation-extractor.js';
-import { tsProfile } from '../parsers/profiles/typescript.js';
-import { pythonProfile as pyProfile } from '../parsers/profiles/python.js';
-import { goProfile } from '../parsers/profiles/go.js';
-import type { LanguageProfile } from '../parsers/language-profile.js';
+import { profileFor } from '../parsers/languages.js';
 import { WorkerPool, WorkerTask } from './worker-pool.js';
 
 const log = createLogger('index-coordinator');
@@ -24,12 +21,6 @@ export interface IndexResult {
   errors: string[];
   tookMs: number;
 }
-
-const PROFILE_BY_LANG: Record<string, LanguageProfile> = {
-  typescript: tsProfile,
-  python: pyProfile,
-  go: goProfile,
-};
 
 export async function indexProject(
   rootDir: string,
@@ -47,7 +38,7 @@ export async function indexProject(
   // Pre-initialize parser for languages we'll encounter
   const languages = new Set(files.map((f) => f.language));
   for (const lang of languages) {
-    const profile = PROFILE_BY_LANG[lang];
+    const profile = profileFor(lang);
     if (profile) await initParser(profile);
   }
 
@@ -61,7 +52,7 @@ export async function indexProject(
     const validFiles: typeof files = [];
 
     for (const file of files) {
-      const profile = PROFILE_BY_LANG[file.language];
+      const profile = profileFor(file.language);
       if (!profile) continue;
 
       const content = readFileSync(file.filePath, 'utf-8');
@@ -143,7 +134,7 @@ export async function indexProject(
     // Fallback: single-threaded path (Phase 3 behavior)
     for (const file of files) {
       try {
-        const profile = PROFILE_BY_LANG[file.language];
+        const profile = profileFor(file.language);
         if (!profile) continue;
 
         const content = readFileSync(file.filePath, 'utf-8');

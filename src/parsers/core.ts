@@ -2,17 +2,7 @@ import Parser, { type SyntaxNode } from 'web-tree-sitter';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { LanguageProfile } from './language-profile.js';
-import { tsProfile } from './profiles/typescript.js';
-import { pythonProfile } from './profiles/python.js';
-import { goProfile } from './profiles/go.js';
 import { createLogger } from '../utils/logger.js';
-
-/** Map from language ID to its LanguageProfile. */
-export const PROFILE_BY_LANG: Record<string, LanguageProfile> = {
-  typescript: tsProfile,
-  python: pythonProfile,
-  go: goProfile,
-};
 
 const log = createLogger('parser');
 

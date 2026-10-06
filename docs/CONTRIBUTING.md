@@ -141,7 +141,7 @@ src/
 
 ## Adding a Language Profile
 
-Hesman supports adding new languages by implementing the `LanguageProfile` interface.
+A new language needs exactly four things: a `LanguageProfile`, one entry in the language registry (`src/parsers/languages.ts`), the Tree-sitter WASM grammar, and tests.
 
 ### 1. Create the Profile
 
@@ -189,49 +189,43 @@ export const myLangProfile: LanguageProfile = {
 
 Add the WASM file to `parsers/` and update `scripts/download-parsers.ts` if needed.
 
-### 3. Register the Profile
+### 3. Add One Registry Entry
 
-Add your profile to `src/parsers/core.ts` (the `PROFILE_BY_LANG` map):
+`src/parsers/languages.ts` is the **single source of truth** for languages. The scanner, index
+coordinator, worker threads, file watcher and tools all derive their tables from it — do not add
+extension or profile maps anywhere else. Append one entry to `LANGUAGES`:
 
 ```typescript
 import { myLangProfile } from './profiles/mylang.js';
 
-export const PROFILE_BY_LANG: Record<string, LanguageProfile> = {
-  typescript: tsProfile,
-  python: pythonProfile,
-  go: goProfile,
-  mylang: myLangProfile,
-};
+export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
+  // ...existing entries
+  {
+    id: 'mylang',                       // must equal myLangProfile.language
+    extensions: ['.my'],                // lowercase, with the leading dot; must equal the profile's list
+    grammar: 'tree-sitter-mylang.wasm', // file name inside parsers/; must match parserWasmPath
+    profile: myLangProfile,
+  },
+]);
 ```
 
-Also update `src/indexing/index-coordinator.ts` (the `PROFILE_BY_LANG` map) and add the import.
+The registry validates itself at load time (duplicate ids, an extension claimed by two languages,
+or a profile whose `language` differs from the entry id all throw). Consumers use the helpers:
+`profileFor(id)`, `languageForPath(path)`, `languageForExtension(ext)`, `languageById(id)`,
+`isLanguageId(id)` and `LANGUAGE_IDS`.
 
 ### 4. Write Tests
 
-Add tests under `tests/unit/parsers/`:
+- `tests/unit/parsers/languages.test.ts` checks every entry against its profile and that its
+  grammar file exists — update the expected `LANGUAGE_IDS` list.
+- Add `tests/unit/parsers/mylang.symbols.test.ts` (symbol extraction) and
+  `mylang.relations.test.ts` (calls, imports).
+- Add a fixture project in `tests/fixtures/<lang>-basic/` (or a directory in `polyglot-basic`) and
+  an e2e assertion that `find_symbol` finds one of its symbols through the real server, which
+  indexes via the worker pool.
 
-- `mylang.symbols.test.ts` — verify symbol extraction from sample `.my` files
-- `mylang.relations.test.ts` — verify relation extraction (calls, imports)
-
-### 5. Update the File Watcher
-
-Add the file extension mapping in `src/indexing/file-watcher.ts`:
-
-```typescript
-const EXT_TO_LANG: Record<string, string> = {
-  '.ts': 'typescript',
-  // ...
-  '.my': 'mylang',
-};
-```
-
-### 6. Update `get_context` Language Map
-
-Update the `langMap` in `src/server/tools/get-context.ts` to include the new extension.
-
-### 7. Add Fixture Data
-
-Create a test fixture project in `tests/fixtures/<lang>-basic/` with sample source files.
+No other code changes are needed: the worker, file watcher, scanner and `get_context` pick the
+language up from the registry.
 
 ---
 
