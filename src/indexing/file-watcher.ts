@@ -85,7 +85,8 @@ export class FileWatcher {
         return;
       }
 
-      // Update stores
+      // Update stores (vectors first: their ids come from the SQLite rows)
+      this.config.zvecStore?.deleteByFile(filePath, this.config.store.getSymbolsByFile(filePath).map((s) => s.id));
       this.config.store.clearSymbols(filePath);
       this.config.store.clearRelations(filePath);
 
@@ -135,6 +136,11 @@ export class FileWatcher {
   }
 
   private handleDelete(filePath: string): void {
+    try {
+      this.config.zvecStore?.deleteByFile(filePath, this.config.store.getSymbolsByFile(filePath).map((s) => s.id));
+    } catch {
+      log.warn({ file: filePath }, 'Failed to remove file from vector index');
+    }
     this.config.store.clearSymbols(filePath);
     this.config.store.clearRelations(filePath);
     log.debug({ file: filePath }, 'File removed from index');

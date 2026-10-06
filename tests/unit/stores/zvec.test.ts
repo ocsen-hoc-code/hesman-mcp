@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { ZVecStore, type SearchDoc } from '../../../src/stores/zvec';
+import { ZVecStore, quoteFilterValue, canQuoteFilterValue, type SearchDoc } from '../../../src/stores/zvec';
 import { rmSync, existsSync, mkdirSync } from 'node:fs';
 
 const TEST_DIR = '.hesman-test-zvec';
@@ -101,6 +101,39 @@ describe('ZVecStore', () => {
     expect(results.every(r => r.filePath === 'src/b.ts')).toBe(true);
   });
 
+  it("deleteByFile handles a path containing ' without touching other files", () => {
+    const docs = [
+      makeDoc('s1', { filePath: "/p/O'Brien/a.ts" }),
+      makeDoc('s2', { filePath: '/p/O' }),
+      makeDoc('s3', { filePath: '/p/b.ts' }),
+    ];
+    store.upsertDocs(docs, [makeEmbedding(), makeEmbedding(), makeEmbedding()]);
+
+    store.deleteByFile("/p/O'Brien/a.ts");
+    const left = store.search({ queryVector: makeEmbedding(), topK: 10 }).map(r => r.symbolId).sort();
+    expect(left).toEqual(['s2', 's3']);
+  });
+
+  it('deleteByFile removes documents by id when the path cannot be quoted', () => {
+    const winPath = 'C:\\proj\\src\\a.ts';
+    const docs = [
+      makeDoc('s1', { filePath: winPath }),
+      makeDoc('s2', { filePath: winPath }),
+      makeDoc('s3', { filePath: 'src/b.ts' }),
+    ];
+    store.upsertDocs(docs, [makeEmbedding(), makeEmbedding(), makeEmbedding()]);
+
+    store.deleteByFile(winPath, ['s1', 's2', 'missing-id']);
+    const left = store.search({ queryVector: makeEmbedding(), topK: 10 }).map(r => r.symbolId);
+    expect(left).toEqual(['s3']);
+  });
+
+  it('search rejects kind and language values outside the known sets', () => {
+    store.upsertDocs([makeDoc('s1')], [makeEmbedding()]);
+    expect(() => store.search({ queryVector: makeEmbedding(), topK: 10, kind: "function' OR '1'='1" })).toThrow();
+    expect(() => store.search({ queryVector: makeEmbedding(), topK: 10, language: "x' OR '1'='1" })).toThrow();
+  });
+
   it('persists data across close/re-open', () => {
     store.upsertDocs([makeDoc('s1')], [makeEmbedding()]);
     store.close();
@@ -120,5 +153,19 @@ describe('ZVecStore', () => {
   it('handles empty upsert gracefully', () => {
     store.upsertDocs([], []);
     expect(store.stats().docCount).toBe(0);
+  });
+});
+
+describe('quoteFilterValue', () => {
+  it("escapes ' with a backslash and leaves \" alone", () => {
+    expect(quoteFilterValue("O'Brien")).toBe("'O\\'Brien'");
+    expect(quoteFilterValue('a"b')).toBe("'a\"b'");
+  });
+
+  it('rejects values ZVec cannot represent (backslash, control characters)', () => {
+    for (const bad of ['a\\b', 'trailing\\', 'line\nbreak', 'tab\tx', 'nul\u0000']) {
+      expect(canQuoteFilterValue(bad)).toBe(false);
+      expect(() => quoteFilterValue(bad)).toThrow();
+    }
   });
 });

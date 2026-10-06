@@ -11,6 +11,8 @@ import {
 import { join } from 'node:path';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { createLogger } from '../utils/logger.js';
+import { isLanguageId } from '../parsers/languages.js';
+import { isSymbolKind } from '../parsers/symbol-kinds.js';
 
 const log = createLogger('zvec');
 
@@ -81,6 +83,35 @@ function createSchema(): ZVecCollectionSchema {
       },
     ],
   });
+}
+
+/**
+ * Quote a string value for a ZVec filter expression.
+ *
+ * ZVec 0.5.0 parses filters with an ANTLR SQL grammar (native binding). Verified
+ * empirically against `@zvec/zvec@0.5.0` (see tasks/M0-05-zvec-filter.md):
+ * - Inside a single-quoted literal, `\'` is the only way to write `'`
+ *   (SQL-style `''` is a syntax error).
+ * - The lexer treats `\` + any character as one unit, but the unescape step only
+ *   turns `\'` / `\"` into the quote; every other backslash is kept verbatim.
+ *   So `\\` is two backslashes, a trailing `\` cannot be written, and a
+ *   backslash before a quote is ambiguous.
+ * - A raw line break inside a literal is a lexer error.
+ *
+ * Therefore values containing a backslash or a control character cannot be
+ * expressed safely and are rejected; `'` is escaped as `\'`.
+ */
+export function quoteFilterValue(value: string): string {
+  if (!canQuoteFilterValue(value)) {
+    throw new Error('Value cannot be safely quoted in a ZVec filter (contains a backslash or control character)');
+  }
+  return `'${value.replace(/'/g, "\\'")}'`;
+}
+
+/** True if `quoteFilterValue(value)` would succeed. */
+export function canQuoteFilterValue(value: string): boolean {
+  // eslint-disable-next-line no-control-regex
+  return !/[\\\u0000-\u001f\u007f]/.test(value);
 }
 
 function matchesGlob(filePath: string, pattern: string): boolean {
@@ -166,17 +197,40 @@ export class ZVecStore {
     }
   }
 
-  deleteByFile(filePath: string): void {
+  /**
+   * Remove every document of `filePath`.
+   *
+   * `symbolIds` (the file's ids as currently stored in SQLite) are deleted by id,
+   * which works for any path. When the path can be quoted safely, a filter delete
+   * also removes documents SQLite no longer knows about. Paths that cannot be
+   * quoted (e.g. Windows paths with backslashes) rely on the id list alone.
+   */
+  deleteByFile(filePath: string, symbolIds: readonly string[] = []): void {
     if (!this.collection) throw new Error('ZVec collection not open');
-    this.collection.deleteByFilterSync(`filePath = '${filePath}'`);
+    if (symbolIds.length > 0) {
+      this.collection.deleteSync([...symbolIds]);
+    }
+    if (canQuoteFilterValue(filePath)) {
+      this.collection.deleteByFilterSync(`filePath = ${quoteFilterValue(filePath)}`);
+    } else {
+      log.debug({ file: filePath }, 'Path cannot be quoted in a ZVec filter; deleted by id only');
+    }
   }
 
   search(params: SearchParams): SearchResult[] {
     if (!this.collection) throw new Error('ZVec collection not open');
 
+    // Defense in depth: the tool layer validates these too.
+    if (params.language !== undefined && !isLanguageId(params.language)) {
+      throw new Error(`Unknown language filter: ${JSON.stringify(params.language)}`);
+    }
+    if (params.kind !== undefined && !isSymbolKind(params.kind)) {
+      throw new Error(`Unknown kind filter: ${JSON.stringify(params.kind)}`);
+    }
+
     const conditions: string[] = [];
-    if (params.language) conditions.push(`language = '${params.language}'`);
-    if (params.kind) conditions.push(`kind = '${params.kind}'`);
+    if (params.language) conditions.push(`language = ${quoteFilterValue(params.language)}`);
+    if (params.kind) conditions.push(`kind = ${quoteFilterValue(params.kind)}`);
     const filter = conditions.length > 0 ? conditions.join(' AND ') : undefined;
 
     const queryParams: Record<string, unknown> = {
