@@ -53,7 +53,8 @@ export async function pruneContext(
   // Include doc comment lines above the focus symbol
   if (focusSymbol.doc_comment) {
     const docLineCount = focusSymbol.doc_comment.split('\n').length;
-    const docStart = Math.max(1, focusStart - docLineCount - 1);
+    // Lines are 1-based, inclusive: the doc comment ends right above focusStart.
+    const docStart = Math.max(1, focusStart - docLineCount);
     if (docStart < focusStart) {
       relevantRanges.push([docStart, focusStart - 1]);
       relevantReasons.set(`${docStart}-${focusStart - 1}`, 'doc comment');

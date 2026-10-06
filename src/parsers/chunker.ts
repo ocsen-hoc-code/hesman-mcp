@@ -31,7 +31,7 @@ export function chunkSymbols(
 ): CodeChunk[] {
   return symbols.map(sym => {
     const code = sourceLines
-      .slice(sym.start_line, sym.end_line + 1)
+      .slice(sym.start_line - 1, sym.end_line) // lines are 1-based, inclusive
       .join('\n');
 
     const parts: string[] = [[sym.kind, ...splitIdentifier(sym.name)].join(' ')];

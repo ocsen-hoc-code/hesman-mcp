@@ -117,7 +117,7 @@ export class FileWatcher {
               startLine: c.symbol.start_line,
               endLine: c.symbol.end_line,
               signature: c.symbol.signature,
-              code: sourceLines.slice(c.symbol.start_line, c.symbol.end_line + 1).join('\n'),
+              code: sourceLines.slice(c.symbol.start_line - 1, c.symbol.end_line).join('\n'),
               docComment: c.symbol.doc_comment,
               language: c.symbol.language,
             }));

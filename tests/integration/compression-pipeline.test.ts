@@ -95,10 +95,11 @@ describe('compression pipeline integration', () => {
       ],
       totalCount: 2,
     });
-    expect(refResult._summary).toBeDefined();
-    expect(refResult._summary.totalCount).toBe(2);
-    expect(refResult._summary.byKind.calls).toBe(1);
-    expect(refResult._summary.byKind.exports).toBe(1);
+    // _summary only adds tokens, so it is dropped rather than inflating the payload (M0-15)
+    expect(refResult._summary).toBeUndefined();
+    expect(refResult.references).toHaveLength(2);
+    expect(refResult._meta.compressed).toBe(false);
+    expect(parseFloat(refResult._meta.reduction)).toBeGreaterThanOrEqual(0);
 
     // Test compressToolResponse with get_callers output (chain compression)
     const callersResult = compressToolResponse('get_callers', {
@@ -106,9 +107,10 @@ describe('compression pipeline integration', () => {
         { name: 'main', depth: 1, filePath: 'src/index.ts' },
       ],
     });
-    expect(callersResult._summary).toBeDefined();
-    expect(callersResult._summary.paths).toBeDefined();
-    expect(callersResult._summary.directCount).toBe(1);
+    expect(callersResult._summary).toBeUndefined();
+    expect(callersResult.callers).toHaveLength(1);
+    expect(callersResult._meta.compressed).toBe(false);
+    expect(parseFloat(callersResult._meta.reduction)).toBeGreaterThanOrEqual(0);
 
     // Test compression with impact_analysis output
     const impactResult = compressToolResponse('impact_analysis', {
