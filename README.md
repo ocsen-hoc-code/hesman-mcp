@@ -7,7 +7,7 @@
 
 🌐 **Read this in:** [English](./README.md) | [Tiếng Việt](./docs/i18n/README.vi.md) | [Русский](./docs/i18n/README.ru.md) | [Deutsch](./docs/i18n/README.de.md) | [Français](./docs/i18n/README.fr.md) | [中文](./docs/i18n/README.zh.md) | [日本語](./docs/i18n/README.ja.md) | [العربية](./docs/i18n/README.ar.md) | [Español](./docs/i18n/README.es.md) | [Português](./docs/i18n/README.pt.md)
 
-**Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — with a 3-layer compression pipeline that dramatically reduces token consumption (up to 97% in best-case scenarios). Everything runs locally. No external APIs. No LSP servers.
+**Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — with focused code reads that cut token consumption (`get_context` returns ~90% fewer tokens than the whole file when you ask for one function's neighborhood). Everything runs locally. No external APIs. No LSP servers.
 
 ---
 
@@ -37,10 +37,10 @@ AI coding agents are powerful but expensive. Every line of code they read costs 
 Hesman solves this by:
 
 - **Serving only what the agent needs** — a focused function, its callers, its callees, or the symbols impacted by a change.
-- **Compressing every response** — a 3-layer pipeline strips comments, prunes irrelevant code, and summarizes large result sets.
-- **Replacing raw dumps with summaries** — instead of 200 references in a JSON array, the agent gets a `_summary` block with counts grouped by kind and file.
+- **Compacting and pruning code** — `get_context` strips comments and blank lines and returns only the lines around the focus location instead of the whole file.
+- **Never inflating responses** — a response is never larger than its plain payload. Summaries for long result lists are planned but not applied yet (see [Token Reduction Pipeline](#token-reduction-pipeline)).
 - **Running 100% locally** — no API keys, no network calls, no latency from external services. Your code never leaves your machine.
-- **Measurable savings** — every response includes `_meta.reduction` showing exactly how many tokens were saved vs. raw output.
+- **Measurable savings** — every tool response except `index_status` includes `_meta.reduction` showing exactly how many tokens were saved vs. raw output.
 
 The result: agents work faster, cost less, and reason more accurately because they see the right code, not all the code.
 
@@ -81,15 +81,15 @@ That's it. Once the initial indexing finishes (a few seconds for most projects),
 
 ### Token Reduction Pipeline
 
-Hesman's 3-layer compression pipeline reduces token usage at every response. Actual savings are measured and reported via `_meta.reduction` in each response.
+Hesman designs its compression pipeline in 3 layers; today the savings come from compact mode and context pruning in `get_context`. Every response reports its actual savings in `_meta.reduction`, and a response is never larger than its plain payload.
 
-| Layer | Technique | Typical Savings | Best Case |
+| Layer | Technique | Measured savings | Status |
 |---|---|---|---|
-| **Compact mode** | Strips comments, blank lines, trailing whitespace; removes unused imports | 10–30% | ~35% (heavily commented code) |
-| **Context pruning** | Line-range extraction around focus symbol + compact mode combined; replaces omitted code with count markers | 30–95% (file-size dependent) | ~97% (430-line file → 6 lines) |
-| **Smart summarization** | Replaces large result arrays with aggregated `_summary` blocks; compresses call chains into grouped stats | 15–85% (on 200+ item lists) | ~90% (500+ references → summary) |
+| **Compact mode** | Strips comments, blank lines, trailing whitespace | ~14–16% of a code excerpt (`get_context`, `mode: "full"` vs. `"compact"`) | Applied in `get_context` |
+| **Context pruning** | Line-range extraction around the focus location + compact mode | 89.9% with the default ±5 lines, 29.9% with ±40 lines (195-line file); 0% when the whole file is requested | Applied in `get_context` |
+| **Smart summarization** | Aggregated `_summary` blocks for long result lists | 0% — a `_summary` only added to a response, so it is dropped | Not applied yet ([backlog](tasks/STATUS.md)) |
 
-**Combined best case:** A 430-line file queried via `get_context` for a single function → pruned to ~6 relevant lines + compact mode → **97.1% reduction** (verified by test suite). Typical usage across all tools averages **20–70%** reduction, varying by file size and tool. The `_meta.reduction` field in every response reports exact savings for your workload.
+List and call-graph tools (`get_references`, `get_callers`, `get_callees`, `list_dependencies`, `get_file_structure`) currently return their plain payload with `_meta.reduction: "0.0%"` and `_meta.compressed: false`. Measured on this repository's `src/` and on `tests/fixtures/polyglot-basic`. The `_meta.reduction` field in every response reports exact savings for your workload.
 
 ### Production Ready
 
@@ -182,24 +182,9 @@ export async function handleWebhook(payload: WebhookPayload): Promise<Result> {
 
 Pruning keeps: the focus symbol's definition, its doc comment, direct callers and callees within the same file, and in-file references — everything else is replaced with a count marker.
 
-### Layer 3: Smart Summarization
+### Layer 3: Smart Summarization (not applied yet)
 
-Instead of dumping 200 references in a JSON array:
-
-```json
-{
-  "_summary": {
-    "totalCount": 200,
-    "byKind": { "calls": 145, "imports": 38, "extends": 12, "type_ref": 5 },
-    "byFile": [
-      { "filePath": "src/services/payment.ts", "count": 34 },
-      { "filePath": "src/controllers/checkout.ts", "count": 28 }
-    ]
-  }
-}
-```
-
-The agent can then request details for specific files or kinds — paginated via `cursor`.
+The plan is to replace long result lists with an aggregated `_summary` (counts by kind and by file) plus the top entries. The current implementation only *added* a `_summary` next to the full list, which made responses larger, so Hesman drops it and returns the plain payload: list and call-graph tools report `_meta.reduction: "0.0%"` today. Making summaries actually save tokens is tracked in the backlog ([`tasks/STATUS.md`](tasks/STATUS.md)). Long lists can already be fetched in pages via `topK` and `cursor` (`get_references`).
 
 ### Measuring Savings
 
@@ -208,15 +193,16 @@ Every Hesman response includes a `_meta` block with actual token savings:
 ```json
 {
   "_meta": {
-    "originalTokens": 2007,
-    "compressedTokens": 58,
-    "reduction": "97.1%",
-    "layers": ["compact", "prune"]
+    "originalTokens": 1764,
+    "compressedTokens": 178,
+    "reduction": "89.9%",
+    "compressed": false,
+    "layers": ["prune"]
   }
 }
 ```
 
-This example shows the full 3-layer pipeline in action: a 430-line file pruned to 6 lines (the `prune` layer), then compacted (the `compact` layer). The `_meta.reduction` field measures against the original full-file token count, giving you the true end-to-end savings. Audit exactly how much Hesman saves in your real workloads by checking `_meta.reduction` on any tool response.
+This example is a real `get_context` call (default ±5 lines, compact mode) on a 195-line file: the excerpt is already compacted by the tool, so only the `prune` layer is listed, and `compressed: false` means the response compressor had nothing further to remove. The `_meta.reduction` field measures against the original full-file token count, giving you the true end-to-end savings. Responses that would not shrink are returned as-is with `reduction: "0.0%"`; it is never negative. Audit exactly how much Hesman saves in your real workloads by checking `_meta.reduction` on any tool response.
 
 ---
 
@@ -282,7 +268,7 @@ Add this to your agent's MCP config file:
 
 ## Tools Reference
 
-Hesman exposes **11 tools** over MCP stdio transport. Every response includes a `_meta` block with token savings and, where applicable, a `_summary` block aggregating results.
+Hesman exposes **11 tools** over MCP stdio transport. Every tool response except `index_status` includes a `_meta` block with its token savings (`impact_analysis` also returns its own `_summary` of affected files).
 
 ### Code Navigation
 
@@ -427,7 +413,7 @@ The architecture supports up to **158 languages** via Tree-sitter. Adding a new 
                          │   │  │ 2. Context Pruning         │  │  │
                          │   │  │    Keep only relevant lines │  │  │
                          │   │  │ 3. Smart Summarization     │  │  │
-                         │   │  │    Aggregate & compress     │  │  │
+                         │   │  │    planned, not applied     │  │  │
                          │   │  └────────────────────────────┘  │  │
                          │   └───────────────────────────────────┘  │
                          │                                          │

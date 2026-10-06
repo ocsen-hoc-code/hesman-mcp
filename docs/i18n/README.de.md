@@ -7,7 +7,7 @@
 
 🌐 **Lesen in:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | **Deutsch** | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
-**Hesman** ist ein MCP-Server (Model Context Protocol) der nächsten Generation, der KI-Codierungsagenten ein tiefes Verständnis Ihrer Codebasis ermoglicht -- Symbole, Aufrufdiagramme, Abhangigkeiten und semantische Suche -- mit einer 3-stufigen Komprimierungspipeline, die den Tokenverbrauch drastisch reduziert (bis zu 98 % in Best-Case-Szenarien). Alles lauft lokal. Keine externen APIs. Keine LSP-Server.
+**Hesman** ist ein MCP-Server (Model Context Protocol) der nächsten Generation, der KI-Codierungsagenten ein tiefes Verständnis Ihrer Codebasis ermoglicht -- Symbole, Aufrufdiagramme, Abhangigkeiten und semantische Suche -- mit einer 3-stufigen Komprimierungspipeline, die den Tokenverbrauch drastisch reduziert (bis zu 90 % in Best-Case-Szenarien). Alles lauft lokal. Keine externen APIs. Keine LSP-Server.
 
 ---
 
@@ -38,7 +38,6 @@ Hesman lost dieses Problem durch:
 
 - **Nur das bereitstellen, was der Agent braucht** -- eine gezielte Funktion, ihre Aufrufer, ihre Aufgerufenen oder die von einer Anderung betroffenen Symbole.
 - **Jede Antwort komprimieren** -- eine 3-stufige Pipeline entfernt Kommentare, schneidet irrelevanten Code weg und fasst groSSE Ergebnismengen zusammen.
-- **Rohe Ausgaben durch Zusammenfassungen ersetzen** -- statt 200 Referenzen in einem JSON-Array erhalt der Agent einen `_summary`-Block mit nach Art und Datei gruppierten Zahlwerten.
 - **100 % lokal laufen** -- keine API-Schlussel, keine Netzwerkaufrufe, keine Latenz durch externe Dienste. Ihr Code verlasst niemals Ihren Rechner.
 - **Messbare Einsparungen** -- jede Antwort enthalt `_meta.reduction`, das exakt angibt, wie viele Token im Vergleich zur Rohausgabe gespart wurden.
 
@@ -85,11 +84,9 @@ Die 3-stufige Komprimierungspipeline von Hesman reduziert den Tokenverbrauch bei
 
 | Stufe | Technik | Typische Einsparung | Best-Case |
 |---|---|---|---|
-| **Compact Mode** | Entfernt Kommentare, Leerzeilen, abschlieSSende Leerraume; entfernt ungenutzte Importe | 20-35 % | ~50 % (stark kommentierter Code) |
-| **Context Pruning** | Behalt nur Zeilen, die fur das abgefragte Symbol relevant sind; ersetzt ausgelassenen Code durch Zahlmarkierungen | 50-80 % (zusatzlich zu Compact) | ~95 % (groSSE Dateien mit kleinem Fokusbereich) |
-| **Smart Summarization** | Ersetzt groSSE Ergebnisarrays durch aggregierte `_summary`-Blocke; komprimiert Aufrufketten in gruppierte Statistiken | 70-90 % (bei List-Tools) | ~98 % (200+ Referenzen -> Zusammenfassung) |
-
-**Kombinierter Best-Case:** Eine 430-zeilige Datei, die uber `get_context` fur eine einzelne Funktion abgefragt wird -> auf ~6 relevante Zeilen reduziert + Compact Mode -> **bis zu 97,1 % Reduktion**. Dies ist das ideale Szenario; die typische Nutzung uber alle Tools hinweg liegt bei durchschnittlich 20-70 % Reduktion.
+| **Compact Mode** | Entfernt Kommentare, Leerzeilen, abschlieSSende Leerraume; entfernt ungenutzte Importe | 10-30 % | ~35 % (stark kommentierter Code) |
+| **Context Pruning** | Behalt nur Zeilen, die fur das abgefragte Symbol relevant sind; ersetzt ausgelassenen Code durch Zahlmarkierungen | 30-90 % (zusatzlich zu Compact) | ~95 % (groSSE Dateien mit kleinem Fokusbereich) |
+| **Smart Summarization** | Ersetzt groSSE Ergebnisarrays durch aggregierte `_summary`-Blocke; komprimiert Aufrufketten in gruppierte Statistiken | 0 % (bei List-Tools) | 0 % |
 
 ### Produktionsreif
 
@@ -208,10 +205,11 @@ Jede Hesman-Antwort enthalt einen `_meta`-Block mit den tatsachlichen Tokeneinsp
 ```json
 {
   "_meta": {
-    "originalTokens": 2007,
-    "compressedTokens": 58,
-    "reduction": "97.1%",
-    "layers": ["compact", "prune"]
+    "originalTokens": 1764,
+    "compressedTokens": 178,
+    "reduction": "89.9%",
+    "compressed": false,
+    "layers": ["prune"]
   }
 }
 ```

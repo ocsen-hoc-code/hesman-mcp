@@ -31,14 +31,28 @@ function symbolIdsOf(store: SqliteStore, filePath: string): string[] {
  * An index written by an older schema holds values with a different meaning
  * (e.g. 0-based lines before M0-14). File hashes would make the incremental
  * run skip those files, so clear everything and rebuild from scratch.
+ *
+ * The ZVec documents carry their own version: a run without ZVec (CLI `index`,
+ * `--no-semantic`) cannot clear them, so it records that they are still old and
+ * the first ZVec-enabled run clears and re-embeds everything.
  */
 function resetOutdatedIndex(store: SqliteStore, zvecStore?: ZVecStore): void {
   const version = store.getIndexSchemaVersion();
-  if (version >= INDEX_SCHEMA_VERSION) return;
-  log.info({ from: version, to: INDEX_SCHEMA_VERSION }, 'Index schema is outdated — forcing a full re-index');
+  const vectorVersion = store.getVectorSchemaVersion() ?? version;
+  const vectorsOutdated = zvecStore !== undefined && vectorVersion < INDEX_SCHEMA_VERSION;
+  if (version >= INDEX_SCHEMA_VERSION && !vectorsOutdated) return;
+  log.info(
+    { from: version, vectorsFrom: vectorVersion, to: INDEX_SCHEMA_VERSION },
+    'Index schema is outdated — forcing a full re-index',
+  );
+  // Vectors are only written for stored symbols: an empty index (new data dir)
+  // has none to go stale.
+  const stats = store.getStats();
+  const hadData = stats.totalSymbols > 0 || stats.lastIndexTime !== null;
   zvecStore?.clear();
   store.clearIndex();
   store.setIndexSchemaVersion(INDEX_SCHEMA_VERSION);
+  store.setVectorSchemaVersion(zvecStore || !hadData ? INDEX_SCHEMA_VERSION : vectorVersion);
 }
 
 export async function indexProject(

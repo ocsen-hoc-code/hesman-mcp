@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hesman is an MCP (Model Context Protocol) server that parses, indexes, and serves code intelligence to AI agents. The system follows a pipeline architecture: file events → parse → index → query, with a 3-layer compression pipeline reducing token usage by up to 98%.
+Hesman is an MCP (Model Context Protocol) server that parses, indexes, and serves code intelligence to AI agents. The system follows a pipeline architecture: file events → parse → index → query, with a 3-layer compression pipeline (compact mode and context pruning are applied today; summarization is not yet). `get_context` measured 89.9% fewer tokens than the whole file with its default ±5 context lines on a 195-line file.
 
 ---
 
@@ -82,9 +82,9 @@ Relevance is determined by:
 
 Overlapping ranges are merged before output. The pruning uses merge-sort of intervals for O(n log n) performance.
 
-### Layer 3: Smart Summarization
+### Layer 3: Smart Summarization (not applied yet)
 
-For call chains, dependency lists, and reference lists, a `_summary` block is appended:
+For call chains, dependency lists, and reference lists, the response compressor builds a `_summary` block:
 
 ```json
 "_summary": {
@@ -96,7 +96,9 @@ For call chains, dependency lists, and reference lists, a `_summary` block is ap
 
 For call chain tools, `_summary` also includes direct vs. transitive counts and a human-readable summary string.
 
-Each response also includes `_meta` with original and compressed token counts and the reduction percentage.
+The `_summary` is only added next to the full list, so it never makes a response smaller. Since M0-15 the compressor keeps its changes only when they shrink the payload, so `_summary` is always dropped and these tools return their plain payload with `_meta.reduction` `0.0%` and `_meta.compressed: false`. Replacing long lists with a summary plus the top entries is a backlog item in `tasks/STATUS.md`.
+
+Each response except `index_status` also includes `_meta` with original and compressed token counts, the reduction percentage (never negative), `compressed`, and the active `layers`.
 
 ---
 
@@ -143,7 +145,7 @@ src/
 ├── server/
 │   ├── mcp-server.ts                # MCP server wrapper — tool registration, stdio transport
 │   ├── error-codes.ts               # Error codes and formatError() helper
-│   ├── response-compressor.ts       # Response-level compression (adds _summary, _meta)
+│   ├── response-compressor.ts       # Response-level compression (adds _meta; _summary only if smaller)
 │   └── tools/
 │       ├── index.ts                 # Tool registration hub
 │       ├── find-symbol.ts           # find_symbol tool
