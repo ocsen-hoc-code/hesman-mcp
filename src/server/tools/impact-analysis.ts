@@ -2,6 +2,7 @@ import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
 import { compressToolResponse } from '../response-compressor.js';
 import { ErrorCode, formatError } from '../error-codes.js';
+import { intArg, withArgValidation } from '../args.js';
 
 const inputSchema = {
   type: 'object',
@@ -11,7 +12,7 @@ const inputSchema = {
     newName: { type: 'string', description: 'New name (if rename)' },
     newSignature: { type: 'string', description: 'New signature (if change_signature)' },
     newReturnType: { type: 'string', description: 'New return type (if change_return_type)' },
-    maxFiles: { type: 'number', description: 'Max impacted files in output (default 20)' },
+    maxFiles: { type: 'integer', minimum: 1, maximum: 200, description: 'Max impacted files in output (default 20, max 200)' },
   },
   required: ['symbolId', 'changeType'],
 };
@@ -53,7 +54,7 @@ export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore
     const newName = args.newName as string | undefined;
     const newSignature = args.newSignature as string | undefined;
     const newReturnType = args.newReturnType as string | undefined;
-    const maxFiles = (args.maxFiles as number) || 20;
+    const maxFiles = intArg(args, 'maxFiles', { default: 20, min: 1, max: 200 });
 
     // Get symbol info
     const symbol = store.getSymbolById(symbolId);
@@ -129,5 +130,5 @@ export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore
     };
   };
 
-  server.registerTool('impact_analysis', 'Analyze what breaks if a symbol changes — categorized by severity with suggested actions', inputSchema, handler);
+  server.registerTool('impact_analysis', 'Analyze what breaks if a symbol changes — categorized by severity with suggested actions', inputSchema, withArgValidation(handler));
 }

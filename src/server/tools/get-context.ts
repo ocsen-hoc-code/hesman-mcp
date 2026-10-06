@@ -5,14 +5,18 @@ import type { SqliteStore } from '../../stores/sqlite.js';
 import { compactCode } from '../../parsers/compact-mode.js';
 import { compressToolResponse, estimateTokens } from '../response-compressor.js';
 import { ErrorCode, formatError } from '../error-codes.js';
+import { intArg, withArgValidation } from '../args.js';
+
+const MAX_LINE = 10_000_000;
+const MAX_CONTEXT_LINES = 200;
 
 const inputSchema = {
   type: 'object',
   properties: {
     filePath: { type: 'string', description: 'Absolute or relative file path' },
-    startLine: { type: 'number', description: 'Focus line number (1-indexed)' },
-    endLine: { type: 'number', description: 'End line (default: same as startLine)' },
-    contextLines: { type: 'number', description: 'Lines of context above and below (default: 5)' },
+    startLine: { type: 'integer', minimum: 1, maximum: MAX_LINE, description: 'Focus line number (1-indexed)' },
+    endLine: { type: 'integer', minimum: 1, maximum: MAX_LINE, description: 'End line (default: same as startLine; values below startLine are raised to startLine)' },
+    contextLines: { type: 'integer', minimum: 0, maximum: MAX_CONTEXT_LINES, description: 'Lines of context above and below (default: 5, max 200)' },
     mode: { type: 'string', enum: ['compact', 'full'], description: 'Compact mode strips comments and blank lines (default: compact)' },
     symbolName: { type: 'string', description: 'Optional — return symbols in range' },
   },
@@ -22,9 +26,9 @@ const inputSchema = {
 export function registerGetContextTool(server: McpServer, store: SqliteStore): void {
   const handler: ToolHandler = async (args) => {
     const filePath = args.filePath as string;
-    const startLine = (args.startLine as number) || 1;
-    const endLine = (args.endLine as number) || startLine;
-    const contextLines = (args.contextLines as number) || 5;
+    const startLine = intArg(args, 'startLine', { default: 1, min: 1, max: MAX_LINE });
+    const endLine = intArg(args, 'endLine', { default: startLine, min: startLine, max: MAX_LINE });
+    const contextLines = intArg(args, 'contextLines', { default: 5, min: 0, max: MAX_CONTEXT_LINES });
     const mode = (args.mode as string) || 'compact';
 
     if (!existsSync(filePath)) {
@@ -92,5 +96,5 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore): v
     };
   };
 
-  server.registerTool('get_context', 'Get surrounding code at a location with optional compact mode', inputSchema, handler);
+  server.registerTool('get_context', 'Get surrounding code at a location with optional compact mode', inputSchema, withArgValidation(handler));
 }

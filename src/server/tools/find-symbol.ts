@@ -2,6 +2,7 @@ import { compressToolResponse } from '../response-compressor.js';
 import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
 import { ErrorCode, formatError } from '../error-codes.js';
+import { intArg, withArgValidation } from '../args.js';
 
 const inputSchema = {
   type: 'object',
@@ -18,7 +19,7 @@ const inputSchema = {
       enum: ['exact', 'fuzzy', 'prefix'],
       description: 'Match mode (default: "fuzzy"). exact=precise name, prefix=starts with, fuzzy=FTS5 text search',
     },
-    topK: { type: 'number', description: 'Max results (default 20)' },
+    topK: { type: 'integer', minimum: 1, maximum: 200, description: 'Max results (default 20, max 200)' },
   },
   required: ['name'],
 };
@@ -28,7 +29,7 @@ export function registerFindSymbolTool(server: McpServer, store: SqliteStore): v
     const name = args.name as string;
     const kind = args.kind as string | undefined;
     const filePath = args.filePath as string | undefined;
-    const topK = (args.topK as number) || 20;
+    const topK = intArg(args, 'topK', { default: 20, min: 1, max: 200 });
 
     if (!name || typeof name !== 'string') {
       return {
@@ -65,5 +66,5 @@ export function registerFindSymbolTool(server: McpServer, store: SqliteStore): v
     };
   };
 
-  server.registerTool('find_symbol', 'Find a symbol (function, class, variable, ...) by name', inputSchema, handler);
+  server.registerTool('find_symbol', 'Find a symbol (function, class, variable, ...) by name', inputSchema, withArgValidation(handler));
 }

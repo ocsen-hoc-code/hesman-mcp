@@ -5,16 +5,17 @@ import type { HesmanConfig } from '../../config/schema.js';
 import { embedText, isEmbeddingReady } from '../../stores/embedding.js';
 import { compactCode } from '../../parsers/compact-mode.js';
 import { ErrorCode, formatError } from '../error-codes.js';
+import { intArg, numberArg, withArgValidation } from '../args.js';
 
 const inputSchema = {
   type: 'object',
   properties: {
     query: { type: 'string', description: 'Natural language query to search for' },
-    topK: { type: 'number', description: 'Max results (default 10, max 50)' },
+    topK: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10, max 50)' },
     filePattern: { type: 'string', description: 'Glob filter, e.g. "src/**/*.ts"' },
     language: { type: 'string', description: 'Filter by language: typescript, python, ...' },
     kind: { type: 'string', description: 'Filter by symbol kind: function, class, method, ...' },
-    minScore: { type: 'number', description: 'Minimum score threshold (0-1, default 0.0)' },
+    minScore: { type: 'number', minimum: 0, maximum: 1, description: 'Minimum score threshold (0-1, default 0.0)' },
   },
   required: ['query'],
 };
@@ -26,11 +27,15 @@ export function registerSemanticSearchTool(
 ): void {
   const handler: ToolHandler = async (args) => {
     const query = args.query as string;
-    const topK = (args.topK as number) ?? config.semanticSearch.defaultTopK;
+    const topK = intArg(args, 'topK', {
+      default: config.semanticSearch.defaultTopK,
+      min: 1,
+      max: config.semanticSearch.maxTopK,
+    });
     const filePattern = args.filePattern as string | undefined;
     const language = args.language as string | undefined;
     const kind = args.kind as string | undefined;
-    const minScore = (args.minScore as number) ?? config.semanticSearch.minScore;
+    const minScore = numberArg(args, 'minScore', { default: config.semanticSearch.minScore, min: 0, max: 1 });
 
     // Validate
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -54,9 +59,6 @@ export function registerSemanticSearchTool(
       };
     }
 
-    const maxTopK = config.semanticSearch.maxTopK;
-    const effectiveTopK = Math.min(Math.max(1, topK), maxTopK);
-
     const embedStart = Date.now();
 
     let queryVector: Float32Array;
@@ -75,7 +77,7 @@ export function registerSemanticSearchTool(
     const searchStart = Date.now();
     let results = zvecStore.search({
       queryVector,
-      topK: effectiveTopK,
+      topK,
       filePattern,
       language,
       kind,
@@ -108,6 +110,6 @@ export function registerSemanticSearchTool(
     'semantic_search',
     'Search code by natural language description using AI embeddings',
     inputSchema,
-    handler,
+    withArgValidation(handler),
   );
 }
