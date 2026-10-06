@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-06 · **M0: 2/12 done** · **M1: 0/7 done** · **M2: 0/7 done**
+Updated: 2026-10-06 · **M0: 3/12 done** · **M1: 0/7 done** · **M2: 0/7 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -18,7 +18,7 @@ Goal: resolve the two blocking problems — **(1) broken core** and **(2) securi
 | M0-06 | [Prevent ReDoS and event-loop blocking in find_pattern](M0-06-find-pattern-hardening.md) | Security | P1 | M0-01 | todo |
 | M0-07 | [Scanner and watcher ignore symlinks](M0-07-symlink-safety.md) | Security | P1 | M0-03 | todo |
 | M0-08 | [Guard rails for `hesman clean`](M0-08-clean-guard.md) | Security | P1 | — | todo |
-| M0-09 | [Validate and clamp numeric tool arguments](M0-09-numeric-args.md) | Security | P2 | — | todo |
+| M0-09 | [Validate and clamp numeric tool arguments](M0-09-numeric-args.md) | Security | P2 | — | done |
 | M0-10 | [Verify checksums of downloaded WASM parsers](M0-10-parser-checksum.md) | Security | P2 | — | done |
 | M0-11 | [Write agent config safely (atomic + backup)](M0-11-install-atomic.md) | Security | P2 | — | done |
 | M0-12 | [M0 gate: full verification + docs update](M0-12-m0-gate.md) | Gate | P0 | M0-01…M0-11 | todo |
