@@ -5,10 +5,8 @@ import { ErrorCode, formatError } from '../error-codes.js';
 import { intArg, withArgValidation } from '../args.js';
 import { Worker } from 'node:worker_threads';
 import { existsSync } from 'node:fs';
-import { dirname, relative, resolve, sep } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scanProject } from '../../indexing/project-scanner.js';
-import picomatch from 'picomatch';
 import {
   MAX_GREEDY_PLACEHOLDERS,
   MAX_LINE_LENGTH,
@@ -75,7 +73,7 @@ interface SearchOutcome {
   timedOut: boolean;
 }
 
-/** Run matching in a dedicated worker, terminating it when the budget runs out. */
+/** Scan and match in a dedicated worker, terminating it when the budget runs out. */
 function searchInWorker(input: FindPatternWorkerInput, budgetMs: number): Promise<SearchOutcome> {
   return new Promise((resolvePromise, rejectPromise) => {
     const matches: PatternMatch[] = [];
@@ -116,11 +114,6 @@ function searchInWorker(input: FindPatternWorkerInput, budgetMs: number): Promis
   });
 }
 
-function toPosixRelative(root: string, filePath: string): string {
-  const rel = relative(root, filePath);
-  return sep === '/' ? rel : rel.split(sep).join('/');
-}
-
 function invalidInput(message: string) {
   return {
     content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.INVALID_INPUT, message)) }],
@@ -155,17 +148,18 @@ export function registerFindPatternTool(server: McpServer, config: HesmanConfig)
       return invalidInput(`Invalid pattern: ${message}`);
     }
 
-    // Build a scan config for the requested language only
-    const scanConfig = { ...config, languages: [language] };
-    const isMatch = filePattern ? picomatch(filePattern) : null;
-    const files = scanProject(config.projectRoot, scanConfig)
-      .map((f) => f.filePath)
-      .filter((filePath) => !isMatch || isMatch(toPosixRelative(config.projectRoot, filePath)));
-
-    const outcome =
-      files.length === 0
-        ? { matches: [], skippedLines: 0, timedOut: false }
-        : await searchInWorker({ files, regexSource, topK }, MATCH_TIME_BUDGET_MS);
+    // The directory walk runs inside the worker too, so a large tree never
+    // blocks the main thread; it counts against the same time budget.
+    const outcome = await searchInWorker(
+      {
+        projectRoot: config.projectRoot,
+        scanConfig: { ...config, languages: [language] },
+        filePattern,
+        regexSource,
+        topK,
+      },
+      MATCH_TIME_BUDGET_MS,
+    );
 
     const reasons: string[] = [];
     if (outcome.timedOut) {
