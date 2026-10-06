@@ -1,7 +1,7 @@
 ---
 id: M0-06
 title: Prevent ReDoS and event-loop blocking in find_pattern
-status: todo
+status: done
 priority: P1
 depends_on: [M0-01]
 updated: 2026-10-06
@@ -35,9 +35,9 @@ updated: 2026-10-06
 
 ## Acceptance criteria
 
-- [ ] The 3 failing tests turn green.
-- [ ] Over-limit patterns are rejected with a message naming the limit.
-- [ ] The tool description and `inputSchema` state the limits and that lines are 1-based.
+- [x] The 3 failing tests turn green.
+- [x] Over-limit patterns are rejected with a message naming the limit.
+- [x] The tool description and `inputSchema` state the limits and that lines are 1-based.
 
 ## Verification
 
@@ -47,4 +47,5 @@ npm test && npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-06: done. Matching moved to a dedicated worker (`src/server/tools/find-pattern-worker.ts`, pure logic in `find-pattern-matcher.ts`), located like the indexing worker (`dist/` next to the module, falling back to `<repo>/dist/server/tools/` from source). 3000ms budget, then the worker is terminated and partial results come back with `truncated: true` + `truncatedReason`; skipped >4000-char lines also set `truncated`. Limits: 500 chars, 8 placeholders, 3 `$$$`. `filePattern` matches the POSIX project-relative path; lines are 1-based via a line-start table + binary search. Tests: `tests/e2e/find-pattern.test.ts` (4) and `tests/unit/server/find-pattern-matcher.test.ts` (6). `npm test`: 43 files / 293 tests passing. Remaining: `scanProject` still runs on the main thread per call (directory walk only; file reads and matching are in the worker).
 - 2026-10-06: task created.
