@@ -77,6 +77,11 @@ export interface DependencyResult {
 export const INDEX_SCHEMA_VERSION = 1;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
+/**
+ * Schema version of the ZVec documents, tracked apart from the SQLite data:
+ * a run without ZVec can bring SQLite up to date while old vectors stay on disk.
+ */
+const VECTOR_SCHEMA_VERSION_KEY = 'vector_schema_version';
 
 const MIGRATIONS = [
   `CREATE TABLE IF NOT EXISTS symbols (
@@ -210,10 +215,31 @@ export class SqliteStore {
   }
 
   setIndexSchemaVersion(version: number): void {
+    this.setMetadataNumber(INDEX_SCHEMA_VERSION_KEY, version);
+  }
+
+  /**
+   * Schema version of the ZVec documents, or `undefined` when none was recorded
+   * (the vectors then share the SQLite schema version).
+   */
+  getVectorSchemaVersion(): number | undefined {
+    const row = this.db
+      .prepare('SELECT value FROM metadata WHERE key = ?')
+      .get(VECTOR_SCHEMA_VERSION_KEY) as { value: string } | undefined;
+    if (!row) return undefined;
+    const version = Number(row.value);
+    return Number.isInteger(version) ? version : 0;
+  }
+
+  setVectorSchemaVersion(version: number): void {
+    this.setMetadataNumber(VECTOR_SCHEMA_VERSION_KEY, version);
+  }
+
+  private setMetadataNumber(key: string, value: number): void {
     withRetry(() => {
       this.db
         .prepare('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)')
-        .run(INDEX_SCHEMA_VERSION_KEY, String(version));
+        .run(key, String(value));
     });
   }
 
