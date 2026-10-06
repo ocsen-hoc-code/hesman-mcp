@@ -1,4 +1,4 @@
-import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, lstatSync, readFileSync, existsSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 import { createLogger } from '../utils/logger.js';
 import type { HesmanConfig } from '../config/schema.js';
@@ -60,12 +60,21 @@ export function scanProject(rootDir: string, config: HesmanConfig): ScannedFile[
 
       let st;
       try {
-        st = statSync(fullPath);
+        // lstat (not stat) so symlinks are seen as links rather than followed.
+        st = lstatSync(fullPath);
       } catch {
         continue;
       }
 
       const relPath = relative(absRoot, fullPath);
+
+      // Skip every symlink (file or directory). Following them risks infinite
+      // recursion (`loop -> .`), indexing code outside the project, and
+      // duplicate symbols for files reachable through more than one path.
+      if (st.isSymbolicLink()) {
+        log.debug({ path: relPath }, 'Skipping symlink');
+        continue;
+      }
 
       // Check gitignore patterns
       if (isIgnored(relPath, gitignorePatterns)) continue;

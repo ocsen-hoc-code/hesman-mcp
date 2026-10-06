@@ -341,6 +341,8 @@ Create a `hesman.config.json` in your project root (all fields optional):
 }
 ```
 
+> **Symlinks are skipped during indexing.** The project scanner and the file watcher never follow symbolic links (to files or directories). This prevents infinite loops (e.g. `loop -> .`), keeps code outside the project out of the index, and avoids duplicate symbols. To index linked code, point `projectRoot` at the real directory.
+
 ### Configuration Precedence
 
 Settings are resolved in this order (later overrides earlier):
