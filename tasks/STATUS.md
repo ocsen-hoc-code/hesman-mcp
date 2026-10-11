@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 0/7 done** · **M2: 2/7 done**
+Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 1/7 done** · **M2: 2/7 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -37,10 +37,10 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 
 | # | Task | Area | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| M1-01 | [Choose grammar source and distribution (spike + ADR)](M1-01-grammar-source-adr.md) | Research | P0 | M0-12 | pending |
-| M1-02 | [Generic symbol extraction driven by tags.scm](M1-02-tags-query-engine.md) | Parsing | P0 | M1-01 | todo |
+| M1-01 | [Choose grammar source and distribution (spike + ADR)](M1-01-grammar-source-adr.md) | Research | P0 | M0-12 | done |
+| M1-02 | [Generic symbol extraction driven by tags.scm](M1-02-tags-query-engine.md) | Parsing | P0 | M1-01 | pending |
 | M1-03 | [Language conformance test suite](M1-03-language-conformance-suite.md) | Test | P0 | M1-02 | todo |
-| M1-04 | [Universal text tier for files without a grammar](M1-04-universal-text-tier.md) | Indexing | P1 | M1-03 | todo |
+| M1-04 | [Universal text tier for files without a grammar](M1-04-universal-text-tier.md) | Indexing | P1 | M1-03 | pending |
 | M1-05 | [Grammar delivery: bundled core + verified download](M1-05-grammar-delivery.md) | Distribution | P1 | M1-01, M0-10 | todo |
 | M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | todo |
 | M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | todo |

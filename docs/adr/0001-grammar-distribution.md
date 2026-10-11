@@ -1,6 +1,6 @@
 # ADR 0001: Grammar source and distribution
 
-- **Status:** Proposed (awaiting approval by the project owner)
+- **Status:** Accepted (approved by the project owner on 2026-10-11, with the decisions in section 10)
 - **Date:** 2026-10-11
 - **Task:** [M1-01](../../tasks/M1-01-grammar-source-adr.md)
 - **Decides for:** M1-02 (tags engine), M1-03 (conformance), M1-05 (grammar delivery), M1-06 (tiers), M1-07 (deep tier)
@@ -359,3 +359,25 @@ node <repo>/scripts/experiments/grammar-spike.mjs --runtime node_modules/wts022 
 Use `--filter "<lang> <source>"` to run one grammar per process; the 0.22.6 run needs it because one
 third-party Swift build aborts the process. Timings are from one machine and one run each; treat them as
 orders of magnitude, not benchmarks.
+
+## 10. Owner decisions (2026-10-11)
+
+The project owner approved this ADR. Where this section differs from sections 4, 6 and 8, this section wins.
+
+| Open question | Decision |
+|---|---|
+| 1. Automatic downloads | **Yes**, in the background; `HESMAN_GRAMMARS_OFFLINE=1` (and a config key) disables them. |
+| 2. Core set and budget | The 16 proposed grammars; `parsers/` at most 30 MB unpacked, at most 3 MB added to the gzipped tarball. |
+| 6. Runtime version | **`web-tree-sitter` 0.25.10, pinned exactly** — not 0.27.1. It loads all 104 measured upstream grammars (ABI 13–15), has a year of patch releases, and still accepts legacy-`dylink` modules. Revisit when 0.27.x has matured. If 0.25.10 fails Hesman's own test suite or cannot load a core grammar, stop and report before choosing another version. |
+| 7. Meaning of "every language" | The three-tier model is accepted: 16 bundled languages, a catalog fetched on demand, and the text tier for everything else. |
+| 8. Query licenses | Only the grammar's own upstream `tags.scm` and queries written for Hesman (MIT). No Helix (MPL-2.0) or Aider (Apache-2.0) queries. Queries from the xberg bundle (MIT) may be used where upstream has none. |
+
+Not answered by the owner; working defaults until decided otherwise:
+
+| Open question | Default |
+|---|---|
+| 3. Hosting | GitHub Release assets of the Hesman repository. |
+| 4. Build input for the pack | Decided in M1-05 after the bulk build is measured. |
+| 5. Git | The core `.wasm` files stay committed, as the current three are, so tests run offline. |
+| 9. JSX/TSX | `tsx` and `javascript` become separate registry entries when the core set lands. |
+| 10. Kotlin grammar | `fwcd/tree-sitter-kotlin`. |

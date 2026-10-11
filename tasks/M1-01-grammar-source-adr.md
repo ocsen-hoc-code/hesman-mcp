@@ -1,7 +1,7 @@
 ---
 id: M1-01
 title: Choose grammar source and distribution (spike + ADR)
-status: pending
+status: done
 priority: P0
 depends_on: [M0-12]
 updated: 2026-10-11
@@ -40,9 +40,9 @@ Known risks:
 
 ## Acceptance criteria
 
-- [ ] The ADR is merged with a clear decision and rejected alternatives.
+- [x] The ADR is merged with a clear decision and rejected alternatives.
 - [x] Prototype results (load OK / failed, parse time, size) for all 10 languages are recorded in *Progress notes*.
-- [ ] The `web-tree-sitter` version decision is recorded.
+- [x] The `web-tree-sitter` version decision is recorded.
 
 ## Verification
 
@@ -50,6 +50,7 @@ Review of the ADR by the project owner.
 
 ## Progress notes
 
+- 2026-10-11: **done.** The owner approved the ADR; decisions are recorded in its section 10 (`web-tree-sitter` pinned to 0.25.10, 16-grammar core set, background downloads with an offline switch, three-tier model, MIT-compatible queries only). The bulk build of all 372 grammars was not measured and moves to M1-05.
 - 2026-10-11: **awaiting owner approval of the ADR.** `docs/adr/0001-grammar-distribution.md` is written with
   status `Proposed`; the task stays `pending` until the owner approves it (and answers its open questions).
   The `web-tree-sitter` decision in the ADR (upgrade to an exact pin of 0.27.1) is a proposal until then.

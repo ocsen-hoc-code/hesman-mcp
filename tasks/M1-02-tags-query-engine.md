@@ -1,10 +1,10 @@
 ---
 id: M1-02
 title: Generic symbol extraction engine driven by tags.scm queries
-status: todo
+status: pending
 priority: P0
 depends_on: [M1-01]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -43,4 +43,5 @@ npm test && npm run test:e2e && npm run test:perf
 
 ## Progress notes
 
+- 2026-10-11: started (branch `rebuild/m1-m2`). Scope extended by ADR 0001: this task also upgrades `web-tree-sitter` to 0.25.10 (exact pin), because the tags engine needs the `Query` API of the new runtime.
 - 2026-10-06: task created.
