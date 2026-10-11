@@ -14,6 +14,8 @@ import { createLogger } from '../utils/logger.js';
 import { isLanguageId } from '../parsers/languages.js';
 import { isSymbolKind } from '../parsers/symbol-kinds.js';
 import { splitIdentifier } from '../parsers/chunker.js';
+import { TEXT_CHUNK_KIND } from '../parsers/text-chunker.js';
+import { isTextLanguageLabel } from '../parsers/text-languages.js';
 
 const log = createLogger('zvec');
 
@@ -41,6 +43,14 @@ export interface SearchResult {
   snippet: string;
   score: number;
   matchType: 'semantic' | 'keyword' | 'both';
+  /** Language label; set only on text-tier chunks. */
+  language?: string;
+  /**
+   * `text` on a chunk of a file without a grammar: a line range, not a symbol
+   * (`symbolId` is then a chunk id that no symbol tool accepts). Absent on
+   * symbol results.
+   */
+  precision?: 'text';
 }
 
 export interface SearchParams {
@@ -276,10 +286,10 @@ export class ZVecStore {
     if (!this.collection) throw new Error('ZVec collection not open');
 
     // Defense in depth: the tool layer validates these too.
-    if (params.language !== undefined && !isLanguageId(params.language)) {
+    if (params.language !== undefined && !isLanguageId(params.language) && !isTextLanguageLabel(params.language)) {
       throw new Error(`Unknown language filter: ${JSON.stringify(params.language)}`);
     }
-    if (params.kind !== undefined && !isSymbolKind(params.kind)) {
+    if (params.kind !== undefined && !isSymbolKind(params.kind) && params.kind !== TEXT_CHUNK_KIND) {
       throw new Error(`Unknown kind filter: ${JSON.stringify(params.kind)}`);
     }
 
@@ -310,12 +320,17 @@ export class ZVecStore {
 
     let mapped: SearchResult[] = results.map(r => {
       const name = r.fields.name as string;
+      const kind = r.fields.kind as string;
+      const isText = kind === TEXT_CHUNK_KIND;
       const semantic = cosineDistanceToScore(r.score);
-      const lexical = queryText ? lexicalScore(queryText, name) : 0;
+      // A text chunk is named after its file, which says nothing about the
+      // chunk's content: it gets no lexical bonus, so on equal similarity a
+      // symbol whose name matches the query ranks above it.
+      const lexical = queryText && !isText ? lexicalScore(queryText, name) : 0;
       return {
         symbolId: r.fields.symbolId as string,
         name,
-        kind: r.fields.kind as string,
+        kind,
         filePath: r.fields.filePath as string,
         startLine: r.fields.startLine as number,
         endLine: r.fields.endLine as number,
@@ -323,6 +338,7 @@ export class ZVecStore {
         snippet: r.fields.code as string,
         score: queryText ? (1 - LEXICAL_WEIGHT) * semantic + LEXICAL_WEIGHT * lexical : semantic,
         matchType: lexical > 0 ? 'both' as const : 'semantic' as const,
+        ...(isText ? { language: r.fields.language as string, precision: 'text' as const } : {}),
       };
     }).sort((a, b) => b.score - a.score);
 

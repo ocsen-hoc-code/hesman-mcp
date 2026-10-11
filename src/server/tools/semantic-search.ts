@@ -9,6 +9,14 @@ import { ErrorCode, formatError } from '../error-codes.js';
 import { InvalidArgumentError, intArg, numberArg, withArgValidation } from '../args.js';
 import { LANGUAGE_IDS, isLanguageId } from '../../parsers/languages.js';
 import { SYMBOL_KINDS, isSymbolKind } from '../../parsers/symbol-kinds.js';
+import { TEXT_CHUNK_KIND } from '../../parsers/text-chunker.js';
+import { TEXT_LANGUAGE_FALLBACK, isTextLanguageLabel } from '../../parsers/text-languages.js';
+
+/** Kinds accepted by the `kind` filter: every symbol kind, plus text-tier chunks. */
+const SEARCH_KINDS: readonly string[] = [...SYMBOL_KINDS, TEXT_CHUNK_KIND];
+const isSearchKind = (kind: string): boolean => isSymbolKind(kind) || kind === TEXT_CHUNK_KIND;
+/** A language with a grammar, or a text-tier label (files without a grammar). */
+const isSearchLanguage = (language: string): boolean => isLanguageId(language) || isTextLanguageLabel(language);
 
 const inputSchema = {
   type: 'object',
@@ -16,8 +24,17 @@ const inputSchema = {
     query: { type: 'string', description: 'Natural language query to search for' },
     topK: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10, max 50)' },
     filePattern: { type: 'string', description: 'Glob filter, e.g. "src/**/*.ts"' },
-    language: { type: 'string', enum: [...LANGUAGE_IDS], description: 'Filter by language' },
-    kind: { type: 'string', enum: [...SYMBOL_KINDS], description: 'Filter by symbol kind' },
+    language: {
+      type: 'string',
+      description:
+        `Filter by language: ${LANGUAGE_IDS.join(', ')} (symbols), or the label of a language without a grammar ` +
+        `such as "sql", "shell", "ruby", "dockerfile" or "${TEXT_LANGUAGE_FALLBACK}" (text chunks)`,
+    },
+    kind: {
+      type: 'string',
+      enum: [...SEARCH_KINDS],
+      description: `Filter by symbol kind; "${TEXT_CHUNK_KIND}" selects chunks of files without a grammar`,
+    },
     minScore: { type: 'number', minimum: 0, maximum: 1, description: 'Minimum score threshold (0-1, default 0.0). Scores are similarities, not probabilities: relevant matches typically score 0.3-0.6, so thresholds above 0.5 often return nothing. Prefer ranking by order.' },
   },
   required: ['query'],
@@ -54,8 +71,8 @@ export function registerSemanticSearchTool(
       max: config.semanticSearch.maxTopK,
     });
     const filePattern = args.filePattern as string | undefined;
-    const language = enumArg(args, 'language', isLanguageId, LANGUAGE_IDS);
-    const kind = enumArg(args, 'kind', isSymbolKind, SYMBOL_KINDS);
+    const language = enumArg(args, 'language', isSearchLanguage, [...LANGUAGE_IDS, 'a text-tier language label']);
+    const kind = enumArg(args, 'kind', isSearchKind, SEARCH_KINDS);
     const minScore = numberArg(args, 'minScore', { default: config.semanticSearch.minScore, min: 0, max: 1 });
 
     // Validate
@@ -120,7 +137,8 @@ export function registerSemanticSearchTool(
       .filter(r => r.score >= minScore)
       .map(r => ({
         ...r,
-        snippet: compactCode(r.snippet),
+        // Compact mode assumes C-like comments; text chunks are returned verbatim.
+        snippet: r.precision === 'text' ? r.snippet : compactCode(r.snippet),
       }));
 
     const compressed = compressToolResponse('semantic_search', {
@@ -139,7 +157,8 @@ export function registerSemanticSearchTool(
 
   server.registerTool(
     'semantic_search',
-    'Search code by natural language description using AI embeddings',
+    'Search code by natural language description using AI embeddings. Results are symbols; files without a grammar ' +
+      'contribute line-range chunks marked kind: "text" and precision: "text" (not symbol-accurate: use get_context on their lines).',
     inputSchema,
     withArgValidation(handler),
   );

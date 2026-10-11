@@ -57,8 +57,29 @@ describe('semantic_search argument validation', () => {
     }
   });
 
-  it('exposes the valid kinds and languages as enums in the input schema', () => {
-    expect(tool.inputSchema.properties.kind.enum).toEqual([...SYMBOL_KINDS]);
-    expect(tool.inputSchema.properties.language.enum).toEqual([...LANGUAGE_IDS]);
+  it('exposes the valid kinds as an enum that includes text chunks', () => {
+    expect(tool.inputSchema.properties.kind.enum).toEqual([...SYMBOL_KINDS, 'text']);
+  });
+
+  it('names the parsed languages in the schema without enumerating every text-tier label', () => {
+    // Hundreds of labels in an enum would cost tokens in every tool listing.
+    expect(tool.inputSchema.properties.language.enum).toBeUndefined();
+    for (const id of LANGUAGE_IDS) {
+      expect(tool.inputSchema.properties.language.description).toContain(id);
+    }
+  });
+
+  it('accepts a text-tier language label and the "text" kind', async () => {
+    // No embedding model in this unit test: the call stops at INDEX_NOT_READY,
+    // which is past argument validation. The search itself is covered by
+    // tests/integration/text-tier.test.ts.
+    const result = (await tool.handler({ query: 'create table', language: 'sql', kind: 'text' })) as ToolResult;
+    expect(parse(result).error?.code).toBe('INDEX_NOT_READY');
+  });
+
+  it('rejects a language that is neither parsed nor a text-tier label', async () => {
+    const result = (await tool.handler({ query: 'create table', language: 'klingon' })) as ToolResult;
+    expect(parse(result).error?.code).toBe('INVALID_INPUT');
+    expect(search).not.toHaveBeenCalled();
   });
 });
