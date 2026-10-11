@@ -1,10 +1,10 @@
 ---
 id: M2-01
 title: Non-blocking startup — answer MCP immediately, index in the background
-status: todo
+status: pending
 priority: P0
 depends_on: [M0-12]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -44,4 +44,5 @@ npm test && npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-11: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.

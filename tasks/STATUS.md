@@ -37,7 +37,7 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 
 | # | Task | Area | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| M1-01 | [Choose grammar source and distribution (spike + ADR)](M1-01-grammar-source-adr.md) | Research | P0 | M0-12 | todo |
+| M1-01 | [Choose grammar source and distribution (spike + ADR)](M1-01-grammar-source-adr.md) | Research | P0 | M0-12 | pending |
 | M1-02 | [Generic symbol extraction driven by tags.scm](M1-02-tags-query-engine.md) | Parsing | P0 | M1-01 | todo |
 | M1-03 | [Language conformance test suite](M1-03-language-conformance-suite.md) | Test | P0 | M1-02 | todo |
 | M1-04 | [Universal text tier for files without a grammar](M1-04-universal-text-tier.md) | Indexing | P1 | M1-03 | todo |
@@ -53,7 +53,7 @@ Goal: `npx -y hesman-mcp setup` configures every detected agent (Claude Code, Cl
 
 | # | Task | Area | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| M2-01 | [Non-blocking startup: answer MCP first, index in background](M2-01-non-blocking-startup.md) | Server | P0 | M0-12 | todo |
+| M2-01 | [Non-blocking startup: answer MCP first, index in background](M2-01-non-blocking-startup.md) | Server | P0 | M0-12 | pending |
 | M2-02 | [Detect the project automatically (roots → cwd)](M2-02-project-root-detection.md) | Server | P0 | M0-12 | todo |
 | M2-03 | [Client adapters + `hesman setup` / `remove`](M2-03-client-adapters-setup.md) | CLI | P0 | M0-11, M2-02 | todo |
 | M2-04 | [Launch command that works in GUI apps and across Node upgrades](M2-04-launch-command-strategy.md) | CLI | P1 | M2-03 | todo |

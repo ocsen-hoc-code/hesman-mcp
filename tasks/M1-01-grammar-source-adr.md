@@ -1,10 +1,10 @@
 ---
 id: M1-01
 title: Choose grammar source and distribution (spike + ADR)
-status: todo
+status: pending
 priority: P0
 depends_on: [M0-12]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -50,4 +50,5 @@ Review of the ADR by the project owner.
 
 ## Progress notes
 
+- 2026-10-11: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.
