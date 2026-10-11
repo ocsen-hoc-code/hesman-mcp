@@ -1,7 +1,7 @@
 ---
 id: M3-02
 title: Dashboard frontend (overview, metrics, logs, graph explorer, query playground)
-status: pending
+status: todo
 priority: P0
 depends_on: [M0-12]
 updated: 2026-10-11
@@ -62,4 +62,4 @@ node dist/index.js ui    # then use each screen
 
 ## Progress notes
 
-- 2026-10-11: task created and started (branch `rebuild/m1-m2`).
+- 2026-10-11: task created. Not started: the owner asked to fix the extraction bugs (M1-08) first.

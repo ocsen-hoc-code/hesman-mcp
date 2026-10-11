@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 4/7 done** · **M2: 5/7 done** · **M3: 0/2 done**
+Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 4/8 done** · **M2: 5/7 done** · **M3: 0/2 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -44,6 +44,7 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 | M1-05 | [Grammar delivery: bundled core + verified download](M1-05-grammar-delivery.md) | Distribution | P1 | M1-01, M0-10 | pending |
 | M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | todo |
 | M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | todo |
+| M1-08 | [Fix the extraction bugs found by the conformance suite](M1-08-extraction-bug-fixes.md) | Parsing | P0 | M1-03 | pending |
 
 Recommended order: 01 → 02 → 03 → (04, 05 in parallel) → 06 → 07 (one sub-task per language).
 
@@ -67,12 +68,12 @@ M2-04 is code-complete and merged but stays `pending`: two acceptance checks are
 
 ## M3 — Dashboard: logs, metrics, index graph, query playground
 
-Goal: `hesman ui` opens a local web page (127.0.0.1 + token) to watch logs and metrics, explore the index as a graph and try queries. Requested by the owner on 2026-10-11. The two tasks share one API contract and run in parallel.
+Goal: `hesman ui` opens a local web page (127.0.0.1 + token) to watch logs and metrics, explore the index as a graph and try queries. Requested by the owner on 2026-10-11. The two tasks share one API contract and run in parallel. Not started yet: the owner asked to fix the extraction bugs (M1-08) first.
 
 | # | Task | Area | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| M3-01 | [Observability data + `hesman ui` backend (HTTP API)](M3-01-observability-and-ui-api.md) | Server | P0 | M0-12 | pending |
-| M3-02 | [Dashboard frontend](M3-02-dashboard-frontend.md) | UI | P0 | M0-12 | pending |
+| M3-01 | [Observability data + `hesman ui` backend (HTTP API)](M3-01-observability-and-ui-api.md) | Server | P0 | M0-12 | todo |
+| M3-02 | [Dashboard frontend](M3-02-dashboard-frontend.md) | UI | P0 | M0-12 | todo |
 
 Publishing to npm: the owner decided on 2026-10-11 not to publish yet, so M2-06 and the `npx` checks of M2-04 stay on hold.
 
