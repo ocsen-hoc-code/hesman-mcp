@@ -219,7 +219,7 @@ export interface StartServerOptions {
   extraArgs?: string[];
   /** Extra environment variables (override the defaults). */
   env?: Record<string, string>;
-  /** Wait until `index_status.totalFiles > 0`. Default `true`. */
+  /** Wait until the initial background index has finished (`index_status.indexing.inProgress === false`). Default `true`. */
   waitForIndex?: boolean;
   /** Max time for connect + readiness, in ms. Default 60s. */
   readyTimeoutMs?: number;
@@ -230,6 +230,15 @@ export interface IndexStatus {
   indexedFiles: number;
   totalSymbols: number;
   totalRelations: number;
+  /** State of the initial background index. */
+  indexing?: {
+    inProgress: boolean;
+    phase: string;
+    filesDone: number;
+    filesTotal: number;
+    startedAt: string | null;
+    error: string | null;
+  };
   [key: string]: unknown;
 }
 
@@ -250,7 +259,7 @@ export interface HesmanTestServer {
   callTool(name: string, args?: Record<string, unknown>, timeoutMs?: number): Promise<CallToolResult>;
   /** Calls a tool and parses its concatenated text content as JSON. */
   callToolJson<T = unknown>(name: string, args?: Record<string, unknown>, timeoutMs?: number): Promise<T>;
-  /** Polls `index_status` until `totalFiles > 0` or the timeout elapses. */
+  /** Polls `index_status` until the initial background index has finished or the timeout elapses. */
   waitForIndex(timeoutMs?: number): Promise<IndexStatus>;
   /** Closes the client, stops the child process and removes the data dir. Idempotent. */
   stop(): Promise<void>;
@@ -271,7 +280,11 @@ function describeOutput(transport: RecordingStdioTransport): string {
 }
 
 /**
- * Polls `index_status` until `totalFiles > 0`. Throws with recorded output on timeout.
+ * Polls `index_status` until the initial background index has finished
+ * (`indexing.inProgress === false`). The server answers MCP requests while it
+ * is still indexing, so a non-empty index is not a sign of readiness: tests
+ * would otherwise query a partial index. Throws on timeout, or as soon as the
+ * index run reports a failure.
  */
 export async function waitForIndexReady(
   client: Client,
@@ -292,7 +305,8 @@ export async function waitForIndexReady(
         { timeout: remaining },
       )) as CallToolResult;
       last = JSON.parse(toolText(result)) as IndexStatus;
-      if (last.totalFiles > 0) return last;
+      if (last.indexing?.error) break;
+      if (last.indexing?.inProgress === false) return last;
     } catch (err) {
       lastError = err;
     }
@@ -300,6 +314,7 @@ export async function waitForIndexReady(
   }
 
   const detail = last ? `last status: ${JSON.stringify(last)}` : `last error: ${String(lastError)}`;
+  if (last?.indexing?.error) throw new Error(`Initial index failed: ${last.indexing.error} (${detail})`);
   throw new Error(`Server not ready after ${timeoutMs}ms (${detail})`);
 }
 

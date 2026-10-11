@@ -60,7 +60,7 @@ hesman
 hesman install --agent claude
 ```
 
-That's it. Once the initial indexing finishes (a few seconds for most projects), your AI agent can query your codebase through Hesman's 11 tools.
+That's it. The server answers your agent immediately and indexes in the background (a few seconds for most projects): the 11 tools work right away, mark results with `_meta.indexing` while the index is still incomplete, and `index_status` reports the progress.
 
 ---
 
@@ -299,7 +299,7 @@ Hesman exposes **11 tools** over MCP stdio transport. Every tool response except
 
 | Tool | What it does |
 |---|---|
-| `index_status` | Report indexing health: file count, symbol count, store status, pending files |
+| `index_status` | Report indexing health: file count, symbol count, store status, pending files, progress of the initial background index |
 
 For full input/output schemas with examples, see **[docs/TOOLS.md](./docs/TOOLS.md)**.
 

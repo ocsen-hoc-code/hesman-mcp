@@ -1,5 +1,6 @@
 import { compactCode } from '../parsers/compact-mode.js';
 import type { SqliteStore } from '../stores/sqlite.js';
+import { indexState, type IndexingMarker } from '../indexing/index-state.js';
 
 interface CompressOptions {
   store?: SqliteStore;
@@ -125,9 +126,17 @@ export function compressToolResponse(
     reduction,
     compressed,
     layers,
+    // While the initial index runs, results may be incomplete. Omitted when
+    // idle so normal responses do not grow.
+    ...indexingMarker(),
   };
 
   return output;
+}
+
+function indexingMarker(): { indexing?: IndexingMarker } {
+  const indexing = indexState.marker();
+  return indexing ? { indexing } : {};
 }
 
 export function estimateTokens(text: string): number {
