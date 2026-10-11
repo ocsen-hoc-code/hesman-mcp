@@ -21,6 +21,7 @@ export function geminiCli(env: ClientEnvironment): ClientAdapter {
   return createClient(env, {
     id: 'gemini-cli',
     label: 'Gemini CLI',
+    kind: 'cli',
     scopes: ['user', 'project'],
     codec: jsonCodec('mcpServers'),
     detect: () => env.findOnPath('gemini') !== undefined || existsSync(userFile),

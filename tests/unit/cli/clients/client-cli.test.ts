@@ -1,9 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { serverEntry } from '../../../../src/cli/clients/entry';
 import { getClient } from '../../../../src/cli/clients/index';
-import { cleanupEnvs, makeEnv, writeFixture, type FakeEnvironment } from './helpers';
+import { cleanupEnvs, globalEntry, makeEnv, writeFixture, type FakeEnvironment } from './helpers';
 
 afterEach(cleanupEnvs);
 
@@ -27,7 +26,7 @@ describe('Claude Code through its own CLI', () => {
 
   it('passes --scope project for the project scope', () => {
     const env = makeEnv({ onPath: ['claude'] });
-    getClient('claude-code', env).write(serverEntry(), { scope: 'project' });
+    getClient('claude-code', env).write(globalEntry(), { scope: 'project' });
     expect(calls(env)).toEqual([['claude', 'mcp', 'add', '--scope', 'project', 'hesman', '--', 'hesman']]);
   });
 
@@ -36,7 +35,7 @@ describe('Claude Code through its own CLI', () => {
     const client = getClient('claude-code', env);
     writeFixture(client.configPath('user'), JSON.stringify({ mcpServers: { hesman: { type: 'stdio', command: 'hesman', args: [], env: {} } } }));
 
-    expect(client.write(serverEntry()).status).toBe('unchanged');
+    expect(client.write(globalEntry()).status).toBe('unchanged');
     expect(env.calls).toEqual([]);
   });
 
@@ -45,7 +44,7 @@ describe('Claude Code through its own CLI', () => {
     const client = getClient('claude-code', env);
     writeFixture(client.configPath('user'), JSON.stringify({ mcpServers: { hesman: { command: 'old', args: [] } } }));
 
-    expect(client.write(serverEntry()).status).toBe('updated');
+    expect(client.write(globalEntry()).status).toBe('updated');
     expect(calls(env)).toEqual([
       ['claude', 'mcp', 'remove', 'hesman', '--scope', 'user'],
       ['claude', 'mcp', 'add', '--scope', 'user', 'hesman', '--', 'hesman'],
@@ -55,7 +54,7 @@ describe('Claude Code through its own CLI', () => {
   it('dry run prints the command and runs nothing', () => {
     const env = makeEnv({ onPath: ['claude'] });
 
-    const result = getClient('claude-code', env).write(serverEntry(), { dryRun: true });
+    const result = getClient('claude-code', env).write(globalEntry(), { dryRun: true });
 
     expect(result.via).toBe('cli');
     expect(result.applied).toBe(false);
@@ -67,7 +66,7 @@ describe('Claude Code through its own CLI', () => {
     const env = makeEnv({ onPath: ['claude'], onRun: () => ({ status: 1, stderr: 'boom' }) });
     const client = getClient('claude-code', env);
 
-    const result = client.write(serverEntry());
+    const result = client.write(globalEntry());
 
     expect(result.via).toBe('file');
     expect(result.notes.join('\n')).toMatch(/claude mcp add.*failed.*boom/s);
@@ -130,7 +129,7 @@ describe('Codex through its own CLI', () => {
 
   it('edits the file for the project scope, which the CLI cannot target', () => {
     const env = makeEnv({ onPath: ['codex'] });
-    const result = getClient('codex', env).write(serverEntry(), { scope: 'project' });
+    const result = getClient('codex', env).write(globalEntry(), { scope: 'project' });
     expect(result.via).toBe('file');
     expect(env.calls).toEqual([]);
   });
@@ -139,7 +138,7 @@ describe('Codex through its own CLI', () => {
     const env = makeEnv({ onPath: ['codex'], onRun: () => ({ status: 2, stderr: 'nope' }) });
     const client = getClient('codex', env);
 
-    const result = client.write(serverEntry());
+    const result = client.write(globalEntry());
 
     expect(result.via).toBe('file');
     expect(readFileSync(client.configPath('user'), 'utf-8')).toBe('[mcp_servers.hesman]\ncommand = "hesman"\nargs = []\n');

@@ -25,6 +25,7 @@ export function antigravity(env: ClientEnvironment): ClientAdapter {
   return createClient(env, {
     id: 'antigravity',
     label: 'Antigravity',
+    kind: 'gui',
     scopes: ['user', 'project'],
     codec: jsonCodec('mcpServers'),
     detect: () => env.findOnPath('antigravity') !== undefined || existsSync(current) || existsSync(legacyDir),

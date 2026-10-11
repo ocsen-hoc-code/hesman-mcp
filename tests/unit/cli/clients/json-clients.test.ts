@@ -1,10 +1,9 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { serverEntry } from '../../../../src/cli/clients/entry';
 import { allClients, getClient } from '../../../../src/cli/clients/index';
 import type { ClientId, Scope } from '../../../../src/cli/clients/types';
-import { PLATFORMS, cleanupEnvs, makeEnv, writeFixture, type FakeEnvironment, type TestPlatform } from './helpers';
+import { PLATFORMS, cleanupEnvs, globalEntry, makeEnv, writeFixture, type FakeEnvironment, type TestPlatform } from './helpers';
 
 afterEach(cleanupEnvs);
 
@@ -44,7 +43,8 @@ const CASES: Case[] = [
     id: 'cursor',
     userPath: same(['.cursor', 'mcp.json']),
     key: 'mcpServers',
-    entry: () => ({ command: 'hesman', args: ['--project-root', '${workspaceFolder}'] }),
+    // User scope: no --project-root, because ${workspaceFolder} may be the home directory there.
+    entry: (_env, scope) => (scope === 'project' ? { command: 'hesman', args: ['--project-root', '${workspaceFolder}'] } : plain()),
     projectPath: ['.cursor', 'mcp.json'],
   },
   {
@@ -103,7 +103,7 @@ describe.each(CASES)('$id (config file)', (c) => {
     it('creates the config with exactly the expected entry, then remove deletes the file it created', () => {
       const { env, client, path } = setup();
 
-      const added = client.write(serverEntry());
+      const added = client.write(globalEntry());
 
       expect(added.status).toBe('added');
       expect(added.via).toBe('file');
@@ -122,7 +122,7 @@ describe.each(CASES)('$id (config file)', (c) => {
       const before = JSON.stringify({ theme: 'dark', [c.key]: others }, null, 2) + '\n';
       writeFixture(path, before);
 
-      client.write(serverEntry());
+      client.write(globalEntry());
 
       expect(readFileSync(path, 'utf-8')).toBe(
         JSON.stringify({ theme: 'dark', [c.key]: { ...others, hesman: c.entry(env, 'user') } }, null, 2) + '\n',
@@ -145,7 +145,7 @@ describe.each(CASES)('$id (config file)', (c) => {
       const before = make(c.key);
       writeFixture(path, before);
 
-      expect(client.write(serverEntry()).status).toBe('added');
+      expect(client.write(globalEntry()).status).toBe('added');
       expect(JSON.parse(readFileSync(path, 'utf-8'))[c.key].hesman).toBeDefined();
       client.remove();
 
@@ -155,11 +155,11 @@ describe.each(CASES)('$id (config file)', (c) => {
     it('a second setup changes nothing', () => {
       const { client, path } = setup();
       writeFixture(path, golden(c.key, { alpha: { command: 'alpha' } }));
-      client.write(serverEntry());
+      client.write(globalEntry());
       const after = readFileSync(path, 'utf-8');
       const backup = readFileSync(`${path}.hesman.bak`, 'utf-8');
 
-      const second = client.write(serverEntry());
+      const second = client.write(globalEntry());
 
       expect(second.status).toBe('unchanged');
       expect(readFileSync(path, 'utf-8')).toBe(after);
@@ -169,7 +169,7 @@ describe.each(CASES)('$id (config file)', (c) => {
     it('dry run reports the change and writes nothing', () => {
       const { env, client, path } = setup();
 
-      const result = client.write(serverEntry(), { dryRun: true });
+      const result = client.write(globalEntry(), { dryRun: true });
 
       expect(result.status).toBe('added');
       expect(result.applied).toBe(false);
@@ -190,7 +190,7 @@ describe.each(CASES)('$id (config file)', (c) => {
       alpha: { command: 'alpha' },
     }));
 
-    const result = client.write(serverEntry());
+    const result = client.write(globalEntry());
 
     expect(result.status).toBe('updated');
     const written = JSON.parse(readFileSync(path, 'utf-8'));
@@ -203,7 +203,7 @@ describe.each(CASES)('$id (config file)', (c) => {
     const client = getClient(c.id, env);
     const path = client.configPath('user');
     writeFixture(path, golden(c.key, { alpha: { command: 'alpha' } }));
-    client.write(serverEntry());
+    client.write(globalEntry());
     const edited = JSON.parse(readFileSync(path, 'utf-8'));
     edited[c.key].beta = { command: 'beta' };
     writeFixture(path, JSON.stringify(edited, null, 2) + '\n');
@@ -232,7 +232,7 @@ describe.each(CASES)('$id (config file)', (c) => {
     const broken = `{ "${c.key}": { oops `;
     writeFixture(path, broken);
 
-    expect(() => client.write(serverEntry())).toThrow(/Invalid JSON/);
+    expect(() => client.write(globalEntry())).toThrow(/Invalid JSON/);
 
     expect(readFileSync(path, 'utf-8')).toBe(broken);
     expect(readdirSync(dirname(path)).filter((f) => f.includes('.hesman.bak') || f.includes('.tmp-'))).toEqual([]);
@@ -241,7 +241,7 @@ describe.each(CASES)('$id (config file)', (c) => {
   it('generated entries never contain a cwd', () => {
     const env = makeEnv();
     const client = getClient(c.id, env);
-    client.write(serverEntry());
+    client.write(globalEntry());
     expect(JSON.parse(readFileSync(client.configPath('user'), 'utf-8'))[c.key].hesman).not.toHaveProperty('cwd');
   });
 
@@ -254,7 +254,7 @@ describe.each(CASES)('$id (config file)', (c) => {
       expect(client.scopes).toContain('project');
       expect(client.configPath('project')).toBe(path);
 
-      client.write(serverEntry(), { scope: 'project' });
+      client.write(globalEntry(), { scope: 'project' });
 
       expect(readFileSync(path, 'utf-8')).toBe(golden(c.key, { hesman: c.entry(env, 'project') }));
       expect(existsSync(client.configPath('user'))).toBe(false);
@@ -265,9 +265,42 @@ describe.each(CASES)('$id (config file)', (c) => {
     it('has no project scope', () => {
       const client = getClient(c.id, makeEnv());
       expect(client.scopes).toEqual(['user']);
-      expect(() => client.write(serverEntry(), { scope: 'project' })).toThrow(/project scope/);
+      expect(() => client.write(globalEntry(), { scope: 'project' })).toThrow(/project scope/);
     });
   }
+});
+
+describe('Cursor project selection (M2-04)', () => {
+  it('user scope never passes --project-root and says how to pin a project', () => {
+    const result = getClient('cursor', makeEnv()).write(globalEntry(), { dryRun: true });
+
+    expect(result.preview).not.toContain('--project-root');
+    expect(result.preview).not.toContain('workspaceFolder');
+    expect(result.notes.join('\n')).toMatch(/--scope project/);
+  });
+
+  it('project scope passes --project-root ${workspaceFolder} without a note', () => {
+    const result = getClient('cursor', makeEnv()).write(globalEntry(), { scope: 'project', dryRun: true });
+
+    expect(result.preview).toContain('"--project-root"');
+    expect(result.preview).toContain('"${workspaceFolder}"');
+    expect(result.notes).toEqual([]);
+  });
+});
+
+describe('client kind (M2-04)', () => {
+  it('marks the terminal clients as cli and the desktop apps as gui', () => {
+    expect(Object.fromEntries(allClients(makeEnv()).map((c) => [c.id, c.kind]))).toEqual({
+      'claude-code': 'cli',
+      'claude-desktop': 'gui',
+      codex: 'cli',
+      cursor: 'gui',
+      antigravity: 'gui',
+      vscode: 'gui',
+      'gemini-cli': 'cli',
+      windsurf: 'gui',
+    });
+  });
 });
 
 describe('VS Code regression (M2-03)', () => {
@@ -275,7 +308,7 @@ describe('VS Code regression (M2-03)', () => {
     const env = makeEnv();
     const client = getClient('vscode', env);
 
-    client.write(serverEntry(), { scope: 'project' });
+    client.write(globalEntry(), { scope: 'project' });
 
     const written = JSON.parse(readFileSync(join(env.cwd, '.vscode', 'mcp.json'), 'utf-8'));
     expect(written).toEqual({ servers: { hesman: { type: 'stdio', command: 'hesman', args: [] } } });
@@ -289,7 +322,7 @@ describe('client-specific paths and entries', () => {
     const client = getClient('claude-desktop', env);
     const project = join(env.home, 'work', 'app');
 
-    const result = client.write(serverEntry(), { projectRoot: project });
+    const result = client.write(globalEntry(), { projectRoot: project });
 
     expect(client.read()?.args).toEqual(['--project-root', project]);
     expect(result.notes.join('\n')).toContain(`always use ${project}`);
@@ -298,7 +331,7 @@ describe('client-specific paths and entries', () => {
   it('Claude Desktop refuses the home directory as its project', () => {
     const env = makeEnv({ platform: 'darwin' });
     const client = getClient('claude-desktop', env);
-    expect(() => client.write(serverEntry(), { projectRoot: env.home })).toThrow(/--project-root/);
+    expect(() => client.write(globalEntry(), { projectRoot: env.home })).toThrow(/--project-root/);
   });
 
   it('Claude Desktop on Windows falls back to <home>/AppData/Roaming when APPDATA is unset', () => {
@@ -330,7 +363,7 @@ describe('client-specific paths and entries', () => {
   });
 
   it.each(['antigravity', 'windsurf'] as const)('%s adds a note that its project detection is unverified', (id) => {
-    const result = getClient(id, makeEnv()).write(serverEntry(), { dryRun: true });
+    const result = getClient(id, makeEnv()).write(globalEntry(), { dryRun: true });
     expect(result.notes.join('\n')).toMatch(/unverified/i);
     expect(result.notes.join('\n')).toMatch(/hesman doctor/);
   });

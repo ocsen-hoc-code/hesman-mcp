@@ -15,6 +15,22 @@ export type ClientId = (typeof CLIENT_IDS)[number];
 /** `user`: one config for every project of this user. `project`: a file inside the current project. */
 export type Scope = 'user' | 'project';
 
+/**
+ * `cli`: started from a terminal, so it sees the user's shell PATH. `gui`: a desktop app that, when
+ * opened from the Dock or a launcher, gets a minimal PATH without version-manager directories.
+ */
+export type ClientKind = 'cli' | 'gui';
+
+/** Facts about the running Hesman, used to decide how clients should launch it. */
+export interface Installation {
+  /** Absolute path of the Node binary running Hesman (`process.execPath`). */
+  execPath: string;
+  /** Absolute path of this installation's server entry script (`<package>/dist/index.js`). */
+  entryScript: string;
+  /** Version from this installation's `package.json`. */
+  version: string;
+}
+
 /** How a client starts the Hesman server. Produced by `serverEntry()`; adapters may append args. */
 export interface ServerEntry {
   command: string;
@@ -38,8 +54,11 @@ export interface ClientEnvironment {
   cwd: string;
   platform: NodeJS.Platform;
   env: Record<string, string | undefined>;
+  installation: Installation;
   /** Absolute path of an executable on PATH, or undefined. */
   findOnPath(name: string): string | undefined;
+  /** `path` with symbolic links resolved; `path` itself when it cannot be resolved. */
+  realpath(path: string): string;
   /** Runs a client CLI (`claude mcp add …`, `codex mcp add …`) and waits for it. */
   run(command: string, args: string[], options?: { cwd?: string }): RunResult;
 }
@@ -75,6 +94,7 @@ export interface ClientAdapter {
   id: ClientId;
   /** Human-readable name, e.g. "VS Code (Copilot)". */
   label: string;
+  kind: ClientKind;
   scopes: readonly Scope[];
   /** True when the client looks installed (its CLI is on PATH or its config directory exists). */
   detect(): boolean;

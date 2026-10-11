@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { appConfigDir, realEnvironment, xdgConfigDir } from '../../../../src/cli/clients/environment';
 import { cleanupEnvs, makeEnv } from './helpers';
@@ -30,6 +30,28 @@ describe('realEnvironment()', () => {
     expect(env.findOnPath('not-executable')).toBeUndefined();
     expect(env.findOnPath('a-directory')).toBeUndefined();
     expect(env.findOnPath('absent')).toBeUndefined();
+  });
+
+  it('installation describes the running Hesman: this node, the built entry script of this package, its version', () => {
+    const root = resolve(__dirname, '../../../..');
+    const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf-8'));
+
+    expect(realEnvironment().installation).toEqual({
+      execPath: process.execPath,
+      entryScript: join(root, 'dist', 'index.js'),
+      version: pkg.version,
+    });
+  });
+
+  it.skipIf(process.platform === 'win32')('realpath follows symbolic links and returns unresolvable paths unchanged', () => {
+    dir = realpathSync(mkdtempSync(join(tmpdir(), 'hesman-path-test-')));
+    writeFileSync(join(dir, 'target'), '');
+    symlinkSync(join(dir, 'target'), join(dir, 'link'));
+
+    const env = realEnvironment();
+
+    expect(env.realpath(join(dir, 'link'))).toBe(join(dir, 'target'));
+    expect(env.realpath(join(dir, 'missing'))).toBe(join(dir, 'missing'));
   });
 
   it.skipIf(process.platform === 'win32')('run reports the exit status and output of a command', () => {

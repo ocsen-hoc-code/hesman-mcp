@@ -30,6 +30,7 @@ export function windsurf(env: ClientEnvironment): ClientAdapter {
   return createClient(env, {
     id: 'windsurf',
     label: 'Windsurf',
+    kind: 'gui',
     scopes: ['user'],
     codec: jsonCodec('mcpServers'),
     detect: () => env.findOnPath('windsurf') !== undefined || existsSync(current) || existsSync(legacyDir),

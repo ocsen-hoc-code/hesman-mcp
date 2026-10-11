@@ -28,6 +28,7 @@ export function vscode(env: ClientEnvironment): ClientAdapter {
   return createClient(env, {
     id: 'vscode',
     label: 'VS Code (Copilot)',
+    kind: 'gui',
     scopes: ['user', 'project'],
     codec: jsonCodec('servers'),
     detect: () => env.findOnPath('code') !== undefined || existsSync(userDir),

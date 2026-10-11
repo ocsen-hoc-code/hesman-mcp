@@ -23,6 +23,7 @@ export function claudeDesktop(env: ClientEnvironment): ClientAdapter {
   return createClient(env, {
     id: 'claude-desktop',
     label: 'Claude Desktop',
+    kind: 'gui',
     scopes: ['user'],
     codec: jsonCodec('mcpServers'),
     detect: () => existsSync(dir),

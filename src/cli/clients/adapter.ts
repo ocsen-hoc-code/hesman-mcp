@@ -7,6 +7,7 @@ import type {
   ClientAdapter,
   ClientEnvironment,
   ClientId,
+  ClientKind,
   Scope,
   ServerEntry,
 } from './types.js';
@@ -22,6 +23,7 @@ export interface ClientCli {
 export interface ClientSpec {
   id: ClientId;
   label: string;
+  kind: ClientKind;
   scopes: readonly Scope[];
   codec: ConfigCodec;
   detect(): boolean;
@@ -74,6 +76,7 @@ export function createClient(env: ClientEnvironment, spec: ClientSpec): ClientAd
   return {
     id: spec.id,
     label: spec.label,
+    kind: spec.kind,
     scopes: spec.scopes,
     detect: spec.detect,
 

@@ -48,19 +48,29 @@ The result: agents work faster, cost less, and reason more accurately because th
 
 ## Quick Start
 
+`hesman-mcp` is not on the npm registry yet, so today Hesman is installed from source:
+
 ```bash
-# 1. Install globally
-npm install -g hesman-mcp
+# 1. Get and build Hesman (Node.js ≥ 20)
+git clone https://github.com/ocsen-hoc-code/hesman-mcp.git
+cd hesman-mcp
+npm install
+npm run download:parsers
+npm run build
 
-# 2. Run the server inside your project
-cd my-project
-hesman
-
-# 3. Register with your AI clients (detects Claude Code, Cursor, VS Code, Codex, …)
-hesman setup
+# 2. Register it with your AI clients (detects Claude Code, Cursor, VS Code, Codex, …)
+node dist/index.js setup
 ```
 
-That's it. The server answers your agent immediately and indexes in the background (a few seconds for most projects): the 11 tools work right away, mark results with `_meta.indexing` while the index is still incomplete, and `index_status` reports the progress.
+Restart the client and open a project. `setup` writes the launch command that fits how Hesman is installed (here: absolute paths to `node` and `dist/index.js`, so nothing has to be on PATH); see [Launch command](#launch-command).
+
+After the package is published, the whole quick start becomes one line:
+
+```bash
+npx -y hesman-mcp setup   # only once hesman-mcp is published on npm
+```
+
+The server answers your agent immediately and indexes in the background (a few seconds for most projects): the 11 tools work right away, mark results with `_meta.indexing` while the index is still incomplete, and `index_status` reports the progress.
 
 ---
 
@@ -213,13 +223,9 @@ This example is a real `get_context` call (default ±5 lines, compact mode) on a
 - **Node.js** ≥ 20.0.0
 - **npm** (or pnpm / yarn)
 
-### Install from npm
-
-```bash
-npm install -g hesman-mcp
-```
-
 ### Install from Source
+
+This is the path that works today.
 
 ```bash
 git clone https://github.com/ocsen-hoc-code/hesman-mcp.git
@@ -227,7 +233,18 @@ cd hesman-mcp
 npm install
 npm run download:parsers   # Download Tree-sitter WASM parsers
 npm run build              # Compile TypeScript
-npm link                   # Make `hesman` available globally
+npm link                   # Optional: make `hesman` available on PATH
+```
+
+Without `npm link`, use `node /path/to/hesman-mcp/dist/index.js` wherever this README says `hesman`.
+
+### Install from npm (after the package is published)
+
+`hesman-mcp` is not on the npm registry yet. Once it is:
+
+```bash
+npx -y hesman-mcp setup     # no install: clients start Hesman through npx
+npm install -g hesman-mcp   # or a global install that puts `hesman` on PATH
 ```
 
 ### Register with AI Agents
@@ -242,9 +259,9 @@ hesman remove                        # undo: take Hesman out of every client aga
 
 | Client | `--client` | What `hesman setup` changes (user scope) | `--scope project` |
 |---|---|---|---|
-| Claude Code | `claude-code` | runs `claude mcp add --scope user hesman -- hesman`; without the CLI, edits `~/.claude.json` | `.mcp.json` |
+| Claude Code | `claude-code` | runs `claude mcp add --scope user hesman -- <launch command>`; without the CLI, edits `~/.claude.json` | `.mcp.json` |
 | Claude Desktop | `claude-desktop` | `claude_desktop_config.json` | — |
-| OpenAI Codex CLI | `codex` | runs `codex mcp add hesman -- hesman`; without the CLI, edits `~/.codex/config.toml` | `.codex/config.toml` |
+| OpenAI Codex CLI | `codex` | runs `codex mcp add hesman -- <launch command>`; without the CLI, edits `~/.codex/config.toml` | `.codex/config.toml` |
 | Cursor | `cursor` | `~/.cursor/mcp.json` | `.cursor/mcp.json` |
 | Google Antigravity | `antigravity` | `~/.gemini/config/mcp_config.json` | `.agents/mcp_config.json` |
 | VS Code (Copilot) | `vscode` | `mcp.json` in the VS Code user directory | `.vscode/mcp.json` |
@@ -252,12 +269,30 @@ hesman remove                        # undo: take Hesman out of every client aga
 | Windsurf | `windsurf` | `~/.config/devin/mcp_config.json` | — |
 
 - Only the `hesman` entry is touched. A changed file is first copied to `<file>.hesman.bak`, and `hesman remove` restores it byte for byte when nothing else changed in between.
-- The entry holds no project path: Hesman finds the project itself (see below). Two exceptions: **Claude Desktop** has no workspace, so its entry pins one project (the current directory, or `--project-root <path>`), and **Cursor** gets `--project-root ${workspaceFolder}`.
+- The entry holds no project path: Hesman finds the project itself (see below). Two exceptions: **Claude Desktop** has no workspace, so its entry pins one project (the current directory, or `--project-root <path>`), and **Cursor** gets `--project-root ${workspaceFolder}` in the project scope only (in the global `~/.cursor/mcp.json` that variable may be your home directory, so the global entry names no project).
 - For **Antigravity** and **Windsurf**, how the project is passed to the server is not documented; `hesman setup` prints a note asking you to check after the first start.
 - Config files with comments (JSONC) are not edited: `hesman setup` reports them and leaves them untouched.
 - `hesman install --agent <name>` still works as a deprecated alias of `hesman setup --client <name> --yes`.
 
 After setup, restart the client and Hesman will be available as an MCP server.
+
+### Launch command
+
+`hesman setup --command auto|npx|global|absolute` decides what the clients run. Setup never uses the network.
+
+| `--command` | Entry written | Needs |
+|---|---|---|
+| `npx` | `npx -y hesman-mcp@<major>` | the package on npm (not published yet) and `npx` on the client's PATH; survives Node upgrades |
+| `global` | `hesman` | a global install (or `npm link`) on the client's PATH |
+| `absolute` | `/path/to/node /path/to/hesman-mcp/dist/index.js` | nothing on PATH; run `hesman setup` again after switching Node versions or moving Hesman |
+
+`auto` (the default) looks at how the running Hesman was started:
+
+1. started through `npx` (it runs from an `_npx` cache directory) → `npx`;
+2. the `hesman` on PATH is this same installation (symbolic links resolved) → `global`;
+3. anything else (source checkout, local `node_modules`, not on PATH) → `absolute`.
+
+Desktop apps (Claude Desktop, Cursor, Antigravity, VS Code, Windsurf) opened from the Dock or a launcher do not get your shell PATH. On macOS and Linux, when `auto` picks `npx` or `hesman` and that command or `node` is not in a standard system directory (`/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`, `/usr/local/bin`, plus `/opt/homebrew/bin` on macOS and `/snap/bin` on Linux) — the usual case with nvm, fnm, volta or asdf — those clients get the `absolute` entry instead, with a note to run `hesman setup` again after switching Node versions. Terminal clients (Claude Code, Codex CLI, Gemini CLI) inherit the shell and keep the chosen command. An explicit `--command npx|global` is written as asked for every client, with a warning where a desktop app may not find it.
 
 ### Manual MCP Configuration
 
@@ -275,7 +310,7 @@ Add this to your agent's MCP config file (VS Code uses `"servers"` instead of `"
 }
 ```
 
-`--project-root` is optional; see below.
+`--project-root` is optional; see below. `"command": "hesman"` needs `hesman` on the PATH the client sees; otherwise use `"command": "/path/to/node"` with `"/path/to/hesman-mcp/dist/index.js"` as the first argument (see [Launch command](#launch-command)).
 
 ### How Hesman Picks the Project
 
@@ -398,7 +433,7 @@ hesman clean --force           Skip confirmation prompt
 hesman clean --dry-run         Preview what would be deleted without removing
 hesman diag [path]             Print diagnostics: memory, store stats, pool, cache
 hesman diag --json             Output diagnostics as JSON
-hesman setup                   Add Hesman to your AI clients (--client, --all, --yes, --dry-run, --scope, --project-root)
+hesman setup                   Add Hesman to your AI clients (--client, --all, --yes, --dry-run, --scope, --project-root, --command)
 hesman remove                  Remove Hesman from the clients again (--client, --all, --scope, --dry-run)
 hesman install --agent <name>  Deprecated alias of: hesman setup --client <name> --yes
 hesman --version, -v           Print version number

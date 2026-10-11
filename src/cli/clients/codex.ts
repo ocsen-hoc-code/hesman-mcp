@@ -27,6 +27,7 @@ export function codex(env: ClientEnvironment): ClientAdapter {
   return createClient(env, {
     id: 'codex',
     label: 'Codex CLI',
+    kind: 'cli',
     scopes: ['user', 'project'],
     codec: tomlCodec(),
     detect: () => env.findOnPath('codex') !== undefined || existsSync(dir),

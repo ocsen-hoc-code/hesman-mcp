@@ -26,6 +26,7 @@ export function claudeCode(env: ClientEnvironment): ClientAdapter {
   return createClient(env, {
     id: 'claude-code',
     label: 'Claude Code',
+    kind: 'cli',
     scopes: ['user', 'project'],
     codec: jsonCodec('mcpServers'),
     detect: () =>

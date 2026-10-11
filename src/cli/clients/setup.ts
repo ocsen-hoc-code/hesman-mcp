@@ -1,5 +1,5 @@
 import { splitArgs } from '../args.js';
-import { serverEntry } from './entry.js';
+import { COMMAND_MODES, PACKAGE_NAME, autoLaunch, launchFor, runsFromNpxCache, serverEntry, type CommandMode } from './entry.js';
 import { allClients, isClientId } from './index.js';
 import { CLIENT_IDS, type ChangeResult, type ClientAdapter, type ClientEnvironment, type ClientId, type Scope } from './types.js';
 
@@ -21,7 +21,7 @@ const ALIASES: Record<string, ClientId> = {
   'codex-cli': 'codex',
 };
 
-const VALUE_FLAGS = ['--scope', '--project-root'];
+const VALUE_FLAGS = ['--scope', '--project-root', '--command'];
 const SETUP_FLAGS = ['--all', '--yes', '-y', '--dry-run'];
 
 class UsageError extends Error {}
@@ -34,7 +34,11 @@ interface Options {
   dryRun: boolean;
   scope: Scope;
   projectRoot: string | undefined;
+  /** `--command`; undefined when the flag was not used (setup then means `auto`). */
+  command: CommandMode | undefined;
 }
+
+const isCommandMode = (value: string): value is CommandMode => (COMMAND_MODES as readonly string[]).includes(value);
 
 function parseOptions(args: readonly string[]): Options {
   // `--client` takes one or more names (`--client a b`, `--client a,b`, repeated), which
@@ -69,6 +73,11 @@ function parseOptions(args: readonly string[]): Options {
   const scope = values.get('--scope') ?? (flags.has('--scope') ? '' : 'user');
   if (scope !== 'user' && scope !== 'project') throw new UsageError('--scope must be "user" or "project".');
   if (flags.has('--project-root')) throw new UsageError('--project-root needs a path.');
+  const command = values.get('--command');
+  // splitArgs drops a value flag that has no value, so look for the bare flag itself.
+  if ((command === undefined && rest.includes('--command')) || (command !== undefined && !isCommandMode(command))) {
+    throw new UsageError(`--command must be one of: ${COMMAND_MODES.join(', ')}.`);
+  }
 
   return {
     names,
@@ -77,6 +86,7 @@ function parseOptions(args: readonly string[]): Options {
     dryRun: flags.has('--dry-run'),
     scope,
     projectRoot: values.get('--project-root'),
+    command,
   };
 }
 
@@ -182,6 +192,25 @@ function forEachClient(
   return failed ? 1 : 0;
 }
 
+/**
+ * Says once which command the clients will launch and why. Clients that get something else (a
+ * desktop app that cannot find the command) say so in their own note.
+ */
+function announceLaunch(mode: CommandMode, io: CliIo): void {
+  const auto = mode === 'auto' ? autoLaunch(io.env) : undefined;
+  const kind = auto?.kind ?? (mode as Exclude<CommandMode, 'auto'>);
+  const entry = serverEntry(kind, io.env.installation);
+  io.out(`Launch command: ${[entry.command, ...entry.args].join(' ')}`);
+  io.out(auto ? `  chosen by --command auto: ${auto.reason}` : `  chosen with --command ${mode}`);
+  if (kind === 'absolute') {
+    io.out('  Absolute paths stop working when Node or Hesman moves: run `hesman setup` again after switching Node versions.');
+  }
+  if (mode === 'npx' && !runsFromNpxCache(io.env)) {
+    // No registry lookup here: setup never uses the network.
+    io.out(`  \`npx\` only works once ${entry.args[1]} is published on npm; ${PACKAGE_NAME} was not started through npx, so this was not checked.`);
+  }
+}
+
 /** Parses options, printing the problem and returning undefined when they are invalid. */
 function optionsOrComplain(args: readonly string[], io: CliIo): Options | undefined {
   try {
@@ -237,16 +266,23 @@ export async function runSetup(args: readonly string[], io: CliIo): Promise<numb
     return 1;
   }
 
-  const entry = serverEntry();
-  return forEachClient(chosen, options, io, (client) =>
-    client.write(entry, { scope: options.scope, dryRun: options.dryRun, projectRoot: options.projectRoot }),
-  );
+  const mode = options.command ?? 'auto';
+  announceLaunch(mode, io);
+  return forEachClient(chosen, options, io, (client) => {
+    const launch = launchFor(client, mode, io.env);
+    const result = client.write(launch.entry, { scope: options.scope, dryRun: options.dryRun, projectRoot: options.projectRoot });
+    return { ...result, notes: [...launch.notes, ...result.notes] };
+  });
 }
 
 /** `hesman remove`: take the Hesman server out of the clients again. Resolves with the exit code. */
 export async function runRemove(args: readonly string[], io: CliIo): Promise<number> {
   const options = optionsOrComplain(args, io);
   if (!options) return 1;
+  if (options.command !== undefined) {
+    io.out('--command only applies to `hesman setup`.');
+    return 1;
+  }
 
   const clients = allClients(io.env);
   let chosen: ClientAdapter[];
