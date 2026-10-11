@@ -85,6 +85,9 @@ Usage:
     --scope user|project    User-wide config (default) or a file in the current project
     --project-root <path>   Project for clients without a workspace (Claude Desktop)
     --command <how>         How clients start Hesman: auto (default), npx, global, absolute
+    --rules                 Also add a short "when to use Hesman" block to the project's agent
+                            instruction files (CLAUDE.md, AGENTS.md, GEMINI.md, ...); opt-in,
+                            and hesman remove deletes exactly that block again
   hesman remove             Remove Hesman from the clients again
                             (--client <name…>, --all, --scope, --dry-run)
   hesman install --agent X  Deprecated alias of: hesman setup --client X --yes

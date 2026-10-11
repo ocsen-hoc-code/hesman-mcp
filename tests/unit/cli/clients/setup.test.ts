@@ -134,19 +134,20 @@ describe('hesman setup', () => {
   });
 
   it('on a terminal it shows a checklist with detected clients pre-selected and applies it on Enter', async () => {
-    const h = harness({ isTTY: true, answers: [''] });
+    // Second Enter: the default "No" to the agent usage rules question (M2-07).
+    const h = harness({ isTTY: true, answers: ['', ''] });
     writeFixture(join(h.env.home, '.cursor', 'marker'), '');
 
     expect(await runSetup([], h.io)).toBe(0);
 
     expect(h.text()).toMatch(/\[x\] +4\. Cursor/);
     expect(h.text()).toMatch(/\[ \] +1\. Claude Code/);
-    expect(h.questions).toHaveLength(1);
+    expect(h.questions).toHaveLength(2);
     expect(configured(h.env)).toEqual(['cursor']);
   });
 
   it('the checklist toggles by number, then applies', async () => {
-    const h = harness({ isTTY: true, answers: ['4 6', 'x', ''] });
+    const h = harness({ isTTY: true, answers: ['4 6', 'x', '', ''] });
     writeFixture(join(h.env.home, '.cursor', 'marker'), '');
 
     expect(await runSetup([], h.io)).toBe(0);
@@ -454,5 +455,182 @@ describe('hesman setup --command (M2-04)', () => {
     const h = harness();
     expect(await runRemove(['--all', '--command', 'npx'], h.io)).toBe(1);
     expect(h.text()).toMatch(/--command/);
+  });
+});
+
+describe('agent usage rules: hesman setup --rules / hesman remove (M2-07)', () => {
+  const RULES_START = '<!-- hesman:rules:start -->';
+  const INSTRUCTION_FILES = ['CLAUDE.md', 'AGENTS.md', 'GEMINI.md', '.github/copilot-instructions.md', '.cursor/rules/hesman.mdc'];
+
+  /** Every file and directory in the project (the working directory of the fake environment). */
+  const projectTree = (h: Harness): string[] =>
+    (readdirSync(h.env.cwd, { recursive: true }) as string[]).map((p) => p.split('\\').join('/')).sort();
+
+  it('without --rules no instruction file is touched and nothing is asked', async () => {
+    const h = harness({ onPath: ['claude'] });
+    writeFixture(join(h.env.cwd, 'CLAUDE.md'), '# Mine\n');
+
+    expect(await runSetup(['--all'], h.io)).toBe(0);
+    expect(await runSetup(['--yes'], h.io)).toBe(0);
+
+    expect(projectTree(h)).toEqual(['CLAUDE.md']);
+    expect(readFileSync(join(h.env.cwd, 'CLAUDE.md'), 'utf-8')).toBe('# Mine\n');
+    expect(h.questions).toEqual([]);
+    expect(h.text()).not.toMatch(/instruction file/i);
+  });
+
+  it('--rules writes the block into the instruction file of each selected client and names the changed files', async () => {
+    const h = harness();
+
+    expect(await runSetup(['--client', 'claude-code', 'codex', '--rules'], h.io)).toBe(0);
+
+    expect(projectTree(h)).toEqual(['AGENTS.md', 'CLAUDE.md']);
+    expect(readFileSync(join(h.env.cwd, 'CLAUDE.md'), 'utf-8')).toContain('`find_symbol`');
+    expect(h.text()).toContain(join(h.env.cwd, 'CLAUDE.md'));
+    expect(h.text()).toContain(join(h.env.cwd, 'AGENTS.md'));
+    expect(h.text()).toMatch(/Changed instruction files: CLAUDE\.md, AGENTS\.md/);
+    expect(h.text()).toMatch(/committed to git/);
+  });
+
+  it('--rules --all writes each shared file once and says which clients are skipped', async () => {
+    const h = harness();
+
+    expect(await runSetup(['--all', '--rules'], h.io)).toBe(0);
+
+    for (const file of INSTRUCTION_FILES) {
+      expect(readFileSync(join(h.env.cwd, file), 'utf-8').split(RULES_START)).toHaveLength(2);
+    }
+    expect(h.text()).toMatch(/GEMINI\.md \(Antigravity, Gemini CLI\): created/);
+    expect(h.text()).toMatch(/Claude Desktop: skipped — it reads no project instruction file/);
+  });
+
+  it('setup --rules then remove leaves every instruction file byte-identical', async () => {
+    const h = harness();
+    const originals: Record<string, string> = {
+      'CLAUDE.md': '# Claude\n\nProject rules.\n',
+      'AGENTS.md': '# Agents, no final newline',
+      '.github/copilot-instructions.md': '# Copilot\r\n\r\nCRLF\r\n',
+      'src/app.ts': 'export {};\n',
+    };
+    for (const [file, text] of Object.entries(originals)) writeFixture(join(h.env.cwd, file), text);
+    const before = projectTree(h);
+
+    expect(await runSetup(['--all', '--rules'], h.io)).toBe(0);
+    expect(readFileSync(join(h.env.cwd, 'CLAUDE.md'), 'utf-8')).not.toBe(originals['CLAUDE.md']);
+    expect(await runSetup(['--all', '--rules'], h.io)).toBe(0);
+    expect(await runRemove(['--all'], h.io)).toBe(0);
+
+    expect(projectTree(h)).toEqual(before);
+    for (const [file, text] of Object.entries(originals)) expect(readFileSync(join(h.env.cwd, file), 'utf-8')).toBe(text);
+    expect(h.text()).toMatch(/CLAUDE\.md.*: removed/);
+    expect(h.text()).toMatch(/GEMINI\.md.*: deleted/);
+  });
+
+  it('remove without --client also removes the block when no client config is left', async () => {
+    const h = harness();
+    await runSetup(['--client', 'codex', '--rules'], h.io);
+    await runRemove(['--client', 'codex', '--dry-run'], h.io);
+    expect(projectTree(h)).toEqual(['AGENTS.md']);
+    getClient('codex', h.env).remove({ scope: 'user' });
+
+    expect(await runRemove([], h.io)).toBe(0);
+
+    expect(projectTree(h)).toEqual([]);
+  });
+
+  it('remove --client limits the removal to the files of those clients', async () => {
+    const h = harness();
+    await runSetup(['--all', '--rules'], h.io);
+
+    expect(await runRemove(['--client', 'claude-code'], h.io)).toBe(0);
+
+    expect(existsSync(join(h.env.cwd, 'CLAUDE.md'))).toBe(false);
+    expect(existsSync(join(h.env.cwd, 'AGENTS.md'))).toBe(true);
+  });
+
+  it('remove prints nothing about rules when the project has none', async () => {
+    const h = harness();
+    await runSetup(['--all'], h.io);
+    h.lines.length = 0;
+
+    expect(await runRemove(['--all'], h.io)).toBe(0);
+
+    expect(h.text()).not.toMatch(/usage rules|instruction file/i);
+  });
+
+  it('on a terminal it asks once, and Enter means No', async () => {
+    const h = harness({ isTTY: true, answers: [''] });
+
+    expect(await runSetup(['--client', 'claude-code', 'gemini-cli'], h.io)).toBe(0);
+
+    expect(h.questions).toHaveLength(1);
+    expect(h.questions[0]).toMatch(/CLAUDE\.md, GEMINI\.md/);
+    expect(h.questions[0]).toMatch(/\[y\/N\]/);
+    expect(projectTree(h)).toEqual([]);
+  });
+
+  it('on a terminal an explicit yes writes the rules', async () => {
+    const h = harness({ isTTY: true, answers: ['Yes'] });
+
+    expect(await runSetup(['--client', 'claude-code'], h.io)).toBe(0);
+
+    expect(projectTree(h)).toEqual(['CLAUDE.md']);
+  });
+
+  it('on a terminal --yes, --rules, --dry-run and clients without an instruction file ask nothing', async () => {
+    const h = harness({ isTTY: true });
+
+    expect(await runSetup(['--client', 'claude-code', '--yes'], h.io)).toBe(0);
+    expect(await runSetup(['--client', 'claude-code', '--dry-run'], h.io)).toBe(0);
+    expect(await runSetup(['--client', 'claude-desktop'], h.io)).toBe(0);
+    expect(projectTree(h)).toEqual([]);
+    expect(await runSetup(['--client', 'claude-code', '--rules'], h.io)).toBe(0);
+
+    expect(h.questions).toEqual([]);
+    expect(projectTree(h)).toEqual(['CLAUDE.md']);
+  });
+
+  it('--dry-run --rules prints the block and the paths and writes nothing', async () => {
+    const h = harness();
+    writeFixture(join(h.env.cwd, 'AGENTS.md'), '# Mine\n');
+
+    expect(await runSetup(['--dry-run', '--all', '--rules'], h.io)).toBe(0);
+
+    expect(projectTree(h)).toEqual(['AGENTS.md']);
+    expect(readFileSync(join(h.env.cwd, 'AGENTS.md'), 'utf-8')).toBe('# Mine\n');
+    expect(filesUnder(h.env.home)).toEqual([]);
+    expect(h.text()).toMatch(/AGENTS\.md \(Codex CLI, Windsurf\): would add/);
+    expect(h.text()).toMatch(/CLAUDE\.md \(Claude Code\): would create/);
+    expect(h.text()).toContain(`  + ${RULES_START}`);
+    expect(h.text()).toContain('  + alwaysApply: true');
+    expect(h.text()).not.toMatch(/Changed instruction files/);
+  });
+
+  it('--project-root chooses the project the instruction files belong to', async () => {
+    const h = harness();
+    const other = join(h.env.home, 'other-project');
+
+    expect(await runSetup(['--client', 'codex', '--rules', '--project-root', other], h.io)).toBe(0);
+
+    expect(projectTree(h)).toEqual([]);
+    expect(readFileSync(join(other, 'AGENTS.md'), 'utf-8')).toContain(RULES_START);
+    expect(await runRemove(['--client', 'codex', '--project-root', other], h.io)).toBe(0);
+    expect(existsSync(join(other, 'AGENTS.md'))).toBe(false);
+  });
+
+  it('a damaged block fails that file only, with exit code 1', async () => {
+    const h = harness();
+    writeFixture(join(h.env.cwd, 'CLAUDE.md'), `${RULES_START}\nno end marker\n`);
+
+    expect(await runSetup(['--client', 'claude-code', 'codex', '--rules'], h.io)).toBe(1);
+
+    expect(h.text()).toMatch(/CLAUDE\.md \(Claude Code\): failed — .*markers are damaged/);
+    expect(readFileSync(join(h.env.cwd, 'AGENTS.md'), 'utf-8')).toContain(RULES_START);
+  });
+
+  it('hesman remove rejects --rules', async () => {
+    const h = harness();
+    expect(await runRemove(['--all', '--rules'], h.io)).toBe(1);
+    expect(h.text()).toMatch(/--rules only applies to `hesman setup`/);
   });
 });
