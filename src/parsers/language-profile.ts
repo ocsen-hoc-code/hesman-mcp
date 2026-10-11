@@ -1,4 +1,4 @@
-import type { SyntaxNode } from 'web-tree-sitter';
+import type { Node as SyntaxNode } from 'web-tree-sitter';
 
 export interface RelationQueries {
   /** Tree-sitter query string to extract call expressions */

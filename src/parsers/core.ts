@@ -1,4 +1,4 @@
-import Parser, { type SyntaxNode } from 'web-tree-sitter';
+import { Parser, Language, type Node as SyntaxNode } from 'web-tree-sitter';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { LanguageProfile } from './language-profile.js';
@@ -30,13 +30,37 @@ export interface ParseResult {
 }
 
 let parserInitialized = false;
-const languageCache = new Map<string, Parser.Language>();
+/**
+ * One loaded grammar and one `Parser` per language, created on first use and
+ * kept for the life of the process (or worker thread). A parser is reused for
+ * every file of its language: creating one per file leaked WASM memory, since
+ * parsers are only freed by an explicit `delete()`.
+ */
+const parserCache = new Map<string, Promise<Parser>>();
 
 export async function initParser(profile: LanguageProfile): Promise<void> {
   if (parserInitialized) return;
   await Parser.init();
   log.info({ language: profile.language }, 'tree-sitter parser initialized');
   parserInitialized = true;
+}
+
+async function createParser(profile: LanguageProfile): Promise<Parser> {
+  const language = await Language.load(profile.parserWasmPath);
+  const parser = new Parser();
+  parser.setLanguage(language);
+  return parser;
+}
+
+function parserFor(profile: LanguageProfile): Promise<Parser> {
+  let pending = parserCache.get(profile.language);
+  if (!pending) {
+    pending = createParser(profile);
+    parserCache.set(profile.language, pending);
+    // A failed load must not poison the cache: the next file retries.
+    pending.catch(() => parserCache.delete(profile.language));
+  }
+  return pending;
 }
 
 export async function parseFile(
@@ -46,30 +70,32 @@ export async function parseFile(
   await initParser(profile);
 
   const source = readFileSync(filePath, 'utf-8');
-  const parser = new Parser();
-  let lang = languageCache.get(profile.language);
-  if (!lang) {
-    lang = await Parser.Language.load(profile.parserWasmPath);
-    languageCache.set(profile.language, lang);
-  }
+  const parser = await parserFor(profile);
 
-  parser.setLanguage(lang);
+  // Everything from here to `tree.delete()` is synchronous, so concurrent
+  // `parseFile` calls never interleave on the shared parser.
   const tree = parser.parse(source);
-  // hasError is a boolean property on SyntaxNode, not a method
-  const hasError = tree.rootNode.hasError;
+  if (!tree) throw new Error(`tree-sitter returned no syntax tree for ${filePath}`);
+  try {
+    // hasError is a boolean property on the node, not a method
+    const hasError = tree.rootNode.hasError;
 
-  const symbols = extractSymbols(tree.rootNode, source, filePath, profile);
-  const errors: Array<{ line: number; message: string }> = [];
-  if (hasError) {
-    collectErrorNodes(tree.rootNode, source, errors);
+    const symbols = extractSymbols(tree.rootNode, source, filePath, profile);
+    const errors: Array<{ line: number; message: string }> = [];
+    if (hasError) {
+      collectErrorNodes(tree.rootNode, source, errors);
+    }
+
+    return {
+      symbols,
+      language: profile.language,
+      parseQuality: hasError ? 'partial' : 'full',
+      errors,
+    };
+  } finally {
+    // Trees live in WASM memory and are never garbage collected.
+    tree.delete();
   }
-
-  return {
-    symbols,
-    language: profile.language,
-    parseQuality: hasError ? 'partial' : 'full',
-    errors,
-  };
 }
 
 /**

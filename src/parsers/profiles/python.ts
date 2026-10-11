@@ -1,4 +1,4 @@
-import type { SyntaxNode } from 'web-tree-sitter';
+import type { Node as SyntaxNode } from 'web-tree-sitter';
 import type { LanguageProfile, RelationQueries } from '../language-profile.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
