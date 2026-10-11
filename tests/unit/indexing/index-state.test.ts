@@ -29,6 +29,14 @@ describe('IndexState', () => {
     expect(state.marker()).toEqual({ inProgress: true, filesDone: 3, filesTotal: 10 });
   });
 
+  it('counts as in progress while the project root is still being resolved', () => {
+    const state = new IndexState();
+    state.begin('resolving-root', 1000);
+    expect(state.inProgress).toBe(true);
+    expect(state.snapshot()).toMatchObject({ inProgress: true, phase: 'resolving-root', startedAt: 1000 });
+    expect(state.marker()).toEqual({ inProgress: true, filesDone: 0, filesTotal: 0 });
+  });
+
   it('drops the marker and keeps the final counts once the run completes', () => {
     const state = new IndexState();
     state.begin('scanning', 1000);

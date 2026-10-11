@@ -4,6 +4,8 @@ Hesman exposes 11 MCP tools over stdio transport. Every tool response except `in
 
 **Startup:** the server answers `initialize` and `tools/list` immediately; the embedding model and the initial index are loaded in the background. Every tool works during that time and answers from what is indexed so far. While the index is still being built, `_meta.indexing` marks results as possibly incomplete (see [Response Structure](#response-structure)) and [`index_status`](#index_status) reports the progress.
 
+**Project:** one server process indexes one project, chosen in this order: (1) an explicit root (`--project-root`, `HESMAN_PROJECT_ROOT`, or `projectRoot` in `hesman.config.json`); (2) the first folder the MCP client reports through `roots/list`, when the client declares the `roots` capability — Hesman asks after the handshake, waits at most 5 seconds for the answer, and switches project when the client sends `notifications/roots/list_changed` with a different first folder; (3) the nearest directory at or above the server's working directory that holds a version-control directory or a project manifest; (4) none. The home directory and its parents are never chosen in steps 2 and 3. Tool calls that arrive while the project is being determined or switched wait for the outcome. With no project, every tool (including `index_status`) returns the `NO_PROJECT` error, whose message says how to set a root; `tools/list` still works. Relative `filePath` arguments resolve against the chosen project, and its index lives in `<project>/.hesman/`.
+
 **Line numbers:** every line number Hesman accepts or returns (`startLine`, `endLine`, `line`, parse-error lines) is **1-based and inclusive**. The first line of a file is line 1. A symbol's `startLine` can be passed straight to `get_context`, and it matches the `line` that `find_pattern` reports for the same declaration. Indexes built before this convention (0-based) are detected by their schema version and rebuilt automatically on the next start.
 
 ---
@@ -415,7 +417,7 @@ Check the indexing status of the project.
 `indexing` describes the initial index, which runs in the background after the MCP handshake:
 
 - `inProgress` — `true` from server start until the initial index has finished (or failed). Poll until it is `false` to wait for a complete index.
-- `phase` — `loading-model` (waiting for the embedding model; only with semantic search enabled), `scanning` (listing files), `indexing` (hashing, parsing and storing files), `resolving` (linking call relations), then `ready` or `failed`. `idle` means no run was started.
+- `phase` — `loading-model` (waiting for the embedding model; only with semantic search enabled), `scanning` (listing files), `indexing` (hashing, parsing and storing files), `resolving` (linking call relations), then `ready` or `failed`. `idle` means no run was started. (`resolving-root` — the project is not known yet — is an internal phase: tool calls wait until it is over.)
 - `filesDone` / `filesTotal` — files handled so far (stored, skipped as unchanged, or failed) out of the files found by the scan. `filesTotal` is `0` until the scan is done. `pendingFiles` is `filesTotal - filesDone` while indexing runs and `0` otherwise.
 - `startedAt` — when the run began (ISO 8601), `null` if none was started.
 - `error` — the message of the error that ended the run when `phase` is `failed`, otherwise `null`. The server keeps running and answers from whatever was indexed.
@@ -442,6 +444,7 @@ While the index is being built, `totalFiles`, `totalSymbols`, `totalRelations` a
 | `PARTIAL_RESULTS` | Results are partial (some data unavailable) |
 | `RATE_LIMITED` | Too many requests |
 | `CONFIG_INVALID` | Configuration validation failed |
+| `NO_PROJECT` | No project is selected (no explicit root, no usable client root, working directory is not inside a project); the message explains how to set one |
 
 All error responses follow the format:
 ```json

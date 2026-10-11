@@ -264,6 +264,19 @@ Add this to your agent's MCP config file:
 }
 ```
 
+`--project-root` is optional; see below.
+
+### How Hesman Picks the Project
+
+One server process indexes one project. It is chosen in this order:
+
+1. **Explicit root** — `--project-root <path>`, `HESMAN_PROJECT_ROOT`, or `projectRoot` in `hesman.config.json`. Always wins.
+2. **Workspace folders of the MCP client** — when the client supports the MCP `roots` capability, Hesman asks it for its folders after the handshake and indexes the first one (other folders are logged, not indexed). When the client reports a different folder later, Hesman switches to it.
+3. **Working directory** — the nearest directory at or above the server's working directory that holds a version-control directory (`.git`, `.hg`, `.svn`, `.jj`) or a project manifest (`package.json`, `go.mod`, `pyproject.toml`, `Cargo.toml`, …).
+4. **No project** — the server still starts and lists its tools, but every tool returns a `NO_PROJECT` error that explains how to set a root.
+
+The home directory and its parent directories are never picked automatically (steps 2 and 3), so a global MCP entry started from `~` does not crawl your disk. The index is stored in `.hesman/` inside the chosen project.
+
 ---
 
 ## Tools Reference
@@ -352,7 +365,7 @@ Settings are resolved in this order (later overrides earlier):
 
 | Flag | Description |
 |---|---|
-| `--project-root <path>` | Project root directory |
+| `--project-root <path>` | Project to index (default: detected, see [How Hesman Picks the Project](#how-hesman-picks-the-project)) |
 | `--workers <N>` | Number of worker threads (0 = auto) |
 | `--log-level <level>` | Logging level |
 | `--data-dir <path>` | Data directory path |

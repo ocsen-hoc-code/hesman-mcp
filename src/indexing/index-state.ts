@@ -11,15 +11,16 @@
 export type IndexRunPhase = 'scanning' | 'indexing' | 'resolving';
 
 /**
- * - `idle`          — no run started (CLI commands, unit tests).
- * - `loading-model` — waiting for the embedding model before indexing.
- * - `scanning`      — listing project files.
- * - `indexing`      — hashing, parsing and storing files.
- * - `resolving`     — linking call relations after every file is stored.
- * - `ready`         — the run finished.
- * - `failed`        — the run threw; `error` holds the message.
+ * - `idle`           — no run started (CLI commands, unit tests, no project selected).
+ * - `resolving-root` — waiting to learn which project to index (MCP roots).
+ * - `loading-model`  — waiting for the embedding model before indexing.
+ * - `scanning`       — listing project files.
+ * - `indexing`       — hashing, parsing and storing files.
+ * - `resolving`      — linking call relations after every file is stored.
+ * - `ready`          — the run finished.
+ * - `failed`         — the run threw; `error` holds the message.
  */
-export type IndexPhase = 'idle' | 'loading-model' | IndexRunPhase | 'ready' | 'failed';
+export type IndexPhase = 'idle' | 'resolving-root' | 'loading-model' | IndexRunPhase | 'ready' | 'failed';
 
 export interface IndexProgress {
   phase: IndexRunPhase;
@@ -51,7 +52,13 @@ export interface IndexingMarker {
   filesTotal: number;
 }
 
-const ACTIVE_PHASES: ReadonlySet<IndexPhase> = new Set(['loading-model', 'scanning', 'indexing', 'resolving']);
+const ACTIVE_PHASES: ReadonlySet<IndexPhase> = new Set([
+  'resolving-root',
+  'loading-model',
+  'scanning',
+  'indexing',
+  'resolving',
+]);
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -71,7 +78,7 @@ export class IndexState {
   }
 
   /** Starts a run, clearing the outcome of the previous one. */
-  begin(phase: 'loading-model' | 'scanning' = 'scanning', now: number = Date.now()): void {
+  begin(phase: 'resolving-root' | 'loading-model' | 'scanning' = 'scanning', now: number = Date.now()): void {
     this.phase = phase;
     this.filesDone = 0;
     this.filesTotal = 0;
@@ -124,7 +131,7 @@ export class IndexState {
     return { inProgress: true, filesDone: this.filesDone, filesTotal: this.filesTotal };
   }
 
-  /** Back to `idle` (tests). */
+  /** Back to `idle`: no project is selected, or a test starts over. */
   reset(): void {
     this.begin();
     this.phase = 'idle';
