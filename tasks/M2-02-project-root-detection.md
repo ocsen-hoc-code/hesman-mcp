@@ -1,10 +1,10 @@
 ---
 id: M2-02
 title: Detect the project automatically so one global entry works everywhere
-status: todo
+status: pending
 priority: P0
 depends_on: [M0-12]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -40,4 +40,5 @@ npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-11: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.
