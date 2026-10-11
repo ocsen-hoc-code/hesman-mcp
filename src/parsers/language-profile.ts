@@ -1,4 +1,5 @@
 import type { Node as SyntaxNode } from 'web-tree-sitter';
+import type { TagDefinition } from './tags-engine.js';
 
 export interface RelationQueries {
   /** Tree-sitter query string to extract call expressions */
@@ -13,6 +14,14 @@ export interface RelationQueries {
   references?: string;
 }
 
+/**
+ * What Hesman needs to know about a language beyond its grammar and its tags
+ * queries (both declared in the registry, `languages.ts`).
+ *
+ * Symbols, signatures and doc comments come from the generic tags engine
+ * (`tags-engine.ts`). The optional hooks below are escape hatches for what a
+ * query cannot express; every use must state its reason in the profile file.
+ */
 export interface LanguageProfile {
   /** Language identifier: "typescript", "python", "go", ... */
   language: string;
@@ -20,22 +29,8 @@ export interface LanguageProfile {
   extensions: string[];
   /** Path to the tree-sitter WASM parser file */
   parserWasmPath: string;
-  /** Set of tree-sitter node type names that qualify as symbols */
-  symbolNodeTypes: Set<string>;
   /** Optional relation extraction queries. If absent, relations are not extracted. */
   relationQueries?: RelationQueries;
-  /**
-   * Extract a human-readable signature from a symbol node.
-   * @param nodeText - the full text of the AST node
-   * @param sourceText - the full file source (for context)
-   */
-  extractSignature(nodeText: string, sourceText: string): string;
-  /**
-   * Extract a doc comment preceding the symbol node, or null.
-   * @param nodeStartLine - the 0-indexed line where the symbol node starts
-   * @param sourceLines - the full file source split into lines
-   */
-  extractDocComment(nodeStartLine: number, sourceLines: string[]): string | null;
   /**
    * Decide whether a named symbol is visible outside its module/package,
    * using the language's own rules. When absent, a symbol is exported iff it
@@ -44,4 +39,17 @@ export interface LanguageProfile {
    * @param node - the declaration node
    */
   isExported?(name: string, node: SyntaxNode): boolean;
+  /**
+   * Override hook: return false to drop a definition the tags queries found.
+   * Only for cases a vendored upstream query cannot be changed to express.
+   */
+  includeDefinition?(definition: TagDefinition): boolean;
+  /**
+   * Override hook: the doc comment of a definition when the language does not
+   * document with comments above it. Return null to fall back to the generic
+   * helper (contiguous comments directly above the definition).
+   * @param node - the definition node
+   * @param source - the full file source
+   */
+  extractDocComment?(node: SyntaxNode, source: string): string | null;
 }

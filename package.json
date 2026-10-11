@@ -24,9 +24,11 @@
   "files": [
     "dist/",
     "parsers/*.wasm",
+    "queries/",
     "README.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "homepage": "https://github.com/ocsen-hoc-code/hesman-mcp#readme",
   "scripts": {

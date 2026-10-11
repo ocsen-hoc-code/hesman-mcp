@@ -1,0 +1,56 @@
+{
+  "description": "Provenance of every query file under queries/. Upstream files are vendored unmodified (sha256 is checked by tests/unit/parsers/queries.test.ts); they must match the grammar revision pinned in scripts/download-parsers.ts. Files with origin \"hesman\" are written for this project.",
+  "queries": [
+    {
+      "path": "javascript/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/tree-sitter/tree-sitter-javascript",
+      "rev": "v0.23.1",
+      "commit": "3a837b6f3658ca3618f2022f8707e29739c91364",
+      "upstreamPath": "queries/tags.scm",
+      "license": "MIT",
+      "sha256": "6ef988cce5a428a15b5460e3ee96f1478705f965fc6e848a91a18bfa6c6f0212",
+      "note": "The TypeScript grammar extends the JavaScript grammar; tree-sitter-typescript v0.23.2 depends on tree-sitter-javascript 0.23.1 (its package-lock.json)."
+    },
+    {
+      "path": "typescript/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/tree-sitter/tree-sitter-typescript",
+      "rev": "v0.23.2",
+      "commit": "f975a621f4e7f532fe322e13c4f79495e0a7b2e7",
+      "upstreamPath": "queries/tags.scm",
+      "license": "MIT",
+      "sha256": "b391288bcc71b513a5df7c9bb232d8bc7418d7e274b125aa0aa4bdd6121a0338"
+    },
+    {
+      "path": "typescript/hesman-tags.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "python/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/tree-sitter/tree-sitter-python",
+      "rev": "v0.23.6",
+      "commit": "bffb65a8cfe4e46290331dfef0dbf0ef3679de11",
+      "upstreamPath": "queries/tags.scm",
+      "license": "MIT",
+      "sha256": "d0f3e577878167bfabc30e526e497bce58d1699b9bcabf8ab3a50698efb5ca3e"
+    },
+    {
+      "path": "go/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/tree-sitter/tree-sitter-go",
+      "rev": "v0.23.4",
+      "commit": "3c3775faa968158a8b4ac190a7fda867fd5fb748",
+      "upstreamPath": "queries/tags.scm",
+      "license": "MIT",
+      "sha256": "d1a9b1f678fe0278b85054e2dc56a28ef26aa478b8c88fb2b0dd83cdcdb9db35"
+    },
+    {
+      "path": "go/hesman-tags.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    }
+  ]
+}

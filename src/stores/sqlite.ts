@@ -97,8 +97,10 @@ export interface DependencyResult {
  *   1 — every stored line number is 1-based, inclusive (M0-14).
  *   2 — `calls` relations carry the callee name (`to_name`) and are resolved
  *       across files after indexing; no declaration self-calls (M0-13).
+ *   3 — symbols come from tags queries: some kinds, and therefore ids, differ
+ *       and more definitions are indexed (M1-02).
  */
-export const INDEX_SCHEMA_VERSION = 2;
+export const INDEX_SCHEMA_VERSION = 3;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
 /**

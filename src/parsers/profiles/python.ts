@@ -19,6 +19,37 @@ export function isPythonExported(name: string, node: SyntaxNode): boolean {
   return true;
 }
 
+/** Optional string prefix (`r`, `b`, `f`, `Rb`, ...) followed by the opening quotes. */
+const STRING_OPENING = /^[A-Za-z]*("""|'''|"|')/;
+
+/**
+ * Override hook (reason): Python documents a function or class with a
+ * docstring, the first statement *inside* its body, not with comments above
+ * it, so the generic "comments directly above" helper cannot find it. Returns
+ * null when there is no docstring; the generic helper then looks for `#`
+ * comments above the definition.
+ */
+export function pythonDocstring(node: SyntaxNode, source: string): string | null {
+  const first = node.childForFieldName('body')?.firstNamedChild;
+  if (first?.type !== 'expression_statement') return null;
+  const literal = first.firstNamedChild;
+  if (literal?.type !== 'string') return null;
+
+  let text = source.slice(literal.startIndex, literal.endIndex);
+  const opening = STRING_OPENING.exec(text);
+  if (!opening) return null;
+  const quote = opening[1];
+  text = text.slice(opening[0].length);
+  if (text.endsWith(quote)) text = text.slice(0, -quote.length);
+
+  const doc = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join('\n');
+  return doc.length > 0 ? doc : null;
+}
+
 export const pythonProfile: LanguageProfile = {
   language: 'python',
   extensions: ['.py', '.pyw', '.pyi'],
@@ -27,12 +58,6 @@ export const pythonProfile: LanguageProfile = {
   get parserWasmPath(): string {
     return join(__dirname, '..', '..', '..', 'parsers', 'tree-sitter-python.wasm');
   },
-
-  symbolNodeTypes: new Set([
-    'function_definition',
-    'class_definition',
-    'decorated_definition',
-  ]),
 
   relationQueries: {
     calls: `
@@ -51,91 +76,5 @@ export const pythonProfile: LanguageProfile = {
 
   isExported: isPythonExported,
 
-  extractSignature(nodeText: string, _sourceText: string): string {
-    const lines = nodeText.split('\n');
-
-    // For decorated_definition, skip decorator lines (@dataclass, @property, etc.)
-    // and find the actual definition line
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (
-        trimmed.startsWith('class ') ||
-        trimmed.startsWith('def ') ||
-        trimmed.startsWith('async ')
-      ) {
-        // Remove trailing colon from the signature
-        const sig = trimmed.endsWith(':') ? trimmed.slice(0, -1).trim() : trimmed.trim();
-        return sig;
-      }
-    }
-
-    // Fallback: first non-empty line (skip decorators)
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith('@')) {
-        return trimmed.endsWith(':') ? trimmed.slice(0, -1).trim() : trimmed.trim();
-      }
-    }
-
-    return lines[0].trim();
-  },
-
-  extractDocComment(nodeStartLine: number, sourceLines: string[]): string | null {
-    // Python docstrings are the first string expression in a function/class body.
-    // Look at lines after the function/class definition line.
-    let lineIdx = nodeStartLine + 1;
-
-    // Skip blank lines
-    while (lineIdx < sourceLines.length && sourceLines[lineIdx].trim() === '') {
-      lineIdx++;
-    }
-
-    if (lineIdx >= sourceLines.length) return null;
-
-    const trimmed = sourceLines[lineIdx].trim();
-
-    // Check for triple-quoted strings (""" or ''')
-    if (trimmed.startsWith('"""')) {
-      return extractTripleQuoted(trimmed, sourceLines, lineIdx, '"""');
-    }
-
-    if (trimmed.startsWith("'''")) {
-      return extractTripleQuoted(trimmed, sourceLines, lineIdx, "'''");
-    }
-
-    return null;
-  },
+  extractDocComment: pythonDocstring,
 };
-
-function extractTripleQuoted(
-  firstLine: string,
-  sourceLines: string[],
-  startIdx: number,
-  quote: string,
-): string {
-  const quoteLen = quote.length;
-
-  // Single-line docstring: check if the closing quote is on the same line
-  const closeIdx = firstLine.indexOf(quote, quoteLen);
-  if (closeIdx >= 0) {
-    return firstLine.slice(quoteLen, closeIdx).trim();
-  }
-
-  // Multi-line docstring: collect lines until the closing quote
-  const docLines: string[] = [];
-  // Content on the first line after the opening quotes
-  docLines.push(firstLine.slice(quoteLen).trim());
-  let i = startIdx + 1;
-  while (i < sourceLines.length) {
-    const current = sourceLines[i];
-    const idx = current.indexOf(quote);
-    if (idx >= 0) {
-      docLines.push(current.slice(0, idx).trim());
-      break;
-    }
-    docLines.push(current.trim());
-    i++;
-  }
-
-  return docLines.filter(Boolean).join('\n').trim();
-}
