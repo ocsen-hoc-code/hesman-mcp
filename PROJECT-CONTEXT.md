@@ -1,7 +1,7 @@
 # Project Context — Hesman MCP
 
 > Shared baseline for every working session (humans and AI agents). Descriptive facts only, no instructions.
-> Last updated: 2026-10-06
+> Last updated: 2026-10-11
 
 ## Name and purpose
 Hesman is an MCP server that lets AI agents query a codebase (symbol lookup, call graph, impact analysis, semantic search) with minimal token usage. Runs fully locally; installed once via Node.
@@ -10,11 +10,11 @@ Hesman is an MCP server that lets AI agents query a codebase (symbol lookup, cal
 Node ≥20, TypeScript (ESM), `@modelcontextprotocol/sdk` (stdio), web-tree-sitter (WASM), better-sqlite3 + FTS5, `@zvec/zvec` (vectors), `@xenova/transformers` (MiniLM, local), chokidar, pino, vitest.
 
 ## Current phase
-**M0 — Fix the foundation: code complete (branch `rebuild/m0-foundation`).** Both blocking problem groups of v1.0 are fixed and covered by tests that run the real server:
+**M0 — Fix the foundation: done (branch `rebuild/m0-foundation`, 16/16 tasks).** Both blocking problem groups of v1.0 are fixed and covered by tests that run the real server:
 1. Core: logs go to stderr only; TypeScript, Python and Go are indexed through the worker pool from one language registry; the server exits when its client goes away.
 2. Security: tool paths confined to the project root, safe vector-store filters, `find_pattern` ReDoS budget, symlinks skipped, guarded `clean`, clamped numeric arguments, verified parser downloads, atomic agent-config writes (see `docs/SECURITY.md`).
 
-Remaining before M0 is closed: a smoke test with a real agent client and a green CI run on all three OSes (requires pushing the branch). Next milestones: M1 (every language) and M2 (install everywhere) can run in parallel.
+A real Claude Code smoke test passes 9/9, including a correct cross-file call graph, 1-based line numbers across all tools, and ranked semantic search (hit@3 = 1.0 on a 14-query labeled set). Verified on macOS only: the project has no CI, so Linux and Windows are unverified. Known gap: `_summary` does not reduce tokens yet; measured savings come from `get_context` pruning (~90% vs. the whole file for a ±5-line window). Next milestones: M1 (every language) and M2 (install everywhere) can run in parallel.
 
 Per-task detail and status: `tasks/STATUS.md`.
 

@@ -1,10 +1,10 @@
 ---
 id: M0-12
 title: M0 gate — full verification and docs update
-status: pending
+status: done
 priority: P0
 depends_on: [M0-01, M0-02, M0-03, M0-04, M0-05, M0-06, M0-07, M0-08, M0-09, M0-10, M0-11, M0-13, M0-14, M0-15, M0-16]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -37,7 +37,7 @@ M0 is done only when both blocking problems (broken core, security holes) are pr
 ## Acceptance criteria
 
 - [x] `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e` pass locally.
-- [ ] CI is green on all 3 OSes × Node 20/22.
+- [x] All checks pass on a fresh clone (`npm ci`, parser checksums, typecheck, lint, `npm test`, `npm run test:e2e`). (Revised 2026-10-11: the project owner does not use CI/CD, so the original "CI is green on all 3 OSes × Node 20/22" criterion was replaced by this local check. Linux and Windows remain unverified.)
 - [x] The step-2 smoke test passes **9/9 with no reported issues** (first run: 8/9, see notes; fixes in M0-13…M0-16); results recorded in *Progress notes*.
 - [x] Every task M0-01…M0-11 has `status: done` in both its file and `STATUS.md`.
 
@@ -49,6 +49,7 @@ npm ci && npm run typecheck && npm run lint && npm test && npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-11: **done.** The minor observations from the 9/9 smoke run are fixed: `get_context.totalLines` no longer counts the trailing newline (and is 0 for an empty file); `tookMs` is measured in `find_symbol`, `get_file_structure` and `get_references` (was hard-coded 0); the `find_pattern` description states that `snippet` includes 2 context lines around `line`; the `semantic_search` `minScore` description explains the score scale (relevant matches typically 0.3–0.6). Tests: `tests/unit/server/response-metadata.test.ts`. Final verification on a fresh clone at `d1c575c`: `npm ci` OK, 3 parsers sha256-verified, 0 type errors, lint 0 errors / 36 warnings, `npm test` 70 files / 472 passed + 1 skipped, `npm run test:e2e` 12 files / 59 passed. Not verified: Linux and Windows (macOS only; no CI). Still open, tracked in the backlog: the `docs/i18n` READMEs describe `_summary` as current behavior in prose; `_summary` does not reduce tokens yet.
 - 2026-10-11: **real-client smoke test re-run: 9/9 PASS** (Claude Code via `claude -p --strict-mcp-config`, fresh copy of `polyglot-basic`, `dist/index.js` at `25dba8d`), with stricter criteria than the first run: `index_status` lists go/python/typescript; `GoGreet` reports `isExported: true`; `get_callers(GoGreet)` returns only `main` (go/main.go) and not GoGreet itself; `get_context` at the `startLine` reported by `find_symbol('py_greet')` (5) returns the `def py_greet` line; `find_pattern` reports the same line; `semantic_search` top 3 = `py_greet` (0.465), `GoGreet` (0.421), `tsFormatName` (0.417) with the entry points ranked last; no negative `_meta.reduction`; no Hesman process left after the client exited. Before it, the `ecc:verification-loop` phases passed: build, 0 type errors, lint 0 errors / 36 warnings, `npm test` 69 files / 466 passed + 1 skipped, no secrets, no `console.log` outside `src/cli/`.
   Minor observations from this run (not failures; candidates for follow-up): `get_context.totalLines` counts the trailing newline as an extra line (7 for a 6-line file); `tookMs` is hard-coded `0` in some tools and measured in others; `find_pattern` snippets start two lines above the reported `line` (context lines) without saying so; semantic scores are low in absolute terms (top hit 0.465), so a `minScore` >= 0.5 would return nothing; all tools return absolute `filePath`s.
   Remaining for M0 to close: CI green on all 3 OSes (requires pushing the branch).
