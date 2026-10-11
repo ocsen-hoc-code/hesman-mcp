@@ -35,6 +35,7 @@ Manual checks above, recorded in *Progress notes*; `npm test` for the unit tests
 
 ## Progress notes
 
+- 2026-10-11: merged into `rebuild/m1-m2` (commit `0f31c71`); after the merge `npm test` passes 90 files / 1010 tests + 1 skipped. Status stays `pending` for the two manual acceptance checks and the unpublished `npx` path (owner follow-ups).
 - 2026-10-11: implemented; status stays `pending` because three things need the owner (see "Left for the owner").
   - **Fact that changed the spec:** `hesman-mcp` is not on npm (`npm view hesman-mcp` → 404, checked by the coordinator), so `npx -y hesman-mcp@<major>` cannot be the unconditional default (scope 1) and the README quick start cannot be `npx -y hesman-mcp setup` (scope 5). Publishing is the owner's decision and not part of this task.
   - **Implemented:** `hesman setup --command auto|npx|global|absolute` (default `auto`), built in `src/cli/clients/entry.ts`. `auto`, from local facts only: runs from an `_npx` cache directory → `npx`; `hesman` on PATH resolves (realpath) to this installation → `global` (Windows: the shim sits next to the `node_modules/hesman-mcp` holding it); otherwise → `absolute` (`process.execPath` + `<package>/dist/index.js`).

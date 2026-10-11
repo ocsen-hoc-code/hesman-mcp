@@ -1,10 +1,10 @@
 ---
 id: M2-05
 title: `hesman doctor` — diagnose every client's setup end to end
-status: todo
+status: pending
 priority: P1
 depends_on: [M2-03, M2-04]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -40,4 +40,5 @@ node dist/index.js doctor
 
 ## Progress notes
 
+- 2026-10-11: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.

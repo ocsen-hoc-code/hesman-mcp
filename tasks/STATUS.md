@@ -57,11 +57,13 @@ Goal: `npx -y hesman-mcp setup` configures every detected agent (Claude Code, Cl
 | M2-02 | [Detect the project automatically (roots → cwd)](M2-02-project-root-detection.md) | Server | P0 | M0-12 | done |
 | M2-03 | [Client adapters + `hesman setup` / `remove`](M2-03-client-adapters-setup.md) | CLI | P0 | M0-11, M2-02 | done |
 | M2-04 | [Launch command that works in GUI apps and across Node upgrades](M2-04-launch-command-strategy.md) | CLI | P1 | M2-03 | pending |
-| M2-05 | [`hesman doctor` end-to-end diagnostics](M2-05-doctor-command.md) | CLI | P1 | M2-03, M2-04 | todo |
+| M2-05 | [`hesman doctor` end-to-end diagnostics](M2-05-doctor-command.md) | CLI | P1 | M2-03, M2-04 | pending |
 | M2-06 | [One-click install links and ecosystem installers](M2-06-one-click-install.md) | Distribution | P2 | M2-04 | todo |
-| M2-07 | [Opt-in agent usage rules](M2-07-agent-usage-rules.md) | Adoption | P2 | M2-03 | todo |
+| M2-07 | [Opt-in agent usage rules](M2-07-agent-usage-rules.md) | Adoption | P2 | M2-03 | pending |
 
 Recommended order: (01, 02 in parallel) → 03 → 04 → (05, 06, 07 in parallel).
+
+M2-04 is code-complete and merged but stays `pending`: two acceptance checks are manual (Claude Desktop under nvm; an `npx` entry surviving a Node major switch) and the `npx` path cannot be exercised until `hesman-mcp` is published on npm (not published as of 2026-10-11 — the owner decides when). M2-06 (one-click install links) is on hold for the same reason: a static link can only carry the `npx` entry.
 
 ## Backlog after M0 (not specified, not scheduled)
 

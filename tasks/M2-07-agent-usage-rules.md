@@ -1,10 +1,10 @@
 ---
 id: M2-07
 title: Opt-in agent usage rules (when to call Hesman instead of grep/read)
-status: todo
+status: pending
 priority: P2
 depends_on: [M2-03]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -35,4 +35,5 @@ npm test
 
 ## Progress notes
 
+- 2026-10-11: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.
