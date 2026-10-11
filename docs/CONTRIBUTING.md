@@ -74,6 +74,9 @@ npx vitest run tests/unit/parsers/
 
 # By name pattern
 npx vitest run -t "compact mode"
+
+# Language conformance: every registered language, in-process and through the worker pool
+npm run test:conformance
 ```
 
 ### Performance Benchmarks
@@ -231,6 +234,7 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
   // ...existing entries
   {
     id: 'mylang',                       // must equal myLangProfile.language
+    tier: 'structural',                 // 'deep' only if calls are extracted (the conformance suite checks)
     extensions: ['.my'],                // lowercase, with the leading dot; must equal the profile's list
     grammar: 'tree-sitter-mylang.wasm', // file name inside parsers/; must match parserWasmPath
     tagsQuery: ['mylang/tags.scm', 'mylang/hesman-tags.scm'], // relative to queries/, layered in order
@@ -243,9 +247,59 @@ The registry validates itself at load time (duplicate ids, an extension claimed 
 or a profile whose `language` differs from the entry id all throw). Consumers use the helpers:
 `profileFor(id)`, `languageForPath(path)`, `languageForExtension(ext)`, `languageById(id)`,
 `isLanguageId(id)`, `tagsQueryFiles(def)` and `LANGUAGE_IDS`. A language without `tagsQuery` is
-parsed but yields no symbols.
+parsed but yields no symbols. `tier` states what the entry promises — `deep` (symbols and call
+graph) or `structural` (symbols only) — and the conformance suite holds the entry to it.
 
-### 5. Write Tests
+### 5. Add Conformance Fixtures (required)
+
+The conformance suite (`npm run test:conformance`) iterates over the registry and fails, naming the
+language, for every entry that has no fixtures. A new entry needs exactly two things:
+
+1. **`tests/fixtures/languages/<id>/`** with at least one small, realistic source file per flavor
+   of the language. Exercise what the tier promises: functions, classes/structs, methods,
+   interfaces/types where the language has them, constants, a multi-name declaration, a nested
+   definition, doc comments, exported and private names, and one call between two functions.
+2. **`tests/fixtures/languages/<id>/expected.json`** — what must be extracted from each file:
+
+```json
+{
+  "files": {
+    "sample.my": {
+      "maxErrorNodes": 0,
+      "symbolCount": { "min": 3, "max": 3 },
+      "symbols": [
+        { "name": "MAX", "kind": "constant", "line": 3, "isExported": true },
+        { "name": "helper", "kind": "function", "line": 6, "isExported": false, "doc": "Adds one." },
+        { "name": "run", "kind": "function", "line": 11, "isExported": true, "doc": "Runs the helper." }
+      ],
+      "calls": [{ "from": "run", "to": "helper" }]
+    }
+  },
+  "knownGaps": []
+}
+```
+
+- `symbols` lists the definitions that **must** be found: `name`, `kind` (a Hesman kind), `line`
+  (1-based start line of the definition), `isExported`, and `doc` (text the stored doc comment must
+  contain) when the definition is documented. Write them from the source file, not from the
+  extractor's output. `symbolCount` bounds the total, so a query that suddenly tags much more or much
+  less is caught.
+- `maxErrorNodes` (default 0) is the number of `ERROR`/`MISSING` nodes the file may parse with.
+- `calls` is required for a `deep` language: at least one `{ "from": caller, "to": callee }`
+  between two definitions of the same file.
+- `knownGaps` documents an expectation that does not hold yet instead of deleting it:
+  `{ "file", "check": "parse" | "symbols" | "docs" | "calls", "subject", "reason", "fixedBy" }`,
+  where `subject` is `name@line` for a symbol, `from->to` for a call, and absent for `parse`. The
+  suite fails as soon as a listed gap passes, so the entry is removed by the change that fixes it.
+
+Per language the suite checks: the grammar loads in the pinned runtime; every query layer compiles
+against that grammar; every fixture parses within its error threshold; the expected symbols are
+extracted with a signature and their doc comments; the expected calls are extracted (`deep`); and
+`tests/integration/language-conformance.test.ts` indexes the same fixtures through the worker pool
+into SQLite and checks every language is in the store. Both print a pass/fail table per language;
+set `HESMAN_CONFORMANCE_REPORT=<dir>` to also write it as Markdown and JSON.
+
+### 6. Write Tests
 
 - `tests/unit/parsers/languages.test.ts` checks every entry against its profile and that its
   grammar file exists — update the expected `LANGUAGE_IDS` list.

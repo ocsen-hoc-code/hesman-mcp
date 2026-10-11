@@ -1,0 +1,134 @@
+{
+  "files": {
+    "shapes.ts": {
+      "symbolCount": { "min": 16, "max": 16 },
+      "symbols": [
+        { "name": "MAX_RADIUS", "kind": "variable", "line": 4, "isExported": true, "doc": "Largest radius a circle may have." },
+        { "name": "defaultUnit", "kind": "variable", "line": 6, "isExported": false },
+        { "name": "defaultScale", "kind": "variable", "line": 6, "isExported": false },
+        { "name": "ShapeId", "kind": "type", "line": 9, "isExported": true, "doc": "Identifier of a shape." },
+        { "name": "Shape", "kind": "interface", "line": 12, "isExported": true, "doc": "Anything that has an area." },
+        { "name": "Color", "kind": "enum", "line": 18, "isExported": true, "doc": "Colors a shape can be drawn in." },
+        { "name": "clampRadius", "kind": "function", "line": 24, "isExported": false, "doc": "Clamps a radius into the allowed range." },
+        { "name": "Circle", "kind": "class", "line": 29, "isExported": true, "doc": "A circle that announces when it is resized." },
+        { "name": "constructor", "kind": "method", "line": 32, "isExported": true },
+        { "name": "area", "kind": "method", "line": 41, "isExported": true, "doc": "Area of the circle in square units." },
+        { "name": "describe", "kind": "method", "line": 45, "isExported": false },
+        { "name": "totalArea", "kind": "function", "line": 51, "isExported": true, "doc": "Sums the areas of the given shapes." },
+        { "name": "addArea", "kind": "function", "line": 53, "isExported": false, "doc": "Adds the area of one shape to the running sum." },
+        { "name": "makeCircle", "kind": "function", "line": 60, "isExported": true, "doc": "Builds a circle with a radius inside the allowed range." },
+        { "name": "Units", "kind": "namespace", "line": 63, "isExported": true, "doc": "Unit conversions." },
+        { "name": "toMeters", "kind": "function", "line": 65, "isExported": true, "doc": "Converts centimeters to meters." }
+      ],
+      "calls": [
+        { "from": "constructor", "to": "clampRadius" },
+        { "from": "makeCircle", "to": "clampRadius" }
+      ]
+    },
+    "widget.tsx": {
+      "symbolCount": { "min": 4, "max": 4 },
+      "symbols": [
+        { "name": "BadgeProps", "kind": "interface", "line": 4, "isExported": true, "doc": "Props accepted by the badge." },
+        { "name": "formatCount", "kind": "function", "line": 10, "isExported": false, "doc": "Formats the counter shown next to the label." },
+        { "name": "Badge", "kind": "function", "line": 15, "isExported": true, "doc": "A small badge with an optional counter." },
+        { "name": "BadgeList", "kind": "function", "line": 25, "isExported": true, "doc": "Renders one badge per item." }
+      ],
+      "calls": [{ "from": "Badge", "to": "formatCount" }]
+    },
+    "legacy.js": {
+      "symbolCount": { "min": 9, "max": 10 },
+      "symbols": [
+        { "name": "DEFAULT_RETRIES", "kind": "variable", "line": 4, "isExported": false, "doc": "Default number of retries." },
+        { "name": "attempts", "kind": "variable", "line": 6, "isExported": false },
+        { "name": "failures", "kind": "variable", "line": 6, "isExported": false },
+        { "name": "backoff", "kind": "function", "line": 9, "isExported": true, "doc": "Waits before the next attempt." },
+        { "name": "Retrier", "kind": "class", "line": 14, "isExported": true, "doc": "Runs a task until it succeeds or the retries run out." },
+        { "name": "constructor", "kind": "method", "line": 15, "isExported": false },
+        { "name": "run", "kind": "method", "line": 20, "isExported": false, "doc": "Runs the task once per attempt." },
+        { "name": "sleep", "kind": "function", "line": 34, "isExported": false },
+        { "name": "createRetrier", "kind": "function", "line": 37, "isExported": true, "doc": "Creates a retrier with the default settings." }
+      ],
+      "calls": [
+        { "from": "run", "to": "backoff" },
+        { "from": "run", "to": "sleep" },
+        { "from": "createRetrier", "to": "Retrier" }
+      ]
+    },
+    "view.jsx": {
+      "symbolCount": { "min": 4, "max": 4 },
+      "symbols": [
+        { "name": "labelFor", "kind": "function", "line": 4, "isExported": false, "doc": "Label shown on the button for a given count." },
+        { "name": "Counter", "kind": "function", "line": 9, "isExported": true, "doc": "A button that counts its clicks." },
+        { "name": "increment", "kind": "function", "line": 11, "isExported": false },
+        { "name": "CounterPair", "kind": "function", "line": 20, "isExported": true, "doc": "Two counters side by side." }
+      ],
+      "calls": [
+        { "from": "Counter", "to": "labelFor" },
+        { "from": "increment", "to": "setCount" }
+      ]
+    }
+  },
+  "knownGaps": [
+    {
+      "file": "widget.tsx",
+      "check": "parse",
+      "reason": "the registry maps .tsx to the TypeScript grammar, which has no JSX rules and reports ERROR nodes on JSX (ADR 0001, section 2)",
+      "fixedBy": "M1-05 (separate tsx registry entry)"
+    },
+    {
+      "file": "widget.tsx",
+      "check": "symbols",
+      "subject": "BadgeList@25",
+      "reason": "the JSX parse errors swallow the arrow function, so the declarator is tagged as a variable instead of a function",
+      "fixedBy": "M1-05 (separate tsx registry entry)"
+    },
+    {
+      "file": "view.jsx",
+      "check": "parse",
+      "reason": "the registry maps .jsx to the TypeScript grammar, which has no JSX rules and reports ERROR nodes on JSX (ADR 0001, section 2)",
+      "fixedBy": "M1-05 (separate javascript registry entry)"
+    },
+    {
+      "file": "view.jsx",
+      "check": "symbols",
+      "subject": "increment@11",
+      "reason": "a declaration local to an exported function is reported as exported: the default export rule (isNodeExported in src/parsers/core.ts) accepts any ancestor export_statement",
+      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
+    },
+    {
+      "file": "shapes.ts",
+      "check": "symbols",
+      "subject": "addArea@53",
+      "reason": "a declaration local to an exported function is reported as exported: the default export rule (isNodeExported in src/parsers/core.ts) accepts any ancestor export_statement",
+      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
+    },
+    {
+      "file": "shapes.ts",
+      "check": "symbols",
+      "subject": "describe@45",
+      "reason": "a `private` member of an exported class is reported as exported: the default export rule ignores accessibility modifiers",
+      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
+    },
+    {
+      "file": "legacy.js",
+      "check": "symbols",
+      "subject": "backoff@9",
+      "reason": "CommonJS exports (`module.exports = { ... }`) are not recognized; only ES `export` statements count",
+      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
+    },
+    {
+      "file": "legacy.js",
+      "check": "symbols",
+      "subject": "Retrier@14",
+      "reason": "CommonJS exports (`module.exports = { ... }`) are not recognized; only ES `export` statements count",
+      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
+    },
+    {
+      "file": "legacy.js",
+      "check": "symbols",
+      "subject": "createRetrier@37",
+      "reason": "CommonJS exports (`module.exports = { ... }`) are not recognized; only ES `export` statements count",
+      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
+    }
+  ]
+}

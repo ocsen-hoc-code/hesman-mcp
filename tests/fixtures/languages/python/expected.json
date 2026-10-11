@@ -1,0 +1,44 @@
+{
+  "files": {
+    "inventory.py": {
+      "symbolCount": { "min": 12, "max": 14 },
+      "symbols": [
+        { "name": "MAX_ITEMS", "kind": "constant", "line": 5, "isExported": true },
+        { "name": "_DEFAULT_COUNT", "kind": "constant", "line": 6, "isExported": false },
+        { "name": "LOW_STOCK", "kind": "constant", "line": 7, "isExported": true },
+        { "name": "HIGH_STOCK", "kind": "constant", "line": 7, "isExported": true },
+        { "name": "_clamp", "kind": "function", "line": 10, "isExported": false, "doc": "Clamp value into the range [low, high]." },
+        { "name": "Item", "kind": "class", "line": 16, "isExported": true, "doc": "One stock item." },
+        { "name": "total_weight", "kind": "function", "line": 22, "isExported": true, "doc": "Weight of every unit in stock." },
+        { "name": "_is_low", "kind": "function", "line": 26, "isExported": false },
+        { "name": "Perishable", "kind": "class", "line": 30, "isExported": true, "doc": "An item that expires." },
+        { "name": "__init__", "kind": "function", "line": 33, "isExported": true },
+        { "name": "is_expired", "kind": "function", "line": 37, "isExported": true, "doc": "True once no days are left." },
+        { "name": "restock", "kind": "function", "line": 43, "isExported": true, "doc": "Adds stock to an item without exceeding the cap." },
+        { "name": "_apply", "kind": "function", "line": 44, "isExported": false, "doc": "New count after adding the amount." },
+        { "name": "restock_all", "kind": "function", "line": 52, "isExported": true, "doc": "Restock every item by the same amount." }
+      ],
+      "calls": [
+        { "from": "_apply", "to": "_clamp" },
+        { "from": "restock", "to": "_apply" },
+        { "from": "restock_all", "to": "restock" }
+      ]
+    }
+  },
+  "knownGaps": [
+    {
+      "file": "inventory.py",
+      "check": "symbols",
+      "subject": "LOW_STOCK@7",
+      "reason": "the upstream tags query only tags `NAME = value`; the names of a tuple assignment (`A, B = 1, 2`) are not extracted",
+      "fixedBy": "unassigned (queries/python/hesman-tags.scm gap filler)"
+    },
+    {
+      "file": "inventory.py",
+      "check": "symbols",
+      "subject": "HIGH_STOCK@7",
+      "reason": "the upstream tags query only tags `NAME = value`; the names of a tuple assignment (`A, B = 1, 2`) are not extracted",
+      "fixedBy": "unassigned (queries/python/hesman-tags.scm gap filler)"
+    }
+  ]
+}

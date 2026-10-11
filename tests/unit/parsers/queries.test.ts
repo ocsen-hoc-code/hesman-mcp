@@ -3,9 +3,9 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Parser, Language } from 'web-tree-sitter';
+import { Parser } from 'web-tree-sitter';
 import { LANGUAGES, QUERIES_DIR, tagsQueryFiles } from '../../../src/parsers/languages';
-import { TagsQuery } from '../../../src/parsers/tags-engine';
+import { compileTagsQueries, loadGrammar, queryLayersOf } from '../../conformance/helpers';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '..', '..', '..');
@@ -56,15 +56,23 @@ describe('vendored tags queries', () => {
     ]);
   });
 
+  // The conformance suite (tests/conformance/) repeats this per layer, next to the
+  // fixture checks; both use the same helpers, which name the language and the file.
   it.each(LANGUAGES.map((l) => [l.id, l] as const))(
     '%s: every layer compiles against the committed grammar',
     async (_id, def) => {
-      const language = await Language.load(def.profile.parserWasmPath);
-      const layers = tagsQueryFiles(def).map((file) => ({ name: file, source: readFileSync(file, 'utf-8') }));
-      const query = new TagsQuery(language, layers);
-      query.delete();
+      compileTagsQueries(def, await loadGrammar(def));
     },
   );
+
+  it('reports the language and the query file when a query does not fit the grammar', async () => {
+    const def = LANGUAGES[0];
+    const language = await loadGrammar(def);
+    const broken = { name: 'broken/tags.scm', file: join(REPO, 'package.json') };
+    expect(() => compileTagsQueries(def, language, [...queryLayersOf(def), broken])).toThrow(
+      new RegExp(`^\\[${def.id}\\] Tags query queries/broken/tags\\.scm does not compile for this grammar: .*parsers/${def.grammar}`, 's'),
+    );
+  });
 
   it('records the provenance of every query file, and nothing else', () => {
     expect(SOURCES.map((s) => s.path).sort()).toEqual(queryFilesOnDisk(QUERIES_DIR));

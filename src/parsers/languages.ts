@@ -21,10 +21,24 @@ import { goProfile } from './profiles/go.js';
  */
 export const QUERIES_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'queries');
 
+/**
+ * How deep Hesman's support for a parsed language goes:
+ * - `deep`: symbols plus the call graph (calls, imports, impact analysis);
+ * - `structural`: symbols only (definitions from the tags query).
+ * Files without a grammar are the text tier and have no registry entry.
+ */
+export type LanguageTier = 'deep' | 'structural';
+
 /** A registered language, described as data. */
 export interface LanguageDefinition {
   /** Language id stored on every symbol ("typescript", "python", ...). */
   readonly id: string;
+  /**
+   * Support tier this entry promises. The conformance suite
+   * (`tests/conformance/`) holds every entry to its tier: a `deep` language
+   * must yield call relations for its fixtures.
+   */
+  readonly tier: LanguageTier;
   /** File extensions (lowercase, with the leading dot) that map to this language. */
   readonly extensions: readonly string[];
   /** Tree-sitter WASM grammar file name inside the `parsers/` directory. */
@@ -54,6 +68,7 @@ export interface LanguageDefinition {
 export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
   {
     id: 'typescript',
+    tier: 'deep',
     extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'],
     grammar: 'tree-sitter-typescript.wasm',
     // The TypeScript grammar extends the JavaScript grammar, and its upstream
@@ -63,6 +78,7 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
   },
   {
     id: 'python',
+    tier: 'deep',
     extensions: ['.py', '.pyw', '.pyi'],
     grammar: 'tree-sitter-python.wasm',
     tagsQuery: 'python/tags.scm',
@@ -70,6 +86,7 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
   },
   {
     id: 'go',
+    tier: 'deep',
     extensions: ['.go'],
     grammar: 'tree-sitter-go.wasm',
     tagsQuery: ['go/tags.scm', 'go/hesman-tags.scm'],
