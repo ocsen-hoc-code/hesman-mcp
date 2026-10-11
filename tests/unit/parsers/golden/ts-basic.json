@@ -1,0 +1,16 @@
+[
+  ["src/index.ts","Status","type",21,21,1],
+  ["src/index.ts","VERSION","variable",19,19,1],
+  ["src/index.ts","calc","variable",10,10,1],
+  ["src/index.ts","formatGreeting","function",15,17,1],
+  ["src/index.ts","john","variable",3,6,0],
+  ["src/index.ts","main","function",8,13,1],
+  ["src/index.ts","result","variable",9,9,1],
+  ["src/utils.ts","Calculator","class",19,34,1],
+  ["src/utils.ts","Person","interface",9,12,1],
+  ["src/utils.ts","add","function",2,4,1],
+  ["src/utils.ts","add","method",26,29,1],
+  ["src/utils.ts","constructor","method",22,24,1],
+  ["src/utils.ts","formatName","function",15,17,0],
+  ["src/utils.ts","getValue","method",31,33,1]
+]

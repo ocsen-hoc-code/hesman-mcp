@@ -114,8 +114,10 @@ export interface DependencyResult {
  *       across files after indexing; no declaration self-calls (M0-13).
  *   3 — files without a grammar are indexed by the text tier (`text_files`,
  *       text chunks in the vector store); older indexes never saw them (M1-04).
+ *   4 — symbols come from tags queries: some kinds, and therefore ids, differ
+ *       and more definitions are indexed (M1-02).
  */
-export const INDEX_SCHEMA_VERSION = 3;
+export const INDEX_SCHEMA_VERSION = 4;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
 /**

@@ -1,7 +1,9 @@
-import Parser, { type SyntaxNode } from 'web-tree-sitter';
+import { Parser, Language, type Node as SyntaxNode } from 'web-tree-sitter';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { LanguageProfile } from './language-profile.js';
+import { languageById, tagsQueryFiles, QUERIES_DIR } from './languages.js';
+import { TagsQuery, signatureOf, docCommentAbove } from './tags-engine.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('parser');
@@ -29,14 +31,57 @@ export interface ParseResult {
   errors: Array<{ line: number; message: string }>;
 }
 
+/** Everything needed to parse one language: created once, reused for every file. */
+interface LanguageRuntime {
+  parser: Parser;
+  /** Compiled tags queries, or null for a language that has no tags query. */
+  tags: TagsQuery | null;
+}
+
 let parserInitialized = false;
-const languageCache = new Map<string, Parser.Language>();
+/**
+ * One loaded grammar, one `Parser` and one compiled `TagsQuery` per language,
+ * created on first use and kept for the life of the process (or worker
+ * thread). A parser is reused for every file of its language: creating one
+ * per file leaked WASM memory, since parsers are only freed by an explicit
+ * `delete()`. Queries are compiled once because compiling costs far more than
+ * running them.
+ */
+const runtimeCache = new Map<string, Promise<LanguageRuntime>>();
 
 export async function initParser(profile: LanguageProfile): Promise<void> {
   if (parserInitialized) return;
   await Parser.init();
   log.info({ language: profile.language }, 'tree-sitter parser initialized');
   parserInitialized = true;
+}
+
+async function createRuntime(profile: LanguageProfile): Promise<LanguageRuntime> {
+  const language = await Language.load(profile.parserWasmPath);
+  const parser = new Parser();
+  parser.setLanguage(language);
+
+  const definition = languageById(profile.language);
+  const files = definition ? tagsQueryFiles(definition) : [];
+  const tags =
+    files.length > 0
+      ? new TagsQuery(
+          language,
+          files.map((file) => ({ name: file.slice(QUERIES_DIR.length + 1), source: readFileSync(file, 'utf-8') })),
+        )
+      : null;
+  return { parser, tags };
+}
+
+function runtimeFor(profile: LanguageProfile): Promise<LanguageRuntime> {
+  let pending = runtimeCache.get(profile.language);
+  if (!pending) {
+    pending = createRuntime(profile);
+    runtimeCache.set(profile.language, pending);
+    // A failed load must not poison the cache: the next file retries.
+    pending.catch(() => runtimeCache.delete(profile.language));
+  }
+  return pending;
 }
 
 export async function parseFile(
@@ -46,187 +91,86 @@ export async function parseFile(
   await initParser(profile);
 
   const source = readFileSync(filePath, 'utf-8');
-  const parser = new Parser();
-  let lang = languageCache.get(profile.language);
-  if (!lang) {
-    lang = await Parser.Language.load(profile.parserWasmPath);
-    languageCache.set(profile.language, lang);
-  }
+  const { parser, tags } = await runtimeFor(profile);
 
-  parser.setLanguage(lang);
+  // Everything from here to `tree.delete()` is synchronous, so concurrent
+  // `parseFile` calls never interleave on the shared parser.
   const tree = parser.parse(source);
-  // hasError is a boolean property on SyntaxNode, not a method
-  const hasError = tree.rootNode.hasError;
+  if (!tree) throw new Error(`tree-sitter returned no syntax tree for ${filePath}`);
+  try {
+    // hasError is a boolean property on the node, not a method
+    const hasError = tree.rootNode.hasError;
 
-  const symbols = extractSymbols(tree.rootNode, source, filePath, profile);
-  const errors: Array<{ line: number; message: string }> = [];
-  if (hasError) {
-    collectErrorNodes(tree.rootNode, source, errors);
+    const symbols = tags ? extractSymbols(tree.rootNode, source, filePath, profile, tags) : [];
+    const errors: Array<{ line: number; message: string }> = [];
+    if (hasError) {
+      collectErrorNodes(tree.rootNode, source, errors);
+    }
+
+    return {
+      symbols,
+      language: profile.language,
+      parseQuality: hasError ? 'partial' : 'full',
+      errors,
+    };
+  } finally {
+    // Trees live in WASM memory and are never garbage collected.
+    tree.delete();
   }
-
-  return {
-    symbols,
-    language: profile.language,
-    parseQuality: hasError ? 'partial' : 'full',
-    errors,
-  };
 }
 
+/** Kinds whose members get a `parent_id` pointing back at them. */
+const CONTAINER_KINDS = new Set(['class', 'interface', 'namespace']);
+
 /**
- * Recursively walk the AST and extract symbols.
- *
- * Wrapper nodes (export_statement, lexical_declaration) are in symbolNodeTypes
- * but have no 'name' field. When a symbol-type node has no name we still recurse
- * into its children so that the real named declarations inside are found.
+ * Turns the definitions found by the language's tags queries into symbols.
+ * Language-specific behavior is limited to the profile hooks: export rules,
+ * and the documented `includeDefinition` / `extractDocComment` overrides.
  */
 function extractSymbols(
-  node: SyntaxNode,
+  root: SyntaxNode,
   source: string,
   filePath: string,
   profile: LanguageProfile,
-  parentId: string | null = null,
+  tags: TagsQuery,
 ): ExtractedSymbol[] {
   const results: ExtractedSymbol[] = [];
-  const sourceLines = source.split('\n');
+  // Enclosing containers of the current definition, outermost first.
+  // Definitions arrive in document order, an outer one before its members.
+  const containers: Array<{ id: string; endIndex: number }> = [];
 
-  for (let i = 0; i < node.childCount; i++) {
-    const child = node.child(i);
-    if (!child) continue;
+  for (const definition of tags.definitions(root)) {
+    if (profile.includeDefinition && !profile.includeDefinition(definition)) continue;
+    const { name, kind, node } = definition;
 
-    if (profile.symbolNodeTypes.has(child.type)) {
-      const name = getSymbolName(child, source);
-
-      if (name) {
-        const kind = mapNodeTypeToKind(child.type);
-
-        results.push({
-          id: makeSymbolId(filePath, name, kind, child.startPosition.row + 1),
-          name,
-          kind,
-          file_path: filePath,
-          // Tree-sitter rows are 0-based; stored lines are 1-based, inclusive.
-          start_line: child.startPosition.row + 1,
-          end_line: child.endPosition.row + 1,
-          start_col: child.startPosition.column,
-          end_col: child.endPosition.column,
-          signature: profile.extractSignature(
-            source.slice(child.startIndex, child.endIndex),
-            source,
-          ),
-          // 0-based on purpose: it indexes the `sourceLines` array.
-          doc_comment: profile.extractDocComment(
-            child.startPosition.row,
-            sourceLines,
-          ),
-          parent_id: parentId,
-          language: profile.language,
-          is_exported: (profile.isExported ? profile.isExported(name, child) : isNodeExported(child)) ? 1 : 0,
-        });
-
-        // For classes / interfaces: recurse inside so methods / properties
-        // are extracted with a parent_id linking back to the container.
-        if (
-          child.type === 'class_declaration' ||
-          child.type === 'class_definition' ||
-          child.type === 'interface_declaration'
-        ) {
-          const childId = makeSymbolId(
-            filePath,
-            name,
-            kind,
-            child.startPosition.row + 1,
-          );
-          const nested = extractSymbols(
-            child,
-            source,
-            filePath,
-            profile,
-            childId,
-          );
-          results.push(...nested);
-        } else {
-          const nested = extractSymbols(
-            child,
-            source,
-            filePath,
-            profile,
-            parentId,
-          );
-          results.push(...nested);
-        }
-      } else {
-        // Symbol-type node with no name (e.g. export_statement,
-        // lexical_declaration) — recurse into children so the real
-        // named declarations (function_declaration, variable_declarator,
-        // etc.) are found.
-        const nested = extractSymbols(
-          child,
-          source,
-          filePath,
-          profile,
-          parentId,
-        );
-        results.push(...nested);
-      }
-    } else {
-      // Non-symbol node — recurse into children
-      const nested = extractSymbols(
-        child,
-        source,
-        filePath,
-        profile,
-        parentId,
-      );
-      results.push(...nested);
+    while (containers.length > 0 && containers[containers.length - 1].endIndex <= node.startIndex) {
+      containers.pop();
     }
+
+    // Tree-sitter rows are 0-based; stored lines are 1-based, inclusive.
+    const startLine = node.startPosition.row + 1;
+    const id = makeSymbolId(filePath, name, kind, startLine);
+
+    results.push({
+      id,
+      name,
+      kind,
+      file_path: filePath,
+      start_line: startLine,
+      end_line: node.endPosition.row + 1,
+      start_col: node.startPosition.column,
+      end_col: node.endPosition.column,
+      signature: signatureOf(node, source),
+      doc_comment: profile.extractDocComment?.(node, source) ?? docCommentAbove(node, source),
+      parent_id: containers.length > 0 ? containers[containers.length - 1].id : null,
+      language: profile.language,
+      is_exported: (profile.isExported ? profile.isExported(name, node) : isNodeExported(node)) ? 1 : 0,
+    });
+
+    if (CONTAINER_KINDS.has(kind)) containers.push({ id, endIndex: node.endIndex });
   }
 
   return results;
-}
-
-function getSymbolName(node: SyntaxNode, source: string): string | null {
-  // Most declaration nodes (function_declaration, class_declaration,
-  // interface_declaration, type_alias_declaration, method_definition,
-  // variable_declarator) expose a 'name' child field.
-  const nameNode = node.childForFieldName('name');
-  if (nameNode) return source.slice(nameNode.startIndex, nameNode.endIndex);
-
-  // Fallback: for variable_declarator, the first child is the name
-  if (node.type === 'variable_declarator' && node.childCount > 0) {
-    const first = node.child(0);
-    if (first) return source.slice(first.startIndex, first.endIndex);
-  }
-
-  return null;
-}
-
-function mapNodeTypeToKind(nodeType: string): string {
-  const MAP: Record<string, string> = {
-    // TypeScript / JavaScript
-    function_declaration: 'function',
-    generator_function_declaration: 'function',
-    function_expression: 'function',
-    arrow_function: 'function',
-    class_declaration: 'class',
-    method_definition: 'method',
-    variable_declarator: 'variable',
-    lexical_declaration: 'variable',
-    interface_declaration: 'interface',
-    type_alias_declaration: 'type',
-    enum_declaration: 'enum',
-    module_declaration: 'namespace',
-    export_statement: 'variable',
-    // Python
-    function_definition: 'function',
-    class_definition: 'class',
-    decorated_definition: 'unknown',
-    // Go
-    method_declaration: 'method',
-    type_spec: 'type',
-    const_spec: 'constant',
-    var_spec: 'variable',
-  };
-  return MAP[nodeType] || 'unknown';
 }
 
 function isNodeExported(node: SyntaxNode): boolean {

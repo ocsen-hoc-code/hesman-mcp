@@ -7,11 +7,19 @@
  * Adding a language means adding one entry here plus its profile, WASM grammar
  * and tests — no other code changes.
  */
-import { extname } from 'node:path';
+import { dirname, extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { LanguageProfile, RelationQueries } from './language-profile.js';
 import { tsProfile } from './profiles/typescript.js';
 import { pythonProfile } from './profiles/python.js';
 import { goProfile } from './profiles/go.js';
+
+/**
+ * Directory of the vendored Tree-sitter queries (`queries/` at the package
+ * root, next to `parsers/`). Resolved from this module, so it is the same
+ * directory when running from `src/` and from `dist/`.
+ */
+export const QUERIES_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'queries');
 
 /** A registered language, described as data. */
 export interface LanguageDefinition {
@@ -22,13 +30,22 @@ export interface LanguageDefinition {
   /** Tree-sitter WASM grammar file name inside the `parsers/` directory. */
   readonly grammar: string;
   /**
+   * Tags query files (`tags.scm` convention) that drive symbol extraction,
+   * as paths relative to the `queries/` directory. A list is layered in order:
+   * list the grammar's upstream queries first and Hesman's gap fillers
+   * (`hesman-tags.scm`) last; when two layers tag the same name the earlier
+   * one wins. Every file must be recorded in `queries/SOURCES.json` and
+   * `NOTICE`. A language without a tags query is parsed but yields no symbols.
+   */
+  readonly tagsQuery?: string | readonly string[];
+  /**
    * Optional Tree-sitter query files (paths relative to the `parsers/` directory),
    * keyed by relation kind. Reserved for M1: query-driven extraction.
    */
   readonly queries?: Readonly<Partial<Record<keyof RelationQueries, string>>>;
   /**
-   * Extraction hooks (symbol node types, signature/doc-comment extraction,
-   * relation queries). Languages with non-standard needs override behavior here.
+   * Grammar path, export rules, relation queries and the documented override
+   * hooks for what a tags query cannot express.
    */
   readonly profile: LanguageProfile;
 }
@@ -39,18 +56,23 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     id: 'typescript',
     extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'],
     grammar: 'tree-sitter-typescript.wasm',
+    // The TypeScript grammar extends the JavaScript grammar, and its upstream
+    // tags query only adds the TypeScript-specific constructs.
+    tagsQuery: ['javascript/tags.scm', 'typescript/tags.scm', 'typescript/hesman-tags.scm'],
     profile: tsProfile,
   },
   {
     id: 'python',
     extensions: ['.py', '.pyw', '.pyi'],
     grammar: 'tree-sitter-python.wasm',
+    tagsQuery: 'python/tags.scm',
     profile: pythonProfile,
   },
   {
     id: 'go',
     extensions: ['.go'],
     grammar: 'tree-sitter-go.wasm',
+    tagsQuery: ['go/tags.scm', 'go/hesman-tags.scm'],
     profile: goProfile,
   },
 ]);
@@ -87,6 +109,13 @@ export function isLanguageId(id: string): boolean {
 /** The registry entry for a language id, or undefined. */
 export function languageById(id: string): LanguageDefinition | undefined {
   return BY_ID.get(id);
+}
+
+/** Absolute paths of a language's tags query files, in layer order (empty if it has none). */
+export function tagsQueryFiles(def: LanguageDefinition): string[] {
+  if (def.tagsQuery === undefined) return [];
+  const relative = typeof def.tagsQuery === 'string' ? [def.tagsQuery] : def.tagsQuery;
+  return relative.map((path) => join(QUERIES_DIR, path));
 }
 
 /** The parsing profile for a language id, or undefined if the language is not registered. */

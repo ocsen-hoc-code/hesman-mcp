@@ -20,7 +20,7 @@ describe('SqliteStore text-tier files', () => {
   });
 
   it('bumps the index schema version so existing indexes pick up the text tier', () => {
-    expect(INDEX_SCHEMA_VERSION).toBe(3);
+    expect(INDEX_SCHEMA_VERSION).toBeGreaterThanOrEqual(3);
   });
 
   it('stores and returns a text file record', () => {
