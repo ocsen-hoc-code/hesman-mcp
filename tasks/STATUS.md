@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 3/7 done** · **M2: 5/7 done**
+Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 4/7 done** · **M2: 5/7 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -39,9 +39,9 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 |---|---|---|---|---|---|
 | M1-01 | [Choose grammar source and distribution (spike + ADR)](M1-01-grammar-source-adr.md) | Research | P0 | M0-12 | done |
 | M1-02 | [Generic symbol extraction driven by tags.scm](M1-02-tags-query-engine.md) | Parsing | P0 | M1-01 | done |
-| M1-03 | [Language conformance test suite](M1-03-language-conformance-suite.md) | Test | P0 | M1-02 | pending |
+| M1-03 | [Language conformance test suite](M1-03-language-conformance-suite.md) | Test | P0 | M1-02 | done |
 | M1-04 | [Universal text tier for files without a grammar](M1-04-universal-text-tier.md) | Indexing | P1 | M1-03 | done |
-| M1-05 | [Grammar delivery: bundled core + verified download](M1-05-grammar-delivery.md) | Distribution | P1 | M1-01, M0-10 | todo |
+| M1-05 | [Grammar delivery: bundled core + verified download](M1-05-grammar-delivery.md) | Distribution | P1 | M1-01, M0-10 | pending |
 | M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | todo |
 | M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | todo |
 
@@ -97,5 +97,6 @@ M2-04 is code-complete and merged but stays `pending`: two acceptance checks are
 - **Test stability under load:** `FileWatcher symlink safety` timed out once (5.5 s) while other test runs shared the machine; the legacy e2e files used a fixed 3 s sleep (fixed in `05215e7`). Re-check watcher tests for timing assumptions.
 - **Agent-rules follow-ups from M2-07:** the effect of the guidance block on real agent tool usage was **not measured** (needs the answer-quality eval or a manual before/after run); `hesman setup --rules` leaves `<file>.hesman.bak` backups (e.g. `CLAUDE.md.hesman.bak`) inside the repository, where they can be committed by accident — skip backups for instruction files or document a `.gitignore` entry; VS Code's Local agent only reads `.github/copilot-instructions.md` when `github.copilot.chat.codeGeneration.useInstructionFiles` is enabled, which setup does not mention; `hesman remove` only cleans the current project; per-client instruction-file facts came from doc summaries and were not tested against real clients.
 - **Doctor follow-ups from M2-05:** project-scope config files, the `env` block of an entry and the PATH a desktop app really gets are not checked; `--client` parsing and aliases are duplicated from `setup.ts` (export `parseOptions` and share it); the registry check for `npx` entries has no offline flag (unreachable is only a warning).
+- **Extraction bugs found by the conformance suite (M1-03), recorded as `knownGaps` in `tests/fixtures/languages/*/expected.json`:** (1) JSX/TSX files parsed with the TypeScript grammar produce 11–14 ERROR nodes and an arrow-function component is indexed as `variable` (fixed by M1-05's separate `tsx`/`javascript` entries); (2) `isNodeExported` reports declarations local to an exported function, and `private` members of an exported class, as exported; (3) CommonJS `module.exports = { … }` is not recognized as an export; (4) Python tuple assignment (`A, B = 1, 2`) is not indexed; (5) the regex call extractor emits false calls (interface method specs, format strings such as `"%s ("`); (6) a multi-line TypeScript constructor gets the signature `constructor(`. Fixing 2–4 changes stored symbols and needs a schema-version bump.
 - **Zod validation** for every tool input (replace `as` casts).
 - Evaluate replacing ZVec with an in-SQLite vector store to drop one store.

@@ -1,10 +1,10 @@
 ---
 id: M1-05
 title: Grammar delivery — bundled core set + verified on-demand download
-status: todo
+status: pending
 priority: P1
 depends_on: [M1-01, M0-10]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -39,4 +39,5 @@ npm pack --dry-run   # check package size
 
 ## Progress notes
 
+- 2026-10-11: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.
