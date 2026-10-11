@@ -1,9 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { serverEntry } from '../../../../src/cli/clients/entry';
 import { getClient } from '../../../../src/cli/clients/index';
-import { PLATFORMS, cleanupEnvs, makeEnv, writeFixture } from './helpers';
+import { PLATFORMS, cleanupEnvs, globalEntry, makeEnv, writeFixture } from './helpers';
 
 afterEach(cleanupEnvs);
 
@@ -38,7 +37,7 @@ describe.each(PLATFORMS)('codex (config file) on %s', (platform) => {
   it('creates the file with exactly the hesman table, then remove deletes the file it created', () => {
     const { client, path } = setup();
 
-    const added = client.write(serverEntry());
+    const added = client.write(globalEntry());
 
     expect(added.status).toBe('added');
     expect(added.via).toBe('file');
@@ -53,7 +52,7 @@ describe.each(PLATFORMS)('codex (config file) on %s', (platform) => {
     const { client, path } = setup();
     writeFixture(path, USER_CONFIG);
 
-    client.write(serverEntry());
+    client.write(globalEntry());
 
     expect(readFileSync(path, 'utf-8')).toBe(`${USER_CONFIG}\n${BLOCK}`);
     expect(readFileSync(`${path}.hesman.bak`, 'utf-8')).toBe(USER_CONFIG);
@@ -73,7 +72,7 @@ describe.each(PLATFORMS)('codex (config file) on %s', (platform) => {
     const { client, path } = setup();
     writeFixture(path, before);
 
-    expect(client.write(serverEntry()).status).toBe('added');
+    expect(client.write(globalEntry()).status).toBe('added');
     expect(client.read()).toEqual({ command: 'hesman', args: [] });
     client.remove();
 
@@ -97,10 +96,10 @@ describe('codex TOML editing', () => {
   it('a second setup changes nothing', () => {
     const { client, path } = setup();
     writeFixture(path, USER_CONFIG);
-    client.write(serverEntry());
+    client.write(globalEntry());
     const after = readFileSync(path, 'utf-8');
 
-    expect(client.write(serverEntry()).status).toBe('unchanged');
+    expect(client.write(globalEntry()).status).toBe('unchanged');
     expect(readFileSync(path, 'utf-8')).toBe(after);
     expect(readFileSync(`${path}.hesman.bak`, 'utf-8')).toBe(USER_CONFIG);
   });
@@ -108,7 +107,7 @@ describe('codex TOML editing', () => {
   it('removes only the hesman table when the file changed after setup', () => {
     const { client, path } = setup();
     writeFixture(path, USER_CONFIG);
-    client.write(serverEntry());
+    client.write(globalEntry());
     const appended = '\n# added later\n[mcp_servers.later]\ncommand = "later"\n';
     writeFixture(path, readFileSync(path, 'utf-8') + appended);
 
@@ -158,7 +157,7 @@ describe('codex TOML editing', () => {
       '',
     ].join('\n'));
 
-    const result = client.write(serverEntry());
+    const result = client.write(globalEntry());
 
     expect(result.status).toBe('updated');
     expect(readFileSync(path, 'utf-8')).toBe([
@@ -197,7 +196,7 @@ describe('codex TOML editing', () => {
     writeFixture(path, before);
 
     expect(client.read()).toBeUndefined();
-    expect(client.write(serverEntry()).status).toBe('added');
+    expect(client.write(globalEntry()).status).toBe('added');
     client.remove();
     expect(readFileSync(path, 'utf-8')).toBe(before);
   });
@@ -210,7 +209,7 @@ describe('codex TOML editing', () => {
     const { client, path } = setup();
     writeFixture(path, before);
 
-    expect(() => client.write(serverEntry())).toThrow(/edit .*by hand/i);
+    expect(() => client.write(globalEntry())).toThrow(/edit .*by hand/i);
     expect(() => client.remove()).toThrow(/edit .*by hand/i);
 
     expect(readFileSync(path, 'utf-8')).toBe(before);
@@ -220,7 +219,7 @@ describe('codex TOML editing', () => {
   it('dry run reports the change and writes nothing', () => {
     const { client, path } = setup();
 
-    const result = client.write(serverEntry(), { dryRun: true });
+    const result = client.write(globalEntry(), { dryRun: true });
 
     expect(result.status).toBe('added');
     expect(result.applied).toBe(false);
@@ -242,7 +241,7 @@ describe('codex TOML editing', () => {
     const path = join(env.cwd, '.codex', 'config.toml');
     expect(client.configPath('project')).toBe(path);
 
-    client.write(serverEntry(), { scope: 'project' });
+    client.write(globalEntry(), { scope: 'project' });
 
     expect(readFileSync(path, 'utf-8')).toBe(BLOCK);
     expect(existsSync(client.configPath('user'))).toBe(false);

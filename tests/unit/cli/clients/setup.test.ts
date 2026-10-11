@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { allClients, getClient } from '../../../../src/cli/clients/index';
 import { runInstall, runRemove, runSetup, type CliIo } from '../../../../src/cli/clients/setup';
-import { cleanupEnvs, makeEnv, writeFixture, type FakeEnvironment, type FakeEnvironmentOptions } from './helpers';
+import { FAKE_INSTALLATION, cleanupEnvs, makeEnv, writeFixture, type FakeEnvironment, type FakeEnvironmentOptions } from './helpers';
 
 afterEach(cleanupEnvs);
 
@@ -60,7 +60,8 @@ describe('hesman setup', () => {
     expect(h.text()).toContain('"servers"');
     expect(h.text()).toContain('"type": "stdio"');
     expect(h.text()).toContain('[mcp_servers.hesman]');
-    expect(h.text()).toContain('${workspaceFolder}');
+    // Cursor's user-scope entry no longer pins a project (M2-04).
+    expect(h.text()).not.toContain('${workspaceFolder}');
     expect(h.text()).toContain(`"${h.env.cwd}"`);
     expect(h.text()).toMatch(/dry run/i);
     expect(filesUnder(h.env.home)).toEqual([]);
@@ -197,7 +198,7 @@ describe('hesman setup', () => {
     const h = harness();
     const project = join(h.env.home, 'work', 'app');
 
-    expect(await runSetup(['--client', 'claude-desktop', '--project-root', project], h.io)).toBe(0);
+    expect(await runSetup(['--client', 'claude-desktop', '--project-root', project, '--command', 'global'], h.io)).toBe(0);
 
     expect(getClient('claude-desktop', h.env).read()?.args).toEqual(['--project-root', project]);
     expect(h.text()).toContain(`always use ${project}`);
@@ -229,7 +230,7 @@ describe('hesman setup', () => {
   it('prefers the client CLIs when they are on PATH', async () => {
     const h = harness({ onPath: ['claude', 'codex'] });
 
-    expect(await runSetup(['--client', 'claude-code', 'codex'], h.io)).toBe(0);
+    expect(await runSetup(['--client', 'claude-code', 'codex', '--command', 'global'], h.io)).toBe(0);
 
     expect(h.env.calls.map((c) => c.slice(1).join(' '))).toEqual([
       'mcp add --scope user hesman -- hesman',
@@ -349,7 +350,9 @@ describe('hesman install (deprecated alias)', () => {
     await runInstall(['--agent', 'vscode'], h.io);
 
     const written = JSON.parse(readFileSync(getClient('vscode', h.env).configPath('user'), 'utf-8'));
-    expect(written).toEqual({ servers: { hesman: { type: 'stdio', command: 'hesman', args: [] } } });
+    expect(written).toEqual({
+      servers: { hesman: { type: 'stdio', command: FAKE_INSTALLATION.execPath, args: [FAKE_INSTALLATION.entryScript] } },
+    });
   });
 
   it('prints usage and fails without --agent', async () => {
@@ -357,5 +360,99 @@ describe('hesman install (deprecated alias)', () => {
     expect(await runInstall(['--global'], h.io)).toBe(1);
     expect(h.text()).toContain('hesman setup');
     expect(configured(h.env)).toEqual([]);
+  });
+});
+
+describe('hesman setup --command (M2-04)', () => {
+  const NVM_BIN = '/fake/home/.nvm/versions/node/v22.11.0/bin';
+  const NPX_CACHE_SCRIPT = '/fake/home/.npm/_npx/0a1b2c3d/node_modules/hesman-mcp/dist/index.js';
+  const written = (h: Harness, id: 'vscode' | 'gemini-cli' | 'claude-desktop'): { command: string; args: string[] } => {
+    const json = JSON.parse(readFileSync(getClient(id, h.env).configPath('user'), 'utf-8'));
+    return (json.servers ?? json.mcpServers).hesman;
+  };
+
+  it('defaults to auto: a Hesman that is not on PATH is written with absolute paths, and the rule is printed once', async () => {
+    const h = harness();
+
+    expect(await runSetup(['--client', 'gemini-cli', 'vscode'], h.io)).toBe(0);
+
+    expect(written(h, 'gemini-cli')).toEqual({ command: FAKE_INSTALLATION.execPath, args: [FAKE_INSTALLATION.entryScript] });
+    expect(h.lines.filter((l) => l.startsWith('Launch command:'))).toEqual([
+      `Launch command: ${FAKE_INSTALLATION.execPath} ${FAKE_INSTALLATION.entryScript}`,
+    ]);
+    expect(h.text()).toMatch(/--command auto/);
+    expect(h.text()).toMatch(/again after switching Node versions/);
+  });
+
+  it('--command global writes the bare `hesman` command', async () => {
+    const h = harness();
+
+    expect(await runSetup(['--client', 'gemini-cli', '--command', 'global'], h.io)).toBe(0);
+
+    expect(written(h, 'gemini-cli')).toEqual({ command: 'hesman', args: [] });
+    expect(h.text()).toContain('Launch command: hesman');
+  });
+
+  it('--command=npx writes npx with the major version and says it needs the published package, without running anything', async () => {
+    const h = harness({ onPath: ['npx'] });
+
+    expect(await runSetup(['--client', 'gemini-cli', '--command=npx'], h.io)).toBe(0);
+
+    expect(written(h, 'gemini-cli')).toEqual({ command: 'npx', args: ['-y', 'hesman-mcp@1'] });
+    expect(h.text()).toMatch(/only works once hesman-mcp@1 is published on npm/);
+    expect(h.env.calls).toEqual([]);
+  });
+
+  it('--command npx prints no publishing note when Hesman itself was started through npx', async () => {
+    const h = harness({ installation: { entryScript: NPX_CACHE_SCRIPT } });
+
+    await runSetup(['--client', 'gemini-cli', '--command', 'npx'], h.io);
+
+    expect(h.text()).not.toMatch(/published/);
+  });
+
+  it('--command absolute writes the node binary and the entry script', async () => {
+    const h = harness({ installation: { entryScript: NPX_CACHE_SCRIPT } });
+
+    await runSetup(['--client', 'vscode', '--command', 'absolute'], h.io);
+
+    expect(written(h, 'vscode')).toMatchObject({ command: FAKE_INSTALLATION.execPath, args: [NPX_CACHE_SCRIPT] });
+  });
+
+  it('auto under nvm: the terminal client gets npx, the desktop app gets absolute paths plus a warning', async () => {
+    const h = harness({
+      platform: 'darwin',
+      pathOf: { npx: `${NVM_BIN}/npx`, node: `${NVM_BIN}/node` },
+      installation: { entryScript: NPX_CACHE_SCRIPT },
+    });
+
+    expect(await runSetup(['--client', 'gemini-cli', 'vscode'], h.io)).toBe(0);
+
+    expect(written(h, 'gemini-cli')).toEqual({ command: 'npx', args: ['-y', 'hesman-mcp@1'] });
+    expect(written(h, 'vscode')).toMatchObject({ command: FAKE_INSTALLATION.execPath, args: [NPX_CACHE_SCRIPT] });
+    expect(h.lines.filter((l) => /note:.*again after switching Node versions/.test(l))).toHaveLength(1);
+  });
+
+  it('the launch command is passed to the client CLI as well', async () => {
+    const h = harness({ onPath: ['claude'] });
+
+    await runSetup(['--client', 'claude-code', '--command', 'npx'], h.io);
+
+    expect(h.env.calls.map((c) => c.slice(1))).toEqual([['mcp', 'add', '--scope', 'user', 'hesman', '--', 'npx', '-y', 'hesman-mcp@1']]);
+  });
+
+  it.each([{ args: ['--command', 'yarn'] }, { args: ['--command'] }])('rejects $args and changes nothing', async ({ args }) => {
+    const h = harness();
+
+    expect(await runSetup(['--all', ...args], h.io)).toBe(1);
+
+    expect(h.text()).toMatch(/--command must be one of: auto, npx, global, absolute/);
+    expect(configured(h.env)).toEqual([]);
+  });
+
+  it('hesman remove rejects --command', async () => {
+    const h = harness();
+    expect(await runRemove(['--all', '--command', 'npx'], h.io)).toBe(1);
+    expect(h.text()).toMatch(/--command/);
   });
 });

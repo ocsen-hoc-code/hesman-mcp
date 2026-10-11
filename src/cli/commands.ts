@@ -84,6 +84,7 @@ Usage:
     --dry-run               Print the exact change per client, write nothing
     --scope user|project    User-wide config (default) or a file in the current project
     --project-root <path>   Project for clients without a workspace (Claude Desktop)
+    --command <how>         How clients start Hesman: auto (default), npx, global, absolute
   hesman remove             Remove Hesman from the clients again
                             (--client <name…>, --all, --scope, --dry-run)
   hesman install --agent X  Deprecated alias of: hesman setup --client X --yes
