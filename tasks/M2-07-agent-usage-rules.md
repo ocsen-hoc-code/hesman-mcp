@@ -1,7 +1,7 @@
 ---
 id: M2-07
 title: Opt-in agent usage rules (when to call Hesman instead of grep/read)
-status: pending
+status: done
 priority: P2
 depends_on: [M2-03]
 updated: 2026-10-11
@@ -24,8 +24,8 @@ Installing an MCP server does not guarantee the agent uses it: agents often fall
 
 ## Acceptance criteria
 
-- [ ] Setup with `--rules` then remove leaves each instruction file byte-identical to the original.
-- [ ] Without `--rules`, no instruction file is touched (unit test).
+- [x] Setup with `--rules` then remove leaves each instruction file byte-identical to the original.
+- [x] Without `--rules`, no instruction file is touched (unit test).
 
 ## Verification
 
@@ -35,5 +35,7 @@ npm test
 
 ## Progress notes
 
+- 2026-10-11: done on branch `worktree-agent-a707beb57960e6c7f` (the commit that adds this note). Scope 1-3 implemented in `src/cli/rules/` and `src/cli/clients/setup.ts`: 14-line block (one constant, tested against the tools the server registers), `hesman setup --rules`, removal by `hesman remove`, interactive question with default No. Instruction files per client checked against the official docs on 2026-10-11 (URLs in `src/cli/rules/index.ts`); Windsurf uses the root `AGENTS.md`, Claude Desktop is skipped. Both acceptance criteria are covered by unit tests (`tests/unit/cli/rules/`, `tests/unit/cli/clients/setup.test.ts`); `npm test`: 92 files, 1068 passed, 1 skipped.
+- 2026-10-11: **scope item 4 is NOT done.** No before/after comparison of real agent tool usage was run (it needs a live agent session with and without the block), so there is no evidence yet that the block changes agent behavior. The README and CHANGELOG say so. To do when the answer-quality eval exists, or by hand on one task.
 - 2026-10-11: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.

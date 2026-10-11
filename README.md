@@ -276,6 +276,30 @@ hesman remove                        # undo: take Hesman out of every client aga
 
 After setup, restart the client and Hesman will be available as an MCP server.
 
+### Agent usage rules (opt-in)
+
+An installed MCP server is not automatically a used one: agents often keep reaching for grep and whole-file reads. `hesman setup --rules` also writes a short block (14 lines) into the instruction file each selected client reads in the **current project**, saying which Hesman tool answers which question. Whether it changes how often an agent calls the tools has not been measured yet.
+
+```bash
+hesman setup --client claude-code codex --rules   # run inside the project
+hesman setup --all --rules --dry-run              # print the block and the files, write nothing
+hesman remove                                     # also deletes the block again
+```
+
+| Client | Instruction file (relative to the project) |
+|---|---|
+| Claude Code | `CLAUDE.md` |
+| OpenAI Codex CLI, Windsurf | `AGENTS.md` |
+| Gemini CLI, Google Antigravity | `GEMINI.md` |
+| Cursor | `.cursor/rules/hesman.mdc` (its own rule file, `alwaysApply: true`) |
+| VS Code (Copilot) | `.github/copilot-instructions.md` |
+| Claude Desktop | none: it reads no project file, so it is skipped with a note |
+
+- **Opt-in.** Nothing is written without `--rules`. On a terminal without `--yes`, setup asks once and the default answer is No.
+- The block sits between `<!-- hesman:rules:start -->` and `<!-- hesman:rules:end -->`. Running setup again replaces it in place; text outside the markers is never changed, and a file shared by two clients gets the block once.
+- `hesman remove` deletes exactly the block and gives the file back byte for byte; a file that Hesman created and that holds nothing else is deleted. Run it in the same project (or pass `--project-root <path>`, which `setup --rules` accepts as well).
+- These files are usually committed to git and shared with a team. Setup lists the files it changed so you can review them (`git diff`) and decide whether to commit.
+
 ### Launch command
 
 `hesman setup --command auto|npx|global|absolute` decides what the clients run. Setup never uses the network.
@@ -433,7 +457,7 @@ hesman clean --force           Skip confirmation prompt
 hesman clean --dry-run         Preview what would be deleted without removing
 hesman diag [path]             Print diagnostics: memory, store stats, pool, cache
 hesman diag --json             Output diagnostics as JSON
-hesman setup                   Add Hesman to your AI clients (--client, --all, --yes, --dry-run, --scope, --project-root, --command)
+hesman setup                   Add Hesman to your AI clients (--client, --all, --yes, --dry-run, --scope, --project-root, --command, --rules)
 hesman remove                  Remove Hesman from the clients again (--client, --all, --scope, --dry-run)
 hesman install --agent <name>  Deprecated alias of: hesman setup --client <name> --yes
 hesman --version, -v           Print version number

@@ -1,6 +1,7 @@
 import { splitArgs } from '../args.js';
 import { COMMAND_MODES, PACKAGE_NAME, autoLaunch, launchFor, runsFromNpxCache, serverEntry, type CommandMode } from './entry.js';
 import { allClients, isClientId } from './index.js';
+import { applyRules, removeRules, rulesFilesFor, rulesProjectDir, type RulesOutcome, type RulesStatus } from '../rules/index.js';
 import { CLIENT_IDS, type ChangeResult, type ClientAdapter, type ClientEnvironment, type ClientId, type Scope } from './types.js';
 
 /** Terminal and machine access of the `setup` / `remove` / `install` commands; faked in tests. */
@@ -22,7 +23,7 @@ const ALIASES: Record<string, ClientId> = {
 };
 
 const VALUE_FLAGS = ['--scope', '--project-root', '--command'];
-const SETUP_FLAGS = ['--all', '--yes', '-y', '--dry-run'];
+const SETUP_FLAGS = ['--all', '--yes', '-y', '--dry-run', '--rules'];
 
 class UsageError extends Error {}
 
@@ -32,6 +33,8 @@ interface Options {
   all: boolean;
   yes: boolean;
   dryRun: boolean;
+  /** `--rules`: also write the agent usage rules into the project's instruction files. */
+  rules: boolean;
   scope: Scope;
   projectRoot: string | undefined;
   /** `--command`; undefined when the flag was not used (setup then means `auto`). */
@@ -84,6 +87,7 @@ function parseOptions(args: readonly string[]): Options {
     all: flags.has('--all'),
     yes: flags.has('--yes') || flags.has('-y'),
     dryRun: flags.has('--dry-run'),
+    rules: flags.has('--rules'),
     scope,
     projectRoot: values.get('--project-root'),
     command,
@@ -192,6 +196,51 @@ function forEachClient(
   return failed ? 1 : 0;
 }
 
+const RULES_VERB: Record<RulesStatus, [applied: string, dryRun: string]> = {
+  created: ['created', 'would create'],
+  added: ['added', 'would add'],
+  updated: ['updated', 'would update'],
+  unchanged: ['already up to date', 'already up to date'],
+  removed: ['removed', 'would remove'],
+  deleted: ['deleted (it held nothing else)', 'would delete (it holds nothing else)'],
+  absent: ['no rules block', 'no rules block'],
+  failed: ['failed', 'failed'],
+};
+
+/**
+ * Prints what happened to the agent instruction files and returns the exit code. Files without a
+ * block are not mentioned, and nothing at all is printed when there is nothing to say (a
+ * `hesman remove` in a project that never had the rules).
+ */
+function reportRules(outcome: RulesOutcome, dryRun: boolean, io: CliIo, showSkipped: boolean): number {
+  const files = outcome.files.filter((f) => f.status !== 'absent');
+  const skipped = showSkipped ? outcome.skipped : [];
+  if (files.length === 0 && skipped.length === 0) return 0;
+
+  io.out('');
+  io.out(`Agent usage rules (project: ${outcome.projectDir}):`);
+  for (const file of files) {
+    const verb = RULES_VERB[file.status][dryRun ? 1 : 0];
+    io.out(`  ${file.file} (${file.clients.join(', ')}): ${verb}${file.error ? ` — ${file.error}` : ''}`);
+    io.out(`    file: ${file.path}`);
+    const changes = file.status !== 'unchanged' && file.status !== 'failed';
+    if (dryRun && changes) {
+      const sign = file.status === 'removed' || file.status === 'deleted' ? '-' : '+';
+      for (const line of file.preview.split('\n')) io.out(`    ${sign} ${line}`.trimEnd());
+    }
+    if (file.backupPath) io.out(`    backup: ${file.backupPath}`);
+  }
+  for (const skip of skipped) io.out(`  ${skip.client}: skipped — ${skip.reason}`);
+
+  const changed = files.filter((f) => f.applied).map((f) => f.file);
+  if (changed.length > 0) {
+    io.out('');
+    io.out(`Changed instruction files: ${changed.join(', ')}`);
+    io.out('  These files are often committed to git and shared with a team: review the change (`git status`, `git diff`) and commit it or not.');
+  }
+  return files.some((f) => f.status === 'failed') ? 1 : 0;
+}
+
 /**
  * Says once which command the clients will launch and why. Clients that get something else (a
  * desktop app that cannot find the command) say so in their own note.
@@ -266,21 +315,39 @@ export async function runSetup(args: readonly string[], io: CliIo): Promise<numb
     return 1;
   }
 
+  // Opt-in only: the rules are written with --rules or after an explicit "yes", never by default.
+  const projectDir = rulesProjectDir(io.env.cwd, options.projectRoot);
+  let rules = options.rules;
+  const ruleFiles = rulesFilesFor(chosen);
+  if (!rules && io.isTTY && !options.yes && !options.dryRun && ruleFiles.length > 0) {
+    const answer = await io.ask(
+      `Also add a short "when to use Hesman" block to the agent instruction files of ${projectDir} (${ruleFiles.join(', ')})? ` +
+        'They are often committed to git. [y/N] ',
+    );
+    rules = /^y(es)?$/i.test(answer.trim());
+  }
+
   const mode = options.command ?? 'auto';
   announceLaunch(mode, io);
-  return forEachClient(chosen, options, io, (client) => {
+  const code = forEachClient(chosen, options, io, (client) => {
     const launch = launchFor(client, mode, io.env);
     const result = client.write(launch.entry, { scope: options.scope, dryRun: options.dryRun, projectRoot: options.projectRoot });
     return { ...result, notes: [...launch.notes, ...result.notes] };
   });
+  if (!rules) return code;
+  return Math.max(code, reportRules(applyRules(projectDir, chosen, options), options.dryRun, io, true));
 }
 
-/** `hesman remove`: take the Hesman server out of the clients again. Resolves with the exit code. */
+/** `hesman remove`: take the Hesman server and the rules block out again. Resolves with the exit code. */
 export async function runRemove(args: readonly string[], io: CliIo): Promise<number> {
   const options = optionsOrComplain(args, io);
   if (!options) return 1;
   if (options.command !== undefined) {
     io.out('--command only applies to `hesman setup`.');
+    return 1;
+  }
+  if (options.rules) {
+    io.out('--rules only applies to `hesman setup`; `hesman remove` always deletes the rules block.');
     return 1;
   }
 
@@ -292,12 +359,19 @@ export async function runRemove(args: readonly string[], io: CliIo): Promise<num
     chosen = clients;
   } else {
     chosen = clients.filter((c) => c.read(options.scope) !== undefined);
-    if (chosen.length === 0) {
-      io.out(`Hesman is not configured in any client (${options.scope} scope).`);
-      return 0;
-    }
   }
-  return forEachClient(chosen, options, io, (client) => client.remove({ scope: options.scope, dryRun: options.dryRun }));
+  let code = 0;
+  if (chosen.length === 0) {
+    io.out(`Hesman is not configured in any client (${options.scope} scope).`);
+  } else {
+    code = forEachClient(chosen, options, io, (client) => client.remove({ scope: options.scope, dryRun: options.dryRun }));
+  }
+
+  // The rules block goes too. Without --client every instruction file of the project is checked,
+  // also those of clients whose config no longer names Hesman.
+  const ruleClients = options.names.length > 0 ? chosen : clients;
+  const projectDir = rulesProjectDir(io.env.cwd, options.projectRoot);
+  return Math.max(code, reportRules(removeRules(projectDir, ruleClients, options), options.dryRun, io, false));
 }
 
 /** `hesman install --agent X`: deprecated alias of `hesman setup --client X --yes`. */
