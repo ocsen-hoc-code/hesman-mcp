@@ -56,8 +56,8 @@ npm install -g hesman-mcp
 cd my-project
 hesman
 
-# 3. Register with your AI agent (Claude Desktop, Cursor, VS Code)
-hesman install --agent claude
+# 3. Register with your AI clients (detects Claude Code, Cursor, VS Code, Codex, …)
+hesman setup
 ```
 
 That's it. The server answers your agent immediately and indexes in the background (a few seconds for most projects): the 11 tools work right away, mark results with `_meta.indexing` while the index is still incomplete, and `index_status` reports the progress.
@@ -233,24 +233,35 @@ npm link                   # Make `hesman` available globally
 ### Register with AI Agents
 
 ```bash
-# Claude Desktop (auto-detects config path per platform)
-hesman install --agent claude
-
-# Cursor
-hesman install --agent cursor
-
-# VS Code (with Copilot or Cline)
-hesman install --agent vscode
-
-# Use --global to write to user-level config instead of project-level
-hesman install --agent claude --global
+hesman setup                         # checklist of the clients found on this machine
+hesman setup --yes                   # no questions: configure every detected client
+hesman setup --client cursor vscode  # configure specific clients
+hesman setup --dry-run --all         # print the exact change per client, write nothing
+hesman remove                        # undo: take Hesman out of every client again
 ```
 
-After installation, restart your AI agent and Hesman will be available as an MCP server.
+| Client | `--client` | What `hesman setup` changes (user scope) | `--scope project` |
+|---|---|---|---|
+| Claude Code | `claude-code` | runs `claude mcp add --scope user hesman -- hesman`; without the CLI, edits `~/.claude.json` | `.mcp.json` |
+| Claude Desktop | `claude-desktop` | `claude_desktop_config.json` | — |
+| OpenAI Codex CLI | `codex` | runs `codex mcp add hesman -- hesman`; without the CLI, edits `~/.codex/config.toml` | `.codex/config.toml` |
+| Cursor | `cursor` | `~/.cursor/mcp.json` | `.cursor/mcp.json` |
+| Google Antigravity | `antigravity` | `~/.gemini/config/mcp_config.json` | `.agents/mcp_config.json` |
+| VS Code (Copilot) | `vscode` | `mcp.json` in the VS Code user directory | `.vscode/mcp.json` |
+| Gemini CLI | `gemini-cli` | `~/.gemini/settings.json` | `.gemini/settings.json` |
+| Windsurf | `windsurf` | `~/.config/devin/mcp_config.json` | — |
+
+- Only the `hesman` entry is touched. A changed file is first copied to `<file>.hesman.bak`, and `hesman remove` restores it byte for byte when nothing else changed in between.
+- The entry holds no project path: Hesman finds the project itself (see below). Two exceptions: **Claude Desktop** has no workspace, so its entry pins one project (the current directory, or `--project-root <path>`), and **Cursor** gets `--project-root ${workspaceFolder}`.
+- For **Antigravity** and **Windsurf**, how the project is passed to the server is not documented; `hesman setup` prints a note asking you to check after the first start.
+- Config files with comments (JSONC) are not edited: `hesman setup` reports them and leaves them untouched.
+- `hesman install --agent <name>` still works as a deprecated alias of `hesman setup --client <name> --yes`.
+
+After setup, restart the client and Hesman will be available as an MCP server.
 
 ### Manual MCP Configuration
 
-Add this to your agent's MCP config file:
+Add this to your agent's MCP config file (VS Code uses `"servers"` instead of `"mcpServers"` and needs `"type": "stdio"` in the entry; Codex uses a `[mcp_servers.hesman]` TOML table):
 
 ```json
 {
@@ -387,8 +398,9 @@ hesman clean --force           Skip confirmation prompt
 hesman clean --dry-run         Preview what would be deleted without removing
 hesman diag [path]             Print diagnostics: memory, store stats, pool, cache
 hesman diag --json             Output diagnostics as JSON
-hesman install --agent <name>  Write MCP config for Claude Desktop, Cursor, or VS Code
-hesman install --global        Write to user-level config instead of project-level
+hesman setup                   Add Hesman to your AI clients (--client, --all, --yes, --dry-run, --scope, --project-root)
+hesman remove                  Remove Hesman from the clients again (--client, --all, --scope, --dry-run)
+hesman install --agent <name>  Deprecated alias of: hesman setup --client <name> --yes
 hesman --version, -v           Print version number
 hesman --help, -h              Show help text
 ```

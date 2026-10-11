@@ -76,7 +76,17 @@ Usage:
   hesman clean --dry-run    Preview what would be deleted
   hesman diag [path]        Print diagnostics to terminal
   hesman diag --json        JSON format output
-  hesman install --agent <claude|cursor|vscode> [--global]
+  hesman setup              Add Hesman to your AI clients (checklist of detected clients)
+    --client <name…>        Configure these clients: claude-code, claude-desktop, codex, cursor,
+                            antigravity, vscode, gemini-cli, windsurf
+    --all                   Configure every supported client
+    --yes                   No questions: configure the detected clients
+    --dry-run               Print the exact change per client, write nothing
+    --scope user|project    User-wide config (default) or a file in the current project
+    --project-root <path>   Project for clients without a workspace (Claude Desktop)
+  hesman remove             Remove Hesman from the clients again
+                            (--client <name…>, --all, --scope, --dry-run)
+  hesman install --agent X  Deprecated alias of: hesman setup --client X --yes
   hesman --version, -v      Print version
   hesman --help, -h         Show this help
 
@@ -97,20 +107,38 @@ Supported languages: TypeScript, JavaScript, Python, Go
 `);
 }
 
-export async function runInstall(args: string[]): Promise<void> {
-  const { installAgent } = await import('./install.js');
+/** Real terminal + machine for the client commands; the logic lives in `clients/setup.ts`. */
+async function runClientCommand(name: 'runSetup' | 'runRemove' | 'runInstall', args: string[]): Promise<void> {
+  const setup = await import('./clients/setup.js');
+  const { realEnvironment } = await import('./clients/environment.js');
+  const code = await setup[name](args, {
+    env: realEnvironment(),
+    out: (line) => console.log(line),
+    isTTY: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+    ask: async (question) => {
+      const { createInterface } = await import('node:readline');
+      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      try {
+        return await new Promise<string>((resolveAnswer) => rl.question(question, resolveAnswer));
+      } finally {
+        rl.close();
+      }
+    },
+  });
+  if (code !== 0) process.exitCode = code;
+}
 
-  const { values, flags } = splitArgs(args, ['--agent']);
-  const agent = values.get('--agent') ?? '';
-  const global = flags.has('--global');
+export function runSetup(args: string[]): Promise<void> {
+  return runClientCommand('runSetup', args);
+}
 
-  if (!agent) {
-    console.log('Usage: hesman install --agent <claude|cursor|vscode> [--global]');
-    process.exit(1);
-  }
+export function runRemove(args: string[]): Promise<void> {
+  return runClientCommand('runRemove', args);
+}
 
-  const projectRoot = process.cwd();
-  installAgent(agent, projectRoot, global);
+/** Deprecated alias of `hesman setup --client <agent> --yes`. */
+export function runInstall(args: string[]): Promise<void> {
+  return runClientCommand('runInstall', args);
 }
 
 function getDirSize(dir: string): number {
