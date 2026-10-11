@@ -90,6 +90,7 @@ Usage:
                             and hesman remove deletes exactly that block again
   hesman remove             Remove Hesman from the clients again
                             (--client <name…>, --all, --scope, --dry-run)
+  hesman doctor             Check each client's Hesman entry end to end (--client <name…>, --json, --timeout <ms>)
   hesman install --agent X  Deprecated alias of: hesman setup --client X --yes
   hesman --version, -v      Print version
   hesman --help, -h         Show this help
@@ -143,6 +144,15 @@ export function runRemove(args: string[]): Promise<void> {
 /** Deprecated alias of `hesman setup --client <agent> --yes`. */
 export function runInstall(args: string[]): Promise<void> {
   return runClientCommand('runInstall', args);
+}
+
+/** `hesman doctor`: read-only checks of this installation and of each client's entry (`doctor/doctor.ts`). */
+export async function runDoctor(args: string[]): Promise<void> {
+  const { runDoctor: doctor } = await import('./doctor/doctor.js');
+  const { realDoctorEnvironment } = await import('./doctor/environment.js');
+  const { realEnvironment } = await import('./clients/environment.js');
+  const code = await doctor(args, { env: realEnvironment(), out: (line) => console.log(line) }, realDoctorEnvironment());
+  if (code !== 0) process.exitCode = code;
 }
 
 function getDirSize(dir: string): number {
