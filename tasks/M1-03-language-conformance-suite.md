@@ -1,10 +1,10 @@
 ---
 id: M1-03
 title: Language conformance test suite
-status: todo
+status: pending
 priority: P0
 depends_on: [M1-02]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -39,4 +39,5 @@ npx vitest run tests/conformance/
 
 ## Progress notes
 
+- 2026-10-11: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.

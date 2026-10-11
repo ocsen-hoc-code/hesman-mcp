@@ -43,6 +43,7 @@ npm test && npm run test:e2e && npm run test:perf
 
 ## Progress notes
 
+- 2026-10-11: merged into `rebuild/m1-m2` (merge of `273bcf5`). Verified in a fresh clone with `npm ci` (web-tree-sitter 0.25.10): 0 type errors, `npm test` 95 files / 1092 tests + 1 skipped, twice in a row, after replacing the fixed 3 s sleeps in the two legacy e2e files with `waitForIndexReady` (`05215e7`).
 - 2026-10-11: done. Part A (runtime upgrade + leak fixes) is commit `bd2a012`; Part B (engine, queries, migration) is the commit that adds this note.
   - **Runtime:** `web-tree-sitter` 0.25.10 (exact pin) loads the three committed grammars; the whole suite passed on it before the engine work started. One `Parser` per language is reused and trees are deleted after extraction. Verified on Node 24.5 only (no Node 20 on the machine).
   - **Engine:** `src/parsers/tags-engine.ts` (`TagsQuery`, `signatureOf`, `docCommentAbove`), suffix → kind table in `src/parsers/symbol-kinds.ts`, `tagsQuery` on registry entries, queries under `queries/` with provenance in `queries/SOURCES.json` and `NOTICE`. Layer rule: the earliest pattern that tags a name wins, so Hesman gap fillers (`hesman-tags.scm`, listed last) add definitions and never change what upstream tags.

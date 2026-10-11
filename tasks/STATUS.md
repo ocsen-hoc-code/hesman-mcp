@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 2/7 done** · **M2: 3/7 done**
+Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 3/7 done** · **M2: 3/7 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -38,8 +38,8 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 | # | Task | Area | Priority | Depends on | Status |
 |---|---|---|---|---|---|
 | M1-01 | [Choose grammar source and distribution (spike + ADR)](M1-01-grammar-source-adr.md) | Research | P0 | M0-12 | done |
-| M1-02 | [Generic symbol extraction driven by tags.scm](M1-02-tags-query-engine.md) | Parsing | P0 | M1-01 | pending |
-| M1-03 | [Language conformance test suite](M1-03-language-conformance-suite.md) | Test | P0 | M1-02 | todo |
+| M1-02 | [Generic symbol extraction driven by tags.scm](M1-02-tags-query-engine.md) | Parsing | P0 | M1-01 | done |
+| M1-03 | [Language conformance test suite](M1-03-language-conformance-suite.md) | Test | P0 | M1-02 | pending |
 | M1-04 | [Universal text tier for files without a grammar](M1-04-universal-text-tier.md) | Indexing | P1 | M1-03 | done |
 | M1-05 | [Grammar delivery: bundled core + verified download](M1-05-grammar-delivery.md) | Distribution | P1 | M1-01, M0-10 | todo |
 | M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | todo |
@@ -93,5 +93,7 @@ M2-04 is code-complete and merged but stays `pending`: two acceptance checks are
 - **Project-root follow-ups from M2-02:** (1) `hesman.config.json` is looked up from the working directory, not from a root learned through MCP roots, so a project's config is not applied when the server starts elsewhere — the main gap for a truly global entry; (2) an absolute `dataDir` is shared by every project one process serves; (3) a tool call running while the root changes can fail with `INTERNAL_ERROR` because its store closes under it; (4) after a `roots/list` timeout, roots are not asked again until the client sends `list_changed`; (5) `CLAUDE_PROJECT_DIR` (set by Claude Code) could be a cheap extra fallback; (6) `docs/ARCHITECTURE.md` and the i18n READMEs do not describe the new startup and project selection yet.
 - **Client-setup follow-ups from M2-03:** config files with comments or trailing commas (JSONC — possible for VS Code `mcp.json` and Gemini `settings.json`) are refused instead of edited; the Codex TOML editor refuses inline-table/dotted-key forms; VS Code Insiders, VSCodium and non-default profiles are not handled; all Windows behavior is tested only as path logic on macOS; nothing was tested against real Cursor, Antigravity, Windsurf, Codex or Gemini CLI installations; `docs/i18n/README.*.md` and `docs/SECURITY.md` still mention `hesman install`.
 - **Text-tier follow-ups from M1-04:** indexing this repository takes 46–61% longer with the text tier (17–19 s → 28 s; +60 files, +343 chunks, data dir +17%), almost all of it Markdown (49 files / 330 chunks) — consider a config switch or a cheaper default for prose; no SQLite FTS table exists for chunk text (ZVec holds it); `indexProject` still does not remove files deleted while the server was down (only the watcher's unlink does); README and `docs/ARCHITECTURE.md` do not describe the text tier yet; text labels (`javascript`, `cpp`, `csharp`, `shell`) must be reconciled with registry ids when M1-05 adds grammars.
+- **Symbol-extraction follow-ups from M1-02 (owner decisions pending):** (1) function-valued constants (`const f = () => …`) are now kind `function`, not `variable`, so their ids changed and calls inside them are attributed to them; (2) functions assigned to object keys or properties (`{ onClick: () => … }`, `module.exports.h = …`) are new callable symbols, and the call resolver's whole-project tier can link an unrelated call to one whose name is unique — consider excluding property-assigned functions from that tier; (3) local variables inside function bodies are still indexed as symbols (they are already excluded from the semantic index); (4) `docs/ARCHITECTURE.md` still describes hand-written profiles; (5) not verified on Node 20.
+- **Test stability under load:** `FileWatcher symlink safety` timed out once (5.5 s) while other test runs shared the machine; the legacy e2e files used a fixed 3 s sleep (fixed in `05215e7`). Re-check watcher tests for timing assumptions.
 - **Zod validation** for every tool input (replace `as` casts).
 - Evaluate replacing ZVec with an in-SQLite vector store to drop one store.
