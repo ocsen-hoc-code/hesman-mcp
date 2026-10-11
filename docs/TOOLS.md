@@ -2,6 +2,8 @@
 
 Hesman exposes 11 MCP tools over stdio transport. Every tool response except `index_status` includes a `_meta` block with token reduction statistics.
 
+**Startup:** the server answers `initialize` and `tools/list` immediately; the embedding model and the initial index are loaded in the background. Every tool works during that time and answers from what is indexed so far. While the index is still being built, `_meta.indexing` marks results as possibly incomplete (see [Response Structure](#response-structure)) and [`index_status`](#index_status) reports the progress.
+
 **Line numbers:** every line number Hesman accepts or returns (`startLine`, `endLine`, `line`, parse-error lines) is **1-based and inclusive**. The first line of a file is line 1. A symbol's `startLine` can be passed straight to `get_context`, and it matches the `line` that `find_pattern` reports for the same declaration. Indexes built before this convention (0-based) are detected by their schema version and rebuilt automatically on the next start.
 
 ---
@@ -386,11 +388,20 @@ Check the indexing status of the project.
   "lastFullIndexTime": "2026-07-11T10:30:00.000Z",
   "lastIncrementalIndexTime": null,
   "pendingFiles": 0,
+  "indexing": {
+    "inProgress": false,
+    "phase": "ready",
+    "filesDone": 42,
+    "filesTotal": 42,
+    "startedAt": "2026-07-11T10:29:58.000Z",
+    "error": null
+  },
   "health": {
     "sqliteOk": true,
     "zvecOk": true,
     "zvecDocCount": 315,
-    "embeddingModelLoaded": true
+    "embeddingModelLoaded": true,
+    "embeddingModelError": null
   },
   "languages": [
     { "language": "typescript", "files": 30, "symbols": 240 },
@@ -400,6 +411,18 @@ Check the indexing status of the project.
 ```
 
 `languages` lists every indexed language with the number of files and symbols stored for it in SQLite, most files first. `totalFiles` and the per-language `files` count files that produced at least one symbol. `index_status` is not compressed and carries no `_meta` block.
+
+`indexing` describes the initial index, which runs in the background after the MCP handshake:
+
+- `inProgress` — `true` from server start until the initial index has finished (or failed). Poll until it is `false` to wait for a complete index.
+- `phase` — `loading-model` (waiting for the embedding model; only with semantic search enabled), `scanning` (listing files), `indexing` (hashing, parsing and storing files), `resolving` (linking call relations), then `ready` or `failed`. `idle` means no run was started.
+- `filesDone` / `filesTotal` — files handled so far (stored, skipped as unchanged, or failed) out of the files found by the scan. `filesTotal` is `0` until the scan is done. `pendingFiles` is `filesTotal - filesDone` while indexing runs and `0` otherwise.
+- `startedAt` — when the run began (ISO 8601), `null` if none was started.
+- `error` — the message of the error that ended the run when `phase` is `failed`, otherwise `null`. The server keeps running and answers from whatever was indexed.
+
+`health.embeddingModelError` holds the reason the embedding model failed to load (`null` otherwise). Until the model is loaded, `semantic_search` returns `INDEX_NOT_READY` — "still loading" during `loading-model`, or the load failure — and every other tool keeps working.
+
+While the index is being built, `totalFiles`, `totalSymbols`, `totalRelations` and `languages` count what is stored so far.
 
 ---
 
@@ -453,5 +476,6 @@ Every successful response (except `index_status`) includes a `_meta` block:
 - `reduction` — `1 - compressedTokens / originalTokens`, never negative.
 - `compressed` — `true` when the response compressor's own compaction made the payload smaller and was kept; `false` otherwise, in which case the plain payload is returned unchanged (and `reduction` is `0.0%` unless pruning saved tokens). `get_context` in compact mode reports `false` because its excerpt is already compacted by the tool.
 - `layers` — the layers that actually contributed: `compact`, `prune` (`summary` is reserved; it never appears today).
+- `indexing` — present **only while the initial index is running**: `{ "inProgress": true, "filesDone": 1200, "filesTotal": 6000 }`. The response was answered from a partial index, so results may be incomplete (missing symbols, callers or references); retry later or poll `index_status` until `indexing.inProgress` is `false`. The field is omitted once the index is complete, so normal responses do not grow.
 
 Hesman never returns a response larger than its uncompressed form. The response compressor builds a `_summary` (counts by kind and file) for list and call-graph tools, but it only adds to the full list, so it never makes a response smaller and is always dropped: `get_references`, `get_callers`, `get_callees`, `list_dependencies` and `get_file_structure` return their plain payload with `reduction: "0.0%"` and `compressed: false`. Replacing long lists with a summary plus the top entries is a backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md). `impact_analysis` builds its own `_summary` (`totalFiles`, `mustFix`, `shouldReview`, `info`, `estimatedChanges`) as part of its payload.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- **Non-blocking startup:** the server answers the MCP `initialize` handshake and `tools/list` right away (about 0.2 s on a 6,000-file project that takes 10 s to index) instead of after the embedding model load and the full initial index, so clients no longer time out on large repositories or on the first run. The model and the index load in the background: tools answer from what is indexed so far and add `_meta.indexing: { inProgress, filesDone, filesTotal }` while the index is incomplete, `index_status` gains an `indexing` block (`inProgress`, `phase`, `filesDone`, `filesTotal`, `startedAt`, `error`) and `health.embeddingModelError`, and `semantic_search` says whether the model is still loading or failed to load. Shutting down mid-index is clean.
+
 ### Fixed
 
 - **MCP stream corruption:** logs were written to stdout, the JSON-RPC channel. All logs now go to stderr through one shared logger (at most one transport thread).

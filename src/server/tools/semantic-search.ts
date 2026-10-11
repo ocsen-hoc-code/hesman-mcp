@@ -3,6 +3,7 @@ import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { ZVecStore } from '../../stores/zvec.js';
 import type { HesmanConfig } from '../../config/schema.js';
 import { embedText, isEmbeddingReady } from '../../stores/embedding.js';
+import { indexState } from '../../indexing/index-state.js';
 import { compactCode } from '../../parsers/compact-mode.js';
 import { ErrorCode, formatError } from '../error-codes.js';
 import { InvalidArgumentError, intArg, numberArg, withArgValidation } from '../args.js';
@@ -73,8 +74,17 @@ export function registerSemanticSearchTool(
     }
 
     if (!isEmbeddingReady()) {
+      // The model loads in the background after the MCP handshake: tell the
+      // agent whether to retry (still loading) or give up (load failed).
+      const { phase, modelError } = indexState.snapshot();
+      let message = 'Embedding model not loaded. Run once with internet to download.';
+      if (modelError) {
+        message = `Embedding model failed to load: ${modelError}. Run once with internet to download it.`;
+      } else if (phase === 'loading-model') {
+        message = 'Embedding model is still loading (the first run downloads it). Retry shortly; index_status reports progress.';
+      }
       return {
-        content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.INDEX_NOT_READY, 'Embedding model not loaded. Run once with internet to download.')) }],
+        content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.INDEX_NOT_READY, message)) }],
         isError: true,
       };
     }

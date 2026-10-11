@@ -4,7 +4,8 @@ import { loadConfig, parseCliFlagsToOverrides } from './config/loader.js';
 import { SqliteStore } from './stores/sqlite.js';
 import { ZVecStore } from './stores/zvec.js';
 import { initEmbedding } from './stores/embedding.js';
-import { indexProject } from './indexing/index-coordinator.js';
+import { indexProject, IndexAbortedError } from './indexing/index-coordinator.js';
+import { indexState } from './indexing/index-state.js';
 import { WorkerPool } from './indexing/worker-pool.js';
 import { FileWatcher } from './indexing/file-watcher.js';
 import { McpServer } from './server/mcp-server.js';
@@ -83,12 +84,6 @@ async function main(): Promise<void> {
   if (config.semanticSearch.enabled) {
     zvecStore = new ZVecStore(dataDir);
     zvecStore.open();
-    try {
-      await initEmbedding(config.semanticSearch.embeddingModel);
-      log.info('Embedding model loaded for semantic search');
-    } catch (err) {
-      log.warn(err, 'Failed to load embedding model — semantic search will be unavailable');
-    }
   }
 
   // Create worker pool
@@ -98,29 +93,72 @@ async function main(): Promise<void> {
   // File watcher
   let watcher: FileWatcher | undefined;
 
-  // Initial index
-  try {
-    const result = await indexProject(projectRoot, store, config, zvecStore, pool);
-    log.info(
-      { files: result.filesIndexed, symbols: result.symbolsFound },
-      'Initial indexing complete',
+  // ── Background startup ──
+  // The MCP handshake must never wait for the embedding model (a download on
+  // the first run) or the initial index (minutes on a large repository):
+  // clients give up on servers that are slow to answer `initialize`. Both run
+  // after `server.connect()`; tools answer from whatever is indexed so far and
+  // `index_status` reports the progress kept in `indexState`.
+  const startupAbort = new AbortController();
+  const startupAborted = new Promise<void>((resolveAborted) => {
+    startupAbort.signal.addEventListener('abort', () => resolveAborted(), { once: true });
+  });
+
+  async function loadEmbeddingModel(): Promise<void> {
+    // The model must be ready before indexing: vectors are embedded per file.
+    const loading = initEmbedding(config.semanticSearch.embeddingModel).then(
+      () => log.info('Embedding model loaded for semantic search'),
+      (err) => {
+        indexState.setModelError(err);
+        log.warn(err, 'Failed to load embedding model — semantic search will be unavailable');
+      },
     );
-  } catch (err) {
-    log.error(err, 'Initial indexing failed — server starting with incomplete index');
+    // A load cannot be cancelled; on shutdown stop waiting for it.
+    await Promise.race([loading, startupAborted]);
   }
 
-  // Start file watcher (if enabled)
-  if (config.watchMode) {
-    watcher = new FileWatcher({
-      projectRoot,
-      ignore: config.ignore,
-      store,
-      pool,
-      zvecStore,
-    });
-    await watcher.start();
-    log.info('File watcher started');
+  /** Loads the model, builds the initial index, then starts the watcher. Never rejects. */
+  async function runBackgroundStartup(): Promise<void> {
+    try {
+      if (zvecStore) await loadEmbeddingModel();
+
+      const result = await indexProject(projectRoot, store, config, zvecStore, pool, {
+        signal: startupAbort.signal,
+        onProgress: (progress) => indexState.update(progress),
+      });
+      indexState.complete();
+      log.info(
+        { files: result.filesIndexed, symbols: result.symbolsFound },
+        'Initial indexing complete',
+      );
+    } catch (err) {
+      if (err instanceof IndexAbortedError) {
+        log.info('Initial indexing aborted by shutdown');
+        return;
+      }
+      indexState.fail(err);
+      log.error(err, 'Initial indexing failed — server keeps running with an incomplete index');
+    }
+
+    // Start file watcher (if enabled) once the initial index is in place
+    if (config.watchMode && !startupAbort.signal.aborted) {
+      try {
+        const startedWatcher = new FileWatcher({
+          projectRoot,
+          ignore: config.ignore,
+          store,
+          pool,
+          zvecStore,
+        });
+        watcher = startedWatcher;
+        await startedWatcher.start();
+        log.info('File watcher started');
+      } catch (err) {
+        log.error(err, 'Failed to start file watcher — the index will not follow file changes');
+      }
+    }
   }
+  let backgroundStartup: Promise<void> = Promise.resolve();
 
   // Start MCP server
   const server = new McpServer('hesman', '1.0.0');
@@ -140,7 +178,10 @@ async function main(): Promise<void> {
 
     log.info(`Received ${signal}, shutting down...`);
 
-    // 1. Stop accepting new work
+    // 1. Stop accepting new work. A running initial index stops at its next
+    //    step, so nothing writes to the stores after they close below.
+    startupAbort.abort();
+    await backgroundStartup;
     watcher?.stop();
     pool.pause();
 
@@ -178,7 +219,11 @@ async function main(): Promise<void> {
   process.stdin.once('end', () => shutdown('stdin closed (end)'));
   process.stdin.once('close', () => shutdown('stdin closed (close)'));
 
+  // Mark the index as in progress before the first request can arrive, so no
+  // client ever sees an empty index reported as complete.
+  indexState.begin(zvecStore ? 'loading-model' : 'scanning');
   await server.connect();
+  backgroundStartup = runBackgroundStartup();
 }
 
 main().catch((err) => {

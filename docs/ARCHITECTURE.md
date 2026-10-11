@@ -132,6 +132,7 @@ src/
 │
 ├── indexing/
 │   ├── index-coordinator.ts         # Index orchestration — scan, dispatch workers, update stores
+│   ├── index-state.ts               # Progress of the background initial index (read by tools)
 │   ├── project-scanner.ts           # File discovery with glob/exclusion filtering
 │   ├── worker-pool.ts               # Worker thread pool with dispatch/drain/terminate
 │   ├── worker.ts                    # Worker thread — parse + extract relations

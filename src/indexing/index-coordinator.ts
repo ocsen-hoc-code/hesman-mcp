@@ -12,6 +12,7 @@ import { extractRelations } from '../parsers/relation-extractor.js';
 import { profileFor } from '../parsers/languages.js';
 import { WorkerPool, WorkerTask } from './worker-pool.js';
 import { resolveCallRelations, type CallResolutionScope } from './call-resolver.js';
+import type { IndexProgress, IndexRunPhase } from './index-state.js';
 
 const log = createLogger('index-coordinator');
 
@@ -22,6 +23,35 @@ export interface IndexResult {
   errors: string[];
   tookMs: number;
 }
+
+export interface IndexOptions {
+  /** Called on every phase change and after each file is handled. */
+  onProgress?: (progress: IndexProgress) => void;
+  /** Aborting makes the run reject with `IndexAbortedError` at its next step. */
+  signal?: AbortSignal;
+}
+
+/** Thrown by `indexProject` when its `signal` aborts (e.g. server shutdown mid-index). */
+export class IndexAbortedError extends Error {
+  constructor() {
+    super('Indexing aborted');
+    this.name = 'IndexAbortedError';
+  }
+}
+
+/**
+ * Files per worker-pool dispatch. Results are stored after each chunk, so
+ * progress advances steadily and queries see partial results early instead of
+ * nothing until every file is parsed.
+ */
+const PARSE_CHUNK_SIZE = 64;
+
+/**
+ * Longest stretch of synchronous work before yielding to the event loop. The
+ * server indexes in the background, so MCP requests must get a turn while
+ * thousands of files are hashed and written.
+ */
+const YIELD_INTERVAL_MS = 20;
 
 /** Ids of the symbols currently stored for `filePath` (used to drop their vectors). */
 function symbolIdsOf(store: SqliteStore, filePath: string): string[] {
@@ -71,14 +101,64 @@ export async function indexProject(
   config: HesmanConfig,
   zvecStore?: ZVecStore,
   pool?: WorkerPool,
+  options: IndexOptions = {},
 ): Promise<IndexResult> {
   const startTime = Date.now();
   const errors: string[] = [];
+  const { onProgress, signal } = options;
+
+  let filesDone = 0;
+  let filesTotal = 0;
+  const report = (phase: IndexRunPhase): void => onProgress?.({ phase, filesDone, filesTotal });
+  const callScope: CallResolutionScope = { files: [], names: [] };
+  /**
+   * Links calls to their targets (callees may live in files indexed later in
+   * the batch, so this runs once every changed file is in the store).
+   */
+  const resolveStoredCalls = (): void => {
+    if (callScope.files.length === 0) return;
+    try {
+      resolveCallRelations(store, callScope);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({ error: message }, 'Failed to resolve call relations');
+      errors.push(`call resolution: ${message}`);
+    }
+  };
+  const throwIfAborted = (): void => {
+    if (!signal?.aborted) return;
+    // Files stored so far keep their hash and are skipped by the next run, so
+    // their calls must be linked now or they would stay unresolved.
+    resolveStoredCalls();
+    throw new IndexAbortedError();
+  };
+  let lastYield = Date.now();
+  /** Yields to the event loop when the time budget is used up, then honours an abort. */
+  const breathe = async (): Promise<void> => {
+    if (Date.now() - lastYield >= YIELD_INTERVAL_MS) {
+      await new Promise<void>((r) => setImmediate(r));
+      lastYield = Date.now();
+    }
+    throwIfAborted();
+  };
+  // Lets a pending worker-pool dispatch be abandoned as soon as the run is aborted.
+  const aborted = signal
+    ? new Promise<null>((resolveAborted) => {
+        if (signal.aborted) resolveAborted(null);
+        else signal.addEventListener('abort', () => resolveAborted(null), { once: true });
+      })
+    : undefined;
+
+  throwIfAborted();
+  report('scanning');
 
   resetOutdatedIndex(store, zvecStore);
 
   // Scan for files
   const files = scanProject(rootDir, config);
+  filesTotal = files.length;
+  report('indexing');
+  await breathe();
 
   // Pre-initialize parser for languages we'll encounter
   const languages = new Set(files.map((f) => f.language));
@@ -89,33 +169,48 @@ export async function indexProject(
 
   let filesIndexed = 0;
   let symbolsFound = 0;
-  const callScope: CallResolutionScope = { files: [], names: [] };
 
   // Use worker pool if available and files exist
   if (pool && files.length > 0) {
     // Filter to files that actually changed
     const tasks: WorkerTask[] = [];
-    const validFiles: typeof files = [];
+    /** A file needing no work (unsupported or unchanged) counts as done right away. */
+    const skip = (): void => {
+      filesDone++;
+      report('indexing');
+    };
 
     for (const file of files) {
+      await breathe();
       const profile = profileFor(file.language);
-      if (!profile) continue;
+      if (!profile) {
+        skip();
+        continue;
+      }
 
       const content = readFileSync(file.filePath, 'utf-8');
       const sha256 = createHash('sha256').update(content).digest('hex');
       const previousHash = store.getFileHash(file.filePath);
 
-      if (previousHash === sha256) continue;
+      if (previousHash === sha256) {
+        skip();
+        continue;
+      }
 
       tasks.push({ filePath: file.filePath, language: file.language });
-      validFiles.push(file);
     }
 
-    if (tasks.length > 0) {
-      const results = await pool.dispatch(tasks);
+    for (let start = 0; start < tasks.length; start += PARSE_CHUNK_SIZE) {
+      throwIfAborted();
+      const dispatched = pool.dispatch(tasks.slice(start, start + PARSE_CHUNK_SIZE));
+      // If the run is aborted the dispatch is abandoned; a late rejection must not go unhandled.
+      dispatched.catch(() => {});
+      const results = (aborted ? await Promise.race([dispatched, aborted]) : await dispatched) ?? [];
+      throwIfAborted();
 
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
+        await breathe();
 
         try {
           if (result.error) {
@@ -176,12 +271,16 @@ export async function indexProject(
           const message = err instanceof Error ? err.message : String(err);
           log.error({ file: result.filePath, error: message }, 'Failed to process file');
           errors.push(`${result.filePath}: ${message}`);
+        } finally {
+          filesDone++;
+          report('indexing');
         }
       }
     }
   } else {
     // Fallback: single-threaded path (Phase 3 behavior)
     for (const file of files) {
+      await breathe();
       try {
         const profile = profileFor(file.language);
         if (!profile) continue;
@@ -245,21 +344,17 @@ export async function indexProject(
         const message = err instanceof Error ? err.message : String(err);
         log.error({ file: file.filePath, error: message }, 'Failed to index file');
         errors.push(`${file.filePath}: ${message}`);
+      } finally {
+        filesDone++;
+        report('indexing');
       }
     }
   }
 
-  // Link calls to their targets now that every changed file is in the store
-  // (callees may live in files indexed later in the batch).
-  if (callScope.files.length > 0) {
-    try {
-      resolveCallRelations(store, callScope);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      log.error({ error: message }, 'Failed to resolve call relations');
-      errors.push(`call resolution: ${message}`);
-    }
-  }
+  throwIfAborted();
+  report('resolving');
+
+  resolveStoredCalls();
 
   const tookMs = Date.now() - startTime;
   log.info(
