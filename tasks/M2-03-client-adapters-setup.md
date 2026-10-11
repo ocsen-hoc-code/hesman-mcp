@@ -58,6 +58,7 @@ node dist/index.js setup --dry-run --all
 
 ## Progress notes
 
+- 2026-10-11: merged into `rebuild/m1-m2` (commit `ddb4efd`); after the merge `npm test` passes 82 files / 883 tests + 1 skipped, and `node dist/index.js setup --dry-run --all` (real binary, real home, read-only) lists all 8 clients.
 - 2026-10-11: done; closed by the commit that carries this note (`feat(cli): hesman setup / remove with adapters for 8 clients (M2-03)`).
   - **Code**: `src/cli/clients/` — `types.ts` (`ClientAdapter`: `detect()`, `configPath(scope)`, `read(scope)`, `write(entry, { scope, dryRun, projectRoot })`, `remove({ scope, dryRun })`; `ClientEnvironment` injects home, cwd, platform, env, `findOnPath`, `run`), `entry.ts` (`serverEntry()` — the one place that decides the launch command), `adapter.ts` (shared flow: compare → client CLI if on PATH → file through `writeConfigAtomically`), `json-codec.ts`, `toml-codec.ts` (text-block editor for `[mcp_servers.hesman]`, no TOML dependency), one file per client, `setup.ts` (`runSetup`, `runRemove`, `runInstall`). `src/cli/install.ts` is removed.
   - **Undo**: `remove` puts `<config>.hesman.bak` back when backup + the Hesman entry equals the file on disk (byte-identical for any original formatting), deletes a file that holds nothing but the Hesman entry (Hesman created it), and otherwise removes only the entry.

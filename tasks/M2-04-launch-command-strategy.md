@@ -1,10 +1,10 @@
 ---
 id: M2-04
 title: Launch command that works in GUI apps and survives Node upgrades
-status: todo
+status: pending
 priority: P1
 depends_on: [M2-03]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -35,4 +35,5 @@ Manual checks above, recorded in *Progress notes*; `npm test` for the unit tests
 
 ## Progress notes
 
+- 2026-10-11: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.
