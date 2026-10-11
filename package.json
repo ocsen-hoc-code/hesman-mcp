@@ -41,6 +41,8 @@
     "test:perf": "vitest bench --run",
     "test:perf:ci": "vitest bench --run",
     "test:e2e": "vitest run tests/e2e/ --reporter=verbose --testTimeout=120000",
+    "pretest:conformance": "npm run build",
+    "test:conformance": "vitest run tests/conformance/ tests/integration/language-conformance.test.ts",
     "prepublishOnly": "npm test && npm run typecheck && npm run lint && npm run build",
     "lint": "eslint src/ tests/",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts'",

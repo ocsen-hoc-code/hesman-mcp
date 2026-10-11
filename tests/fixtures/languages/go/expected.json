@@ -1,0 +1,33 @@
+{
+  "files": {
+    "inventory.go": {
+      "symbolCount": { "min": 19, "max": 19 },
+      "symbols": [
+        { "name": "MaxItems", "kind": "constant", "line": 10, "isExported": true, "doc": "MaxItems is the largest count an item may have." },
+        { "name": "minItems", "kind": "constant", "line": 12, "isExported": false },
+        { "name": "defaultName", "kind": "constant", "line": 12, "isExported": false },
+        { "name": "StatusActive", "kind": "constant", "line": 16, "isExported": true },
+        { "name": "statusRetired", "kind": "constant", "line": 17, "isExported": false },
+        { "name": "registry", "kind": "variable", "line": 20, "isExported": false },
+        { "name": "hits", "kind": "variable", "line": 22, "isExported": false },
+        { "name": "misses", "kind": "variable", "line": 22, "isExported": false },
+        { "name": "Item", "kind": "type", "line": 25, "isExported": true, "doc": "Item is one stock item." },
+        { "name": "Stocker", "kind": "type", "line": 31, "isExported": true, "doc": "Stocker is anything that can be restocked." },
+        { "name": "itemKey", "kind": "type", "line": 35, "isExported": false },
+        { "name": "NewItem", "kind": "function", "line": 38, "isExported": true, "doc": "NewItem creates an item with a normalized name." },
+        { "name": "Restock", "kind": "method", "line": 45, "isExported": true, "doc": "Restock adds stock to the item, capped at MaxItems." },
+        { "name": "label", "kind": "method", "line": 50, "isExported": false },
+        { "name": "normalize", "kind": "function", "line": 55, "isExported": false, "doc": "normalize trims and lower-cases a name." },
+        { "name": "clamp", "kind": "function", "line": 64, "isExported": false, "doc": "clamp keeps a count inside the allowed range." },
+        { "name": "step", "kind": "constant", "line": 65, "isExported": false },
+        { "name": "bounds", "kind": "type", "line": 66, "isExported": false },
+        { "name": "Lookup", "kind": "function", "line": 82, "isExported": true, "doc": "Lookup returns a registered item, or a retired placeholder." }
+      ],
+      "calls": [
+        { "from": "NewItem", "to": "normalize" },
+        { "from": "Restock", "to": "clamp" },
+        { "from": "Lookup", "to": "normalize" }
+      ]
+    }
+  }
+}
