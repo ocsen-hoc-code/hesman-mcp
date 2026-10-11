@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 3/7 done** · **M2: 4/7 done**
+Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 3/7 done** · **M2: 5/7 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -57,7 +57,7 @@ Goal: `npx -y hesman-mcp setup` configures every detected agent (Claude Code, Cl
 | M2-02 | [Detect the project automatically (roots → cwd)](M2-02-project-root-detection.md) | Server | P0 | M0-12 | done |
 | M2-03 | [Client adapters + `hesman setup` / `remove`](M2-03-client-adapters-setup.md) | CLI | P0 | M0-11, M2-02 | done |
 | M2-04 | [Launch command that works in GUI apps and across Node upgrades](M2-04-launch-command-strategy.md) | CLI | P1 | M2-03 | pending |
-| M2-05 | [`hesman doctor` end-to-end diagnostics](M2-05-doctor-command.md) | CLI | P1 | M2-03, M2-04 | pending |
+| M2-05 | [`hesman doctor` end-to-end diagnostics](M2-05-doctor-command.md) | CLI | P1 | M2-03, M2-04 | done |
 | M2-06 | [One-click install links and ecosystem installers](M2-06-one-click-install.md) | Distribution | P2 | M2-04 | todo |
 | M2-07 | [Opt-in agent usage rules](M2-07-agent-usage-rules.md) | Adoption | P2 | M2-03 | done |
 
@@ -96,5 +96,6 @@ M2-04 is code-complete and merged but stays `pending`: two acceptance checks are
 - **Symbol-extraction follow-ups from M1-02 (owner decisions pending):** (1) function-valued constants (`const f = () => …`) are now kind `function`, not `variable`, so their ids changed and calls inside them are attributed to them; (2) functions assigned to object keys or properties (`{ onClick: () => … }`, `module.exports.h = …`) are new callable symbols, and the call resolver's whole-project tier can link an unrelated call to one whose name is unique — consider excluding property-assigned functions from that tier; (3) local variables inside function bodies are still indexed as symbols (they are already excluded from the semantic index); (4) `docs/ARCHITECTURE.md` still describes hand-written profiles; (5) not verified on Node 20.
 - **Test stability under load:** `FileWatcher symlink safety` timed out once (5.5 s) while other test runs shared the machine; the legacy e2e files used a fixed 3 s sleep (fixed in `05215e7`). Re-check watcher tests for timing assumptions.
 - **Agent-rules follow-ups from M2-07:** the effect of the guidance block on real agent tool usage was **not measured** (needs the answer-quality eval or a manual before/after run); `hesman setup --rules` leaves `<file>.hesman.bak` backups (e.g. `CLAUDE.md.hesman.bak`) inside the repository, where they can be committed by accident — skip backups for instruction files or document a `.gitignore` entry; VS Code's Local agent only reads `.github/copilot-instructions.md` when `github.copilot.chat.codeGeneration.useInstructionFiles` is enabled, which setup does not mention; `hesman remove` only cleans the current project; per-client instruction-file facts came from doc summaries and were not tested against real clients.
+- **Doctor follow-ups from M2-05:** project-scope config files, the `env` block of an entry and the PATH a desktop app really gets are not checked; `--client` parsing and aliases are duplicated from `setup.ts` (export `parseOptions` and share it); the registry check for `npx` entries has no offline flag (unreachable is only a warning).
 - **Zod validation** for every tool input (replace `as` casts).
 - Evaluate replacing ZVec with an in-SQLite vector store to drop one store.

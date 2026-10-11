@@ -40,6 +40,7 @@ node dist/index.js doctor
 
 ## Progress notes
 
+- 2026-10-11: merged into `rebuild/m1-m2` (commit `62245d8`). The main checkout now has `web-tree-sitter` 0.25.10 installed; `npm test` passes 99 files / 1206 tests + 1 skipped. The setup note for Antigravity/Windsurf now points at `hesman doctor` instead of calling it planned.
 - 2026-10-11: done; closed by the commit that carries this note (`feat(cli): hesman doctor (M2-05)`).
   - **Code**: `src/cli/doctor/` — `doctor.ts` (`runDoctor(args, io, machine)`: options, the checks, text and JSON output), `types.ts` (`DoctorEnvironment`, `ProbeRequest`/`ProbeResult`, `DoctorReport`), `probe.ts` (real process: `initialize` without the `roots` capability, one `index_status` call, the "Opening project" stderr line), `environment.ts` (real machine). Wired in `src/cli/commands.ts` and `src/index.ts`. No adapter was changed: "config parses / entry present" comes from `client.remove({ dryRun: true })`, "entry is current" from `client.write(launchFor(client, 'auto', env).entry, { dryRun: true })`.
   - **Checks per client** (`config`, `entry`, `command`, `handshake`, `stdout`, `project`) and for the installation (`entry-script`, `node`, `parsers`); statuses, fixes and the `--json` shape are in `docs/CLI.md`.
