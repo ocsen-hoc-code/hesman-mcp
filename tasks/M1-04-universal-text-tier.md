@@ -39,6 +39,7 @@ npm test && npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-11: merged into `rebuild/m1-m2` (commit `56f332d`); `src/index.ts` now passes `maxFileSizeBytes` and `languages` to the `FileWatcher`. After the merge `npm test` passes 89 files / 959 tests + 1 skipped.
 - 2026-10-11: done on branch `worktree-agent-a9918d8ff2787d515` (commit recorded by the coordinator when it is merged into `rebuild/m1-m2`). Decisions:
   - **Inclusion rule** (`src/indexing/text-file-filter.ts`, documented in `docs/TOOLS.md` "Text tier"): a file without a grammar is indexed unless it is a secret (`.env*`, keys), a lockfile, a non-source extension (images, archives, compiled, office), generated (`*.map`, `*.min.*`, ...), bulk data (`.csv`, `.log`, ...), empty, over 256 KB, binary (NUL in the first 8 KB) or minified (a line over 2,000 characters in the first 8 KB). Scanner rules (ignore files, dot and always-ignored directories, symlinks, `maxFileSizeBytes`) apply first.
   - **Labels**: `src/parsers/text-languages.ts`, hand-written, names aligned with GitHub Linguist (MIT, attribution in the file header); unknown -> `text`.

@@ -197,6 +197,8 @@ async function main(): Promise<void> {
           store: opened.store,
           pool,
           zvecStore: opened.zvecStore,
+          maxFileSizeBytes: config.maxFileSizeBytes,
+          languages: config.languages,
         });
         opened.watcher = startedWatcher;
         await startedWatcher.start();
