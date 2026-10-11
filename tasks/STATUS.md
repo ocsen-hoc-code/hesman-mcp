@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 1/7 done** · **M2: 2/7 done**
+Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 2/7 done** · **M2: 3/7 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -40,7 +40,7 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 | M1-01 | [Choose grammar source and distribution (spike + ADR)](M1-01-grammar-source-adr.md) | Research | P0 | M0-12 | done |
 | M1-02 | [Generic symbol extraction driven by tags.scm](M1-02-tags-query-engine.md) | Parsing | P0 | M1-01 | pending |
 | M1-03 | [Language conformance test suite](M1-03-language-conformance-suite.md) | Test | P0 | M1-02 | todo |
-| M1-04 | [Universal text tier for files without a grammar](M1-04-universal-text-tier.md) | Indexing | P1 | M1-03 | pending |
+| M1-04 | [Universal text tier for files without a grammar](M1-04-universal-text-tier.md) | Indexing | P1 | M1-03 | done |
 | M1-05 | [Grammar delivery: bundled core + verified download](M1-05-grammar-delivery.md) | Distribution | P1 | M1-01, M0-10 | todo |
 | M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | todo |
 | M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | todo |
@@ -55,13 +55,15 @@ Goal: `npx -y hesman-mcp setup` configures every detected agent (Claude Code, Cl
 |---|---|---|---|---|---|
 | M2-01 | [Non-blocking startup: answer MCP first, index in background](M2-01-non-blocking-startup.md) | Server | P0 | M0-12 | done |
 | M2-02 | [Detect the project automatically (roots → cwd)](M2-02-project-root-detection.md) | Server | P0 | M0-12 | done |
-| M2-03 | [Client adapters + `hesman setup` / `remove`](M2-03-client-adapters-setup.md) | CLI | P0 | M0-11, M2-02 | pending |
-| M2-04 | [Launch command that works in GUI apps and across Node upgrades](M2-04-launch-command-strategy.md) | CLI | P1 | M2-03 | todo |
-| M2-05 | [`hesman doctor` end-to-end diagnostics](M2-05-doctor-command.md) | CLI | P1 | M2-03, M2-04 | todo |
+| M2-03 | [Client adapters + `hesman setup` / `remove`](M2-03-client-adapters-setup.md) | CLI | P0 | M0-11, M2-02 | done |
+| M2-04 | [Launch command that works in GUI apps and across Node upgrades](M2-04-launch-command-strategy.md) | CLI | P1 | M2-03 | pending |
+| M2-05 | [`hesman doctor` end-to-end diagnostics](M2-05-doctor-command.md) | CLI | P1 | M2-03, M2-04 | pending |
 | M2-06 | [One-click install links and ecosystem installers](M2-06-one-click-install.md) | Distribution | P2 | M2-04 | todo |
-| M2-07 | [Opt-in agent usage rules](M2-07-agent-usage-rules.md) | Adoption | P2 | M2-03 | todo |
+| M2-07 | [Opt-in agent usage rules](M2-07-agent-usage-rules.md) | Adoption | P2 | M2-03 | pending |
 
 Recommended order: (01, 02 in parallel) → 03 → 04 → (05, 06, 07 in parallel).
+
+M2-04 is code-complete and merged but stays `pending`: two acceptance checks are manual (Claude Desktop under nvm; an `npx` entry surviving a Node major switch) and the `npx` path cannot be exercised until `hesman-mcp` is published on npm (not published as of 2026-10-11 — the owner decides when). M2-06 (one-click install links) is on hold for the same reason: a static link can only carry the `npx` entry.
 
 ## Backlog after M0 (not specified, not scheduled)
 
@@ -89,5 +91,7 @@ Recommended order: (01, 02 in parallel) → 03 → 04 → (05, 06, 07 in paralle
 - **i18n READMEs:** their prose still describes `_summary` as current behavior (numbers were corrected in M0-12); needs a translator.
 - **Startup follow-ups from M2-01:** (1) the final call-linking pass `resolveCallRelations` is one synchronous block (791 ms for 30,000 calls on a 6,000-file fixture) and `scanProject` is synchronous too, so requests wait during them — resolve per chunk (needs an index on `relations(file_path)`); (2) in semantic mode indexing waits for the embedding model, so on a first-run download structural tools see an empty index until the download ends — decouple with a second embedding pass.
 - **Project-root follow-ups from M2-02:** (1) `hesman.config.json` is looked up from the working directory, not from a root learned through MCP roots, so a project's config is not applied when the server starts elsewhere — the main gap for a truly global entry; (2) an absolute `dataDir` is shared by every project one process serves; (3) a tool call running while the root changes can fail with `INTERNAL_ERROR` because its store closes under it; (4) after a `roots/list` timeout, roots are not asked again until the client sends `list_changed`; (5) `CLAUDE_PROJECT_DIR` (set by Claude Code) could be a cheap extra fallback; (6) `docs/ARCHITECTURE.md` and the i18n READMEs do not describe the new startup and project selection yet.
+- **Client-setup follow-ups from M2-03:** config files with comments or trailing commas (JSONC — possible for VS Code `mcp.json` and Gemini `settings.json`) are refused instead of edited; the Codex TOML editor refuses inline-table/dotted-key forms; VS Code Insiders, VSCodium and non-default profiles are not handled; all Windows behavior is tested only as path logic on macOS; nothing was tested against real Cursor, Antigravity, Windsurf, Codex or Gemini CLI installations; `docs/i18n/README.*.md` and `docs/SECURITY.md` still mention `hesman install`.
+- **Text-tier follow-ups from M1-04:** indexing this repository takes 46–61% longer with the text tier (17–19 s → 28 s; +60 files, +343 chunks, data dir +17%), almost all of it Markdown (49 files / 330 chunks) — consider a config switch or a cheaper default for prose; no SQLite FTS table exists for chunk text (ZVec holds it); `indexProject` still does not remove files deleted while the server was down (only the watcher's unlink does); README and `docs/ARCHITECTURE.md` do not describe the text tier yet; text labels (`javascript`, `cpp`, `csharp`, `shell`) must be reconciled with registry ids when M1-05 adds grammars.
 - **Zod validation** for every tool input (replace `as` casts).
 - Evaluate replacing ZVec with an in-SQLite vector store to drop one store.

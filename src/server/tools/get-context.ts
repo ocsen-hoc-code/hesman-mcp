@@ -7,6 +7,7 @@ import { compressToolResponse, estimateTokens } from '../response-compressor.js'
 import { intArg, withArgValidation } from '../args.js';
 import { ProjectPathError, projectPathErrorResult, resolveProjectPath } from '../paths.js';
 import { languageForPath } from '../../parsers/languages.js';
+import { textLanguageForPath } from '../../parsers/text-languages.js';
 
 const MAX_LINE = 10_000_000;
 const MAX_CONTEXT_LINES = 200;
@@ -82,8 +83,9 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore, co
       // Symbol lookup is best-effort
     }
 
-    // Detect language
-    const language = languageForPath(filePath) ?? 'unknown';
+    // Detect language: a parsed language, or the text-tier label of a file without a grammar.
+    const parsedLanguage = languageForPath(filePath);
+    const language = parsedLanguage ?? textLanguageForPath(filePath);
 
     const result = {
       filePath,
@@ -93,6 +95,8 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore, co
       language,
       totalLines,
       symbolsInRange,
+      // No grammar: the file has no symbols, so `symbolsInRange` is always empty for it.
+      ...(parsedLanguage ? {} : { precision: 'text' }),
     };
     const compressed = compressToolResponse('get_context', result, {
       store,

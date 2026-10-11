@@ -46,7 +46,7 @@ describe('profiles on the tags engine', () => {
   });
 
   it('rebuilds indexes written by the hand-written profiles (the symbol set changed)', () => {
-    expect(INDEX_SCHEMA_VERSION).toBeGreaterThanOrEqual(3);
+    expect(INDEX_SCHEMA_VERSION).toBeGreaterThanOrEqual(4);
   });
 
   describe('TypeScript', () => {

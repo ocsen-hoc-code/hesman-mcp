@@ -197,7 +197,7 @@ Retrieve focused code context around a location with compact mode and symbol det
 get_context({ filePath: "src/index.ts", startLine: 42, contextLines: 3, mode: "compact" })
 ```
 
-**Output:** `filePath`, `startLine`, `endLine`, `content` (compacted code), `language`, `totalLines`, `symbolsInRange` (symbols overlapping the context window).
+**Output:** `filePath`, `startLine`, `endLine`, `content` (compacted code), `language`, `totalLines`, `symbolsInRange` (symbols overlapping the context window). For a file without a grammar, `language` is its text-tier label (`sql`, `shell`, ..., `text`) and the response carries `precision: "text"` — see [Text tier](#text-tier-files-without-a-grammar).
 
 **Error Codes:**
 - `FILE_NOT_FOUND` — file does not exist
@@ -218,8 +218,8 @@ Search code by natural language description using AI embeddings (all-MiniLM-L6-v
     "query": { "type": "string", "description": "Natural language query to search for" },
     "topK": { "type": "number", "description": "Max results (default 10, max 50)" },
     "filePattern": { "type": "string", "description": "Glob filter, e.g. \"src/**/*.ts\"" },
-    "language": { "type": "string", "description": "Filter by language: typescript, python, ..." },
-    "kind": { "type": "string", "description": "Filter by symbol kind: function, class, method, ..." },
+    "language": { "type": "string", "description": "Filter by language: typescript, python, go (symbols), or a text-tier label such as sql, shell, ruby, text (text chunks)" },
+    "kind": { "type": "string", "description": "Filter by symbol kind: function, class, method, ...; \"text\" selects chunks of files without a grammar" },
     "minScore": { "type": "number", "description": "Minimum score threshold (0-1, default 0.0). Relevant matches typically score 0.3-0.6; thresholds above 0.5 often return nothing." }
   },
   "required": ["query"]
@@ -231,7 +231,30 @@ Search code by natural language description using AI embeddings (all-MiniLM-L6-v
 semantic_search({ query: "function that validates email addresses", language: "typescript", topK: 5 })
 ```
 
-**Output:** `results` array with `symbolId`, `name`, `kind`, `filePath`, `snippet` (compacted), `score`, `matchType` (`semantic` / `keyword` / `both`), plus `totalFound`, `tookMs`, `embeddingTookMs`.
+**Output:** `results` array with `symbolId`, `name`, `kind`, `filePath`, `startLine`, `endLine`, `signature`, `snippet` (compacted), `score`, `matchType` (`semantic` / `keyword` / `both`), plus `totalFound`, `tookMs`, `embeddingTookMs`.
+
+**Text-tier results.** Chunks of files without a grammar are ranked in the same list as symbols. Such a result is marked and shaped as follows; symbol results are unchanged and carry no `precision` field:
+
+```json
+{
+  "symbolId": "3f1c9a0b7d2e4a55",
+  "name": "schema.sql",
+  "kind": "text",
+  "filePath": "/abs/project/db/schema.sql",
+  "startLine": 1,
+  "endLine": 16,
+  "signature": null,
+  "snippet": "-- Customer accounts ...",
+  "score": 0.41,
+  "matchType": "semantic",
+  "language": "sql",
+  "precision": "text"
+}
+```
+
+- `symbolId` is a chunk id (stable while the file is unchanged), not a symbol: symbol tools do not know it.
+- `name` is the file name; `startLine` / `endLine` are the chunk's 1-based inclusive lines; `snippet` is the chunk verbatim (not compacted).
+- Scoring: a symbol's score is `0.7 x similarity + 0.3 x (query words found in the symbol name)`. A text chunk has no name to match, so it scores `0.7 x similarity` and, on equal similarity, ranks below a symbol whose name matches the query.
 
 **Error Codes:**
 - `INVALID_INPUT` — empty query or disabled in config
@@ -341,7 +364,7 @@ Search code by structural pattern with named captures.
       "type": "string",
       "description": "Structural pattern like console.$METHOD($$$ARGS). Use $NAME for word capture, $$$ARGS for greedy capture."
     },
-    "language": { "type": "string", "description": "Language to search in (e.g. \"typescript\")" },
+    "language": { "type": "string", "description": "Language to search in: a parsed language (e.g. \"typescript\") or a text-tier label (e.g. \"sql\", \"shell\", \"text\")" },
     "filePattern": { "type": "string", "description": "Glob filter to restrict which files to search" },
     "topK": { "type": "number", "description": "Max results (default 20, max 100)" }
   },
@@ -361,7 +384,7 @@ find_pattern({ pattern: "console.$METHOD($$$ARGS)", language: "typescript" })
 ```
 This finds all `console.log(...)`, `console.error(...)`, etc. calls.
 
-**Output:** `matches` array with `filePath`, `line`, `snippet` (context: 2 lines above/below), `bindings` (captured `$NAME` / `$$$ARGS` values).
+**Output:** `matches` array with `filePath`, `line`, `snippet` (context: 2 lines above/below), `bindings` (captured `$NAME` / `$$$ARGS` values). When `language` is a text-tier label (a language without a grammar) the response also has a top-level `precision: "text"`; the same limits apply (pattern limits, worker thread, 3 s budget, long lines skipped). Files the text tier does not index (binaries, lockfiles, minified files, ...) are not searched.
 
 **Error Codes:**
 - `INVALID_INPUT` — missing pattern, language, or invalid pattern syntax
@@ -408,9 +431,19 @@ Check the indexing status of the project.
   "languages": [
     { "language": "typescript", "files": 30, "symbols": 240 },
     { "language": "go", "files": 12, "symbols": 75 }
-  ]
+  ],
+  "textTier": {
+    "files": 9,
+    "chunks": 31,
+    "languages": [
+      { "language": "markdown", "files": 6, "chunks": 27 },
+      { "language": "sql", "files": 3, "chunks": 4 }
+    ]
+  }
 }
 ```
+
+`textTier` counts the files without a grammar that are indexed as text (see [Text tier](#text-tier-files-without-a-grammar)): `files`, `chunks`, and the same per label. These files are not part of `totalFiles`, `totalSymbols` or `languages`, which describe symbols only; they are part of `indexing.filesDone` / `filesTotal`. With semantic search on, `health.zvecDocCount` is the number of embedded symbols plus `textTier.chunks`.
 
 `languages` lists every indexed language with the number of files and symbols stored for it in SQLite, most files first. `totalFiles` and the per-language `files` count files that produced at least one symbol. `index_status` is not compressed and carries no `_meta` block.
 
@@ -425,6 +458,41 @@ Check the indexing status of the project.
 `health.embeddingModelError` holds the reason the embedding model failed to load (`null` otherwise). Until the model is loaded, `semantic_search` returns `INDEX_NOT_READY` — "still loading" during `loading-model`, or the load failure — and every other tool keeps working.
 
 While the index is being built, `totalFiles`, `totalSymbols`, `totalRelations` and `languages` count what is stored so far.
+
+---
+
+## Text tier (files without a grammar)
+
+A file whose language has no grammar in the registry (`.sql`, `.sh`, `.rb`, `.zig`, `Dockerfile`, `Makefile`, Markdown, YAML, an unknown extension, ...) is indexed as **text**: it is split into blank-line-separated blocks packed into chunks of at most 30 lines, each with a 1-based inclusive line range. No symbols or relations are invented for it, so `find_symbol`, `get_file_structure`, `get_references`, `get_callers`, `get_callees`, `list_dependencies` and `impact_analysis` never return anything from such a file.
+
+What works on a text-tier file:
+
+| Tool | Behavior | Marker |
+|------|----------|--------|
+| `semantic_search` | chunks are ranked together with symbols | each chunk result has `kind: "text"`, `precision: "text"` and `language` |
+| `find_pattern` | `language` accepts the file's label | the response has a top-level `precision: "text"` |
+| `get_context` | returns the requested lines | the response has `precision: "text"`; `symbolsInRange` is always empty |
+
+`precision: "text"` means "a line range of a file, not a symbol": do not pass the `symbolId` of such a result to a symbol tool; read the lines with `get_context` instead. Results that come from a parsed language carry **no** `precision` field.
+
+**Language labels.** A text-tier file gets a label from its name or extension — e.g. `sql`, `shell`, `ruby`, `rust`, `java`, `cpp`, `zig`, `cobol`, `dockerfile`, `makefile`, `markdown`, `yaml`, `json`, `toml` — and `text` when nothing matches. The table is in `src/parsers/text-languages.ts` (about 190 labels). A label is only a name to filter by; it implies no parser.
+
+**Which files are indexed as text.** Everything the scanner lists (not ignored by `.gitignore` / `ignore`, not in an always-ignored or dot directory, not a symlink, at most `maxFileSizeBytes`) and that has no grammar, except:
+
+| Skipped | Rule |
+|---------|------|
+| secrets | `.env*`, private keys and certificates (`.pem`, `.key`, `.p12`, ...), `*.tfvars`, `*.tfstate`, `id_rsa` and similar |
+| lockfiles | by name: `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `Cargo.lock`, `go.sum`, `poetry.lock`, ... |
+| non-source files | images (including `.svg`), fonts, audio/video, archives, compiled objects, databases, office documents — by extension |
+| generated files | `*.map`, `*.min.*`, `*.bundle.*`, `*.generated.*`, `*.pb.*`, `*.snap`, `*.lock`, ... |
+| bulk data | `.csv`, `.tsv`, `.jsonl`, `.ndjson`, `.log`, `.ipynb`, ... |
+| empty or large files | 0 bytes, or more than 256 KB |
+| binary files | a NUL byte in the first 8 KB (this also excludes UTF-16 text) |
+| minified content | a line longer than 2,000 characters in the first 8 KB |
+
+At most 300 chunks (9,000 lines) of one file are embedded; `find_pattern` and `get_context` always read the whole file. With `languages` set in the config, only the listed parsed languages and text labels are indexed (`["typescript"]` disables the text tier; `["*"]`, the default, indexes everything).
+
+**Without semantic search** (`--no-semantic`): text files are still recorded and counted, and `find_pattern` and `get_context` work on them; only `semantic_search` is unavailable, as for symbols.
 
 ---
 
