@@ -44,6 +44,8 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore, co
 
     const source = readFileSync(filePath, 'utf-8');
     const lines = source.split('\n');
+    // A trailing newline terminates the last line; it does not start another one.
+    if (lines[lines.length - 1] === '') lines.pop();
     const totalLines = lines.length;
 
     // Capture full-file token count as pipeline baseline (before pruning)

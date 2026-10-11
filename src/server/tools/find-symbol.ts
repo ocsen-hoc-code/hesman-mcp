@@ -29,6 +29,7 @@ const inputSchema = {
 
 export function registerFindSymbolTool(server: McpServer, store: SqliteStore, config: HesmanConfig): void {
   const handler: ToolHandler = async (args) => {
+    const start = performance.now();
     const name = args.name as string;
     const kind = args.kind as string | undefined;
     const rawPath = args.filePath;
@@ -63,7 +64,8 @@ export function registerFindSymbolTool(server: McpServer, store: SqliteStore, co
       language: s.language,
     }));
 
-    const compressed = compressToolResponse('find_symbol', { symbols, tookMs: 0 }, { store });
+    const tookMs = Math.round((performance.now() - start) * 100) / 100;
+    const compressed = compressToolResponse('find_symbol', { symbols, tookMs }, { store });
     return {
       content: [
         {

@@ -46,7 +46,8 @@ const inputSchema = {
 
 const DESCRIPTION =
   'Search code by structural pattern with named captures ($NAME for word tokens, $$$ARGS for greedy capture). ' +
-  `Returned line numbers are 1-based. Patterns are limited to ${MAX_PATTERN_LENGTH} characters, ` +
+  'Returned line numbers are 1-based; `line` is where the match starts, while `snippet` also includes up to 2 lines of context above and below it. ' +
+  `Patterns are limited to ${MAX_PATTERN_LENGTH} characters, ` +
   `${MAX_PLACEHOLDERS} placeholders and ${MAX_GREEDY_PLACEHOLDERS} $$$ placeholders. ` +
   `Lines longer than ${MAX_LINE_LENGTH} characters are skipped and each search has a ${MATCH_TIME_BUDGET_MS}ms budget; ` +
   'incomplete results are flagged with truncated: true and a truncatedReason.';

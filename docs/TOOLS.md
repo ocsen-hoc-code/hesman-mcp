@@ -216,7 +216,7 @@ Search code by natural language description using AI embeddings (all-MiniLM-L6-v
     "filePattern": { "type": "string", "description": "Glob filter, e.g. \"src/**/*.ts\"" },
     "language": { "type": "string", "description": "Filter by language: typescript, python, ..." },
     "kind": { "type": "string", "description": "Filter by symbol kind: function, class, method, ..." },
-    "minScore": { "type": "number", "description": "Minimum score threshold (0-1, default 0.0)" }
+    "minScore": { "type": "number", "description": "Minimum score threshold (0-1, default 0.0). Relevant matches typically score 0.3-0.6; thresholds above 0.5 often return nothing." }
   },
   "required": ["query"]
 }

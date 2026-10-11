@@ -16,6 +16,7 @@ const inputSchema = {
 
 export function registerGetFileStructureTool(server: McpServer, store: SqliteStore, config: HesmanConfig): void {
   const handler: ToolHandler = async (args) => {
+    const start = performance.now();
     const rawPath = args.filePath;
     const includeNested = args.includeNested !== false;
 
@@ -84,7 +85,7 @@ export function registerGetFileStructureTool(server: McpServer, store: SqliteSto
       language,
       symbols,
       totalSymbols: allSymbols.length,
-      tookMs: 0,
+      tookMs: Math.round((performance.now() - start) * 100) / 100,
     }, { store });
     return {
       content: [

@@ -17,7 +17,7 @@ const inputSchema = {
     filePattern: { type: 'string', description: 'Glob filter, e.g. "src/**/*.ts"' },
     language: { type: 'string', enum: [...LANGUAGE_IDS], description: 'Filter by language' },
     kind: { type: 'string', enum: [...SYMBOL_KINDS], description: 'Filter by symbol kind' },
-    minScore: { type: 'number', minimum: 0, maximum: 1, description: 'Minimum score threshold (0-1, default 0.0)' },
+    minScore: { type: 'number', minimum: 0, maximum: 1, description: 'Minimum score threshold (0-1, default 0.0). Scores are similarities, not probabilities: relevant matches typically score 0.3-0.6, so thresholds above 0.5 often return nothing. Prefer ranking by order.' },
   },
   required: ['query'],
 };

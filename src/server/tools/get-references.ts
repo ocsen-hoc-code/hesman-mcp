@@ -18,6 +18,7 @@ const inputSchema = {
 
 export function registerGetReferencesTool(server: McpServer, store: SqliteStore): void {
   const handler: ToolHandler = async (args) => {
+    const start = performance.now();
     const symbolId = args.symbolId as string;
     const referenceKind = args.referenceKind as string | undefined;
     const topK = intArg(args, 'topK', { default: 50, min: 1, max: 200 });
@@ -42,7 +43,8 @@ export function registerGetReferencesTool(server: McpServer, store: SqliteStore)
       callerName: r.callerName,
     }));
 
-    const compressed = compressToolResponse('get_references', { references, totalCount, hasMore, nextCursor, tookMs: 0 }, { store });
+    const tookMs = Math.round((performance.now() - start) * 100) / 100;
+    const compressed = compressToolResponse('get_references', { references, totalCount, hasMore, nextCursor, tookMs }, { store });
     return { content: [{ type: 'text', text: JSON.stringify(compressed) }] };
   };
 
