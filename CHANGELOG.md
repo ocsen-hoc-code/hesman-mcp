@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- **`hesman setup`:** one command adds Hesman to Claude Code, Claude Desktop, OpenAI Codex CLI, Cursor, Google Antigravity, VS Code (Copilot), Gemini CLI and Windsurf. It detects the installed clients and shows a checklist; `--client <name…>`, `--all`, `--yes`, `--dry-run` (prints the exact change, writes nothing), `--scope user|project` and `--project-root <path>` cover scripted use. It uses `claude mcp add` / `codex mcp add` when those CLIs are on PATH and edits the config file otherwise; Codex `config.toml` is edited in place without touching comments or other tables. Without a terminal and without a choice it prints what it found and exits instead of waiting for input.
+- **`hesman remove`:** takes the Hesman entry out again and restores the config file byte for byte when nothing else changed since setup.
+
+### Deprecated
+
+- **`hesman install --agent <name>`** is now an alias of `hesman setup --client <name> --yes` and will be removed in the next minor version. `--global` never had an effect and is ignored.
+
 ### Changed
 
 - **Project detection:** the server no longer needs a project path in its MCP entry, so one global entry works in every workspace. The project is chosen from, in order: an explicit root (`--project-root`, `HESMAN_PROJECT_ROOT`, `projectRoot` in the config file); the first workspace folder the client reports through MCP `roots` (re-resolved on `notifications/roots/list_changed`; other folders are logged); the nearest directory at or above the working directory that holds a VCS directory or a project manifest. Otherwise the server starts without a project and every tool returns the new `NO_PROJECT` error explaining how to set one. **Behavior change:** a working directory that is not inside a project is no longer indexed, and the home directory or its parents are never picked automatically. The `--project-root` flag, documented but previously ignored by the server, now works.
@@ -9,6 +18,8 @@
 
 ### Fixed
 
+- **VS Code config:** `hesman install --agent vscode` wrote an `mcpServers` object into `.vscode/mcp.json`, which VS Code ignores. The entry is now written under `servers` with `"type": "stdio"`.
+- **Generated client entries no longer pin a working directory:** the `cwd` field is gone (and removed from an existing Hesman entry on the next setup), so one user-level entry serves every project.
 - **MCP stream corruption:** logs were written to stdout, the JSON-RPC channel. All logs now go to stderr through one shared logger (at most one transport thread).
 - **Python and Go were never indexed by the server:** the worker thread only knew TypeScript, so the real server indexed 0 Python/Go files, and the file watcher ignored `.py`/`.go` edits. Languages now come from a single registry (`src/parsers/languages.ts`).
 - **Stale semantic search results:** vectors were never deleted when a file was re-indexed or removed, so `semantic_search` returned code that no longer existed. Re-indexing and file deletion now remove a file's vectors.

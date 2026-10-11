@@ -60,6 +60,18 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (args[0] === 'setup') {
+    const { runSetup } = await import('./cli/commands.js');
+    await runSetup(args.slice(1));
+    return;
+  }
+
+  if (args[0] === 'remove') {
+    const { runRemove } = await import('./cli/commands.js');
+    await runRemove(args.slice(1));
+    return;
+  }
+
   if (args[0] === 'install') {
     const { runInstall } = await import('./cli/commands.js');
     await runInstall(args.slice(1));
