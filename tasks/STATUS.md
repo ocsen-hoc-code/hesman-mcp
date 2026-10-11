@@ -71,7 +71,20 @@ Recommended order: (01, 02 in parallel) → 03 → 04 → (05, 06, 07 in paralle
 - **Dead code cleanup:** 7 config fields never read (`indexOnStartup`, `batchSize`, `maxMemoryMB`, `cacheSize`, `logFile`, `autoCleanDataDir`, `semanticSearch.embeddingCacheDir`), `src/monorepo/` module never wired in. (The no-op `install --global` flag is removed in M2-03.)
 - **Minor functional bugs:** `get_references` cursor splits on `':'` and breaks on Windows paths; naive `.gitignore` matching (`build` also skips `buildscripts/`, no `*.log`, no `!negation`).
 - **Make `_summary` actually save tokens:** today it is purely additive, so M0-15 drops it whenever it would enlarge a response (always, in practice). Replace long lists with the summary plus the top-N entries so list tools (`get_references`, `get_callers`, `list_dependencies`, …) really shrink, and measure it.
-- **Evaluate a stronger embedding model** (e.g. EmbeddingGemma 2: 270M-parameter text path, 768-dim with 512/256/128 Matryoshka sizes, 8K-token context, trained on code, Apache 2.0, ONNX build `onnx-community/embeddinggemma-2-ONNX`). Today `all-MiniLM-L6-v2` (384-dim, 256-token limit, English, not code-specific) truncates long functions. Needs: migrate `@xenova/transformers` 2.x → `@huggingface/transformers` ≥ 4.3.1, a configurable vector dimension in the ZVec collection, a schema-version bump, and a measured comparison on `tests/integration/semantic-ranking.test.ts` (hit@3, MRR, index time, RAM) before switching the default.
+- **Embedding model: keep MiniLM as default, consider EmbeddingGemma 2 as an opt-in quality mode.** Measured 2026-10-11 on macOS/CPU with a scratch benchmark that embeds the exact chunk texts Hesman produces (Hesman's compiled parser + chunker) and ranks by cosine; the MiniLM run reproduced the M0-16 numbers on the fixture (hybrid hit@3 1.000, MRR 0.952), so the harness matches production.
+  - Corpus: Hesman's own `src/` (52 files, 388 chunks, 88 chunks > 1000 chars, longest 18k chars), 30 hand-written paraphrase queries with expected symbols. One run each; 30 queries is a small set, so differences of one or two queries are noise.
+
+    | Model / config | hit@1 | hit@3 | MRR | Index time (388 chunks) | Query embed | Peak RSS |
+    |---|---|---|---|---|---|---|
+    | all-MiniLM-L6-v2, vector only | 0.600 | 0.767 | 0.704 | 6.8 s | 1.6 ms | 310 MB |
+    | all-MiniLM-L6-v2, hybrid 0.7/0.3 (current default) | 0.567 | 0.800 | 0.692 | 6.8 s | 1.6 ms | 310 MB |
+    | EmbeddingGemma 2 q8, full text, 768d, vector only | 0.767 | 0.833 | 0.825 | 99 s | 45 ms | 4130 MB |
+    | EmbeddingGemma 2 q8, text capped at 2000 chars, 768d | 0.700 | 0.833 | 0.774 | 74 s | 44 ms | 979 MB |
+    | EmbeddingGemma 2 q4, capped at 2000 chars, 768d | 0.733 | 0.867 | 0.811 | 59 s | 20 ms | 1155 MB |
+    | EmbeddingGemma 2 q4, capped at 2000 chars, 256d | 0.700 | 0.867 | 0.790 | 59 s | 20 ms | 1155 MB |
+
+  - Findings: EmbeddingGemma 2 ranks better on real code (MRR +0.09 to +0.12, hit@1 +10 to +17 points) but indexes 9–15x slower, needs ~1 GB RAM with capped inputs (4 GB uncapped) against the 350 MB project budget, and query embedding takes 20–45 ms against the 10 ms search target. The 0.7/0.3 lexical blend tuned for MiniLM **hurts** EmbeddingGemma 2 (MRR 0.66–0.69), so it must use vector-only ranking or a re-tuned weight. Truncating to 256 dimensions costs little quality. Uncapped long functions drive the memory peak.
+  - If adopted: migrate `@xenova/transformers` 2.x → `@huggingface/transformers` ≥ 4.3.1, use `onnx-community/embeddinggemma-2-ONNX` (Apache 2.0) with the `task: code retrieval | query: …` and `title: … | text: …` prompts, make the model, vector dimension, input cap and lexical weight configurable, bump the index schema version, and re-run this comparison on a larger labeled set before changing any default.
 - **Verify on Linux and Windows:** M0 was verified on macOS only (no CI). Symlink tests are skipped on Windows; path handling there is untested.
 - **i18n READMEs:** their prose still describes `_summary` as current behavior (numbers were corrected in M0-12); needs a translator.
 - **Zod validation** for every tool input (replace `as` casts).
