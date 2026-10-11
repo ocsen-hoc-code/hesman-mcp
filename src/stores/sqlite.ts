@@ -34,6 +34,21 @@ export interface RelationRow {
   to_name?: string | null;
 }
 
+/**
+ * A file indexed by the text tier (no grammar): no symbols, only line-range
+ * chunks. The chunks themselves are not stored here — their ids are derived
+ * from `file_path` and `chunk_count` (`textChunkIds` in `parsers/text-chunker.ts`)
+ * and their text lives in the vector store.
+ */
+export interface TextFileRow {
+  file_path: string;
+  /** Text-tier language label (`parsers/text-languages.ts`), e.g. "sql" or "text". */
+  language: string;
+  line_count: number;
+  chunk_count: number;
+  updated_at: number;
+}
+
 /** A `calls` relation awaiting (re-)resolution of its target. */
 export interface CallRelationToResolve {
   rowid: number;
@@ -97,8 +112,10 @@ export interface DependencyResult {
  *   1 — every stored line number is 1-based, inclusive (M0-14).
  *   2 — `calls` relations carry the callee name (`to_name`) and are resolved
  *       across files after indexing; no declaration self-calls (M0-13).
+ *   3 — files without a grammar are indexed by the text tier (`text_files`,
+ *       text chunks in the vector store); older indexes never saw them (M1-04).
  */
-export const INDEX_SCHEMA_VERSION = 2;
+export const INDEX_SCHEMA_VERSION = 3;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
 /**
@@ -153,6 +170,14 @@ const MIGRATIONS = [
     content='symbols',
     content_rowid='rowid'
   )`,
+  `CREATE TABLE IF NOT EXISTS text_files (
+    file_path   TEXT PRIMARY KEY,
+    language    TEXT NOT NULL,
+    line_count  INTEGER NOT NULL,
+    chunk_count INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_text_files_lang ON text_files(language)`,
   `CREATE TABLE IF NOT EXISTS metadata (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -273,11 +298,11 @@ export class SqliteStore {
     });
   }
 
-  /** Drop every symbol, relation and file hash so the next index run starts from scratch. */
+  /** Drop every symbol, relation, text file and file hash so the next index run starts from scratch. */
   clearIndex(): void {
     withRetry(() => {
       this.db.transaction(() => {
-        this.db.exec('DELETE FROM symbols; DELETE FROM relations; DELETE FROM file_hashes;');
+        this.db.exec('DELETE FROM symbols; DELETE FROM relations; DELETE FROM text_files; DELETE FROM file_hashes;');
       })();
     });
   }
@@ -376,6 +401,42 @@ export class SqliteStore {
       `SELECT language, COUNT(DISTINCT file_path) AS files, COUNT(*) AS symbols
        FROM symbols GROUP BY language ORDER BY files DESC, language ASC`,
     ).all() as Array<{ language: string; files: number; symbols: number }>;
+  }
+
+  /** Records (or replaces) a file indexed by the text tier. */
+  upsertTextFile(row: Omit<TextFileRow, 'updated_at'> & { updated_at?: number }): void {
+    withRetry(() => {
+      this.db.prepare(
+        `INSERT OR REPLACE INTO text_files (file_path, language, line_count, chunk_count, updated_at)
+         VALUES (@file_path, @language, @line_count, @chunk_count, @updated_at)`,
+      ).run({ ...row, updated_at: row.updated_at ?? Date.now() });
+    });
+  }
+
+  /** The text-tier record of a file, or `undefined` when the file is not indexed as text. */
+  getTextFile(filePath: string): TextFileRow | undefined {
+    return this.db.prepare('SELECT * FROM text_files WHERE file_path = ?').get(filePath) as TextFileRow | undefined;
+  }
+
+  clearTextFile(filePath: string): void {
+    withRetry(() => {
+      this.db.prepare('DELETE FROM text_files WHERE file_path = ?').run(filePath);
+    });
+  }
+
+  /** Files and chunks indexed by the text tier. */
+  getTextStats(): { files: number; chunks: number } {
+    return this.db.prepare(
+      'SELECT COUNT(*) AS files, COALESCE(SUM(chunk_count), 0) AS chunks FROM text_files',
+    ).get() as { files: number; chunks: number };
+  }
+
+  /** Text-tier files and chunks per language label, most files first (ties by name). */
+  getTextLanguageStats(): Array<{ language: string; files: number; chunks: number }> {
+    return this.db.prepare(
+      `SELECT language, COUNT(*) AS files, COALESCE(SUM(chunk_count), 0) AS chunks
+       FROM text_files GROUP BY language ORDER BY files DESC, language ASC`,
+    ).all() as Array<{ language: string; files: number; chunks: number }>;
   }
 
   upsertFileHash(filePath: string, sha256: string): void {

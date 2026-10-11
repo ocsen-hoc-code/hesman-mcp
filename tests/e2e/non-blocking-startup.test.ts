@@ -15,6 +15,8 @@ import { startServer, toolText, type HesmanTestServer } from './helpers/server.j
 const DIR_COUNT = 60;
 const FILES_PER_DIR = 100;
 const FILE_COUNT = DIR_COUNT * FILES_PER_DIR;
+/** Files the index run handles: the modules plus `package.json`, which the text tier indexes. */
+const SCANNED_FILE_COUNT = FILE_COUNT + 1;
 const FUNCTIONS_PER_FILE = 6;
 
 interface IndexingBlock {
@@ -181,12 +183,12 @@ describe('E2E — non-blocking startup on a large project', () => {
       expect(samples[i].filesDone).toBeGreaterThanOrEqual(samples[i - 1].filesDone);
     }
     expect(distinctSteps()).toBeGreaterThan(5);
-    expect(samples.some((s) => s.inProgress && s.filesTotal === FILE_COUNT && s.filesDone < FILE_COUNT)).toBe(true);
+    expect(samples.some((s) => s.inProgress && s.filesTotal === SCANNED_FILE_COUNT && s.filesDone < FILE_COUNT)).toBe(true);
 
     // A tool call during indexing returns results from the partial index, marked as such.
     expect(duringIndexing).toBeDefined();
     expect(duringIndexing!.symbols.length).toBeGreaterThan(0);
-    expect(duringIndexing!._meta.indexing).toMatchObject({ inProgress: true, filesTotal: FILE_COUNT });
+    expect(duringIndexing!._meta.indexing).toMatchObject({ inProgress: true, filesTotal: SCANNED_FILE_COUNT });
     expect(duringIndexing!._meta.indexing!.filesDone).toBeLessThan(FILE_COUNT);
 
     // Requests do not queue behind the indexer while it works through the files.
@@ -196,8 +198,8 @@ describe('E2E — non-blocking startup on a large project', () => {
     expect(last.indexing).toMatchObject({
       inProgress: false,
       phase: 'ready',
-      filesDone: FILE_COUNT,
-      filesTotal: FILE_COUNT,
+      filesDone: SCANNED_FILE_COUNT,
+      filesTotal: SCANNED_FILE_COUNT,
       error: null,
     });
     expect(last.pendingFiles).toBe(0);

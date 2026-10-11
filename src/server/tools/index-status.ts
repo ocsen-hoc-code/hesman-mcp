@@ -48,6 +48,8 @@ export function registerIndexStatusTool(
               embeddingModelError: indexing.modelError,
             },
             languages: store.getLanguageStats(),
+            // Files without a grammar, indexed as text chunks (no symbols).
+            textTier: { ...store.getTextStats(), languages: store.getTextLanguageStats() },
           }),
         },
       ],

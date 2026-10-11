@@ -6,7 +6,8 @@ import type { ZVecStore } from '../stores/zvec.js';
 import { createLogger } from '../utils/logger.js';
 import type { HesmanConfig } from '../config/schema.js';
 import { INDEX_SCHEMA_VERSION, type SqliteStore } from '../stores/sqlite.js';
-import { scanProject } from './project-scanner.js';
+import { scanProject, type ScannedFile } from './project-scanner.js';
+import { indexTextFile, storedTextChunkIds } from './text-indexer.js';
 import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core.js';
 import { extractRelations } from '../parsers/relation-extractor.js';
 import { profileFor } from '../parsers/languages.js';
@@ -53,9 +54,16 @@ const PARSE_CHUNK_SIZE = 64;
  */
 const YIELD_INTERVAL_MS = 20;
 
-/** Ids of the symbols currently stored for `filePath` (used to drop their vectors). */
-function symbolIdsOf(store: SqliteStore, filePath: string): string[] {
-  return store.getSymbolsByFile(filePath).map((s) => s.id);
+/**
+ * Ids of the vector documents currently stored for `filePath`: its symbols
+ * and, if the file was indexed by the text tier before, its text chunks.
+ */
+function vectorIdsOf(store: SqliteStore, filePath: string): string[] {
+  return [...store.getSymbolsByFile(filePath).map((s) => s.id), ...storedTextChunkIds(store, filePath)];
+}
+
+function sha256Of(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
 }
 
 /**
@@ -170,6 +178,49 @@ export async function indexProject(
   let filesIndexed = 0;
   let symbolsFound = 0;
 
+  /**
+   * True when the stored index of `file` is current: same content, and stored
+   * by the tier the file belongs to now (a file changes tier when a grammar
+   * for its language appears or disappears, or the language filter changes).
+   */
+  const isUnchanged = (file: ScannedFile, sha256: string): boolean =>
+    store.getFileHash(file.filePath) === sha256
+    && (store.getTextFile(file.filePath) !== undefined) === (file.tier === 'text');
+
+  /**
+   * Text tier: a file without a grammar is stored as line-range chunks. It
+   * counts in the progress like a parsed file, and an abort is honoured
+   * between files and between embedding batches.
+   */
+  const indexAsText = async (file: ScannedFile): Promise<void> => {
+    try {
+      const content = readFileSync(file.filePath, 'utf-8');
+      const sha256 = sha256Of(content);
+      if (!isUnchanged(file, sha256)) {
+        // The file may have been parsed before: its symbols are gone now.
+        const oldSymbols = store.getSymbolsByFile(file.filePath);
+        if (oldSymbols.length > 0) {
+          noteReplacedFile(callScope, store, file.filePath);
+          zvecStore?.deleteByFile(file.filePath, oldSymbols.map((s) => s.id));
+          store.clearSymbols(file.filePath);
+          store.clearRelations(file.filePath);
+        }
+        await indexTextFile(store, zvecStore, { filePath: file.filePath, language: file.language, content }, {
+          beforeBatch: breathe,
+        });
+        store.upsertFileHash(file.filePath, sha256);
+        filesIndexed++;
+      }
+    } catch (err) {
+      if (err instanceof IndexAbortedError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({ file: file.filePath, error: message }, 'Failed to index file as text');
+      errors.push(`${file.filePath}: ${message}`);
+    }
+    filesDone++;
+    report('indexing');
+  };
+
   // Use worker pool if available and files exist
   if (pool && files.length > 0) {
     // Filter to files that actually changed
@@ -180,8 +231,15 @@ export async function indexProject(
       report('indexing');
     };
 
+    /** Indexed after the parsed files, so symbols become searchable first. */
+    const textFiles: ScannedFile[] = [];
+
     for (const file of files) {
       await breathe();
+      if (file.tier === 'text') {
+        textFiles.push(file);
+        continue;
+      }
       const profile = profileFor(file.language);
       if (!profile) {
         skip();
@@ -189,10 +247,9 @@ export async function indexProject(
       }
 
       const content = readFileSync(file.filePath, 'utf-8');
-      const sha256 = createHash('sha256').update(content).digest('hex');
-      const previousHash = store.getFileHash(file.filePath);
+      const sha256 = sha256Of(content);
 
-      if (previousHash === sha256) {
+      if (isUnchanged(file, sha256)) {
         skip();
         continue;
       }
@@ -220,7 +277,8 @@ export async function indexProject(
 
           // Clear old data (vectors first: their ids come from the SQLite rows)
           noteReplacedFile(callScope, store, result.filePath);
-          zvecStore?.deleteByFile(result.filePath, symbolIdsOf(store, result.filePath));
+          zvecStore?.deleteByFile(result.filePath, vectorIdsOf(store, result.filePath));
+          store.clearTextFile(result.filePath);
           store.clearSymbols(result.filePath);
           store.clearRelations(result.filePath);
 
@@ -277,25 +335,34 @@ export async function indexProject(
         }
       }
     }
+
+    for (const file of textFiles) {
+      await breathe();
+      await indexAsText(file);
+    }
   } else {
     // Fallback: single-threaded path (Phase 3 behavior)
     for (const file of files) {
       await breathe();
+      if (file.tier === 'text') {
+        await indexAsText(file);
+        continue;
+      }
       try {
         const profile = profileFor(file.language);
         if (!profile) continue;
 
         const content = readFileSync(file.filePath, 'utf-8');
         const sourceLines = content.split('\n');
-        const sha256 = createHash('sha256').update(content).digest('hex');
-        const previousHash = store.getFileHash(file.filePath);
+        const sha256 = sha256Of(content);
 
-        if (previousHash === sha256) continue;
+        if (isUnchanged(file, sha256)) continue;
 
         const result = await parseFile(file.filePath, profile);
 
         noteReplacedFile(callScope, store, file.filePath);
-        zvecStore?.deleteByFile(file.filePath, symbolIdsOf(store, file.filePath));
+        zvecStore?.deleteByFile(file.filePath, vectorIdsOf(store, file.filePath));
+        store.clearTextFile(file.filePath);
         store.clearSymbols(file.filePath);
 
         for (const s of result.symbols) callScope.names.push(s.name);

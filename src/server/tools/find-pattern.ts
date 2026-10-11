@@ -3,6 +3,7 @@ import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { HesmanConfig } from '../../config/schema.js';
 import { ErrorCode, formatError } from '../error-codes.js';
 import { intArg, withArgValidation } from '../args.js';
+import { isLanguageId } from '../../parsers/languages.js';
 import { Worker } from 'node:worker_threads';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -34,7 +35,12 @@ const inputSchema = {
         `Limits: at most ${MAX_PATTERN_LENGTH} characters, ${MAX_PLACEHOLDERS} placeholders in total, ` +
         `${MAX_GREEDY_PLACEHOLDERS} $$$ placeholders.`,
     },
-    language: { type: 'string', description: 'Language to search in (e.g. "typescript")' },
+    language: {
+      type: 'string',
+      description:
+        'Language to search in: a parsed language (e.g. "typescript") or the label of a language without a grammar ' +
+        '(e.g. "sql", "shell", "ruby", "dockerfile"; "text" for unrecognised text files)',
+    },
     filePattern: {
       type: 'string',
       description: 'Glob matched against the path relative to the project root, with "/" separators (e.g. "src/**/*.ts")',
@@ -176,6 +182,8 @@ export function registerFindPatternTool(server: McpServer, config: HesmanConfig)
       {
         matches: outcome.matches,
         totalFound: outcome.matches.length,
+        // Files of a language without a grammar are searched as plain text.
+        ...(isLanguageId(language) ? {} : { precision: 'text' }),
         truncated,
         ...(truncated ? { truncatedReason: reasons.join('; ') } : {}),
         tookMs: Date.now() - started,
