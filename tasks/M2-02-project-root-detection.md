@@ -40,6 +40,7 @@ npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-11: merged into `rebuild/m1-m2` (commit `dd2ab64`); after the merge `npm test` passes 78 files / 535 tests + 1 skipped.
 - 2026-10-11: done; closed by the commit that carries this note (`feat(server): detect the project from MCP roots or the working directory (M2-02)`).
   - **Resolution** (`src/server/project-root.ts`, driven by `src/index.ts`): explicit root (`--project-root`, `HESMAN_PROJECT_ROOT`, or a `projectRoot` other than `.` in the config file) → first usable folder of the client's `roots/list` (asked on `notifications/initialized`, or on the client's first request if it never sends it; 5 s timeout, cancelled on shutdown; non-`file://` URIs, missing paths and files are skipped with a warning) → nearest directory at or above the working directory with a VCS directory or a manifest → no project. The home directory and its ancestors are never picked from roots or from the working directory. An explicit root ignores roots completely.
   - **Stores**: with an explicit root they open before `connect()` as before. Otherwise they open once the root is known; tools are registered up front against late-bound stand-ins (`src/server/late-bound.ts`) so `tools/list` is complete from the start. A guard in `McpServer` makes tool calls wait for the decision (or a switch in flight), then run or return `NO_PROJECT`. `indexState` is `resolving-root` (in progress) until then.

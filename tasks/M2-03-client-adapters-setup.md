@@ -1,10 +1,10 @@
 ---
 id: M2-03
 title: Client adapters + `hesman setup` — one command configures every detected agent
-status: todo
+status: pending
 priority: P0
 depends_on: [M0-11, M2-02]
-updated: 2026-10-06
+updated: 2026-10-11
 ---
 
 ## Context
@@ -58,4 +58,5 @@ node dist/index.js setup --dry-run --all
 
 ## Progress notes
 
+- 2026-10-11: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.
