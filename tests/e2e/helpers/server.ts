@@ -14,11 +14,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
   JSONRPCMessageSchema,
+  ListRootsRequestSchema,
   type CallToolResult,
   type JSONRPCMessage,
 } from '@modelcontextprotocol/sdk/types.js';
@@ -223,6 +224,25 @@ export interface StartServerOptions {
   waitForIndex?: boolean;
   /** Max time for connect + readiness, in ms. Default 60s. */
   readyTimeoutMs?: number;
+  /**
+   * Pass the project to the server explicitly through `HESMAN_PROJECT_ROOT`. Default `true`.
+   * With `false` the variable is removed, so the server has to find the project itself
+   * (MCP roots, then its working directory).
+   */
+  explicitRoot?: boolean;
+  /** Working directory of the server process. Default: the project path. */
+  cwd?: string;
+  /**
+   * Makes the test client advertise the MCP `roots` capability and answer `roots/list` with
+   * these folders (paths or URIs). `'unanswered'` advertises the capability but never answers.
+   * Default: no roots capability.
+   */
+  roots?: readonly string[] | 'unanswered';
+  /**
+   * Point `HESMAN_DATA_DIR` at a temp dir removed by `stop()`. Default `true`. With `false`
+   * the server uses its default, `.hesman` inside the project it resolved.
+   */
+  tempDataDir?: boolean;
 }
 
 export interface IndexStatus {
@@ -247,7 +267,7 @@ export interface HesmanTestServer {
   transport: RecordingStdioTransport;
   /** Absolute path of the indexed project. */
   projectRoot: string;
-  /** Absolute path of the temporary data dir (removed by `stop()`). */
+  /** Absolute path of the temporary data dir (removed by `stop()`); unused with `tempDataDir: false`. */
   dataDir: string;
   /** Every raw stdout line (live array). */
   readonly stdoutLines: readonly string[];
@@ -261,6 +281,8 @@ export interface HesmanTestServer {
   callToolJson<T = unknown>(name: string, args?: Record<string, unknown>, timeoutMs?: number): Promise<T>;
   /** Polls `index_status` until the initial background index has finished or the timeout elapses. */
   waitForIndex(timeoutMs?: number): Promise<IndexStatus>;
+  /** Replaces the roots the client reports and sends `notifications/roots/list_changed`. Needs the `roots` option. */
+  setRoots(roots: readonly string[]): Promise<void>;
   /** Closes the client, stops the child process and removes the data dir. Idempotent. */
   stop(): Promise<void>;
 }
@@ -318,6 +340,12 @@ export async function waitForIndexReady(
   throw new Error(`Server not ready after ${timeoutMs}ms (${detail})`);
 }
 
+/** MCP root entry for a folder given as a path or as a URI. */
+function toRootEntry(pathOrUri: string): { uri: string; name: string } {
+  const uri = /^[a-z][a-z0-9+.-]+:\/\//i.test(pathOrUri) ? pathOrUri : pathToFileURL(pathOrUri).href;
+  return { uri, name: pathOrUri.split(/[\\/]/).filter(Boolean).pop() ?? pathOrUri };
+}
+
 /**
  * Starts `node dist/index.js` against a fixture with a fresh temp data dir and
  * a connected MCP client. Call `stop()` in `afterAll`.
@@ -339,19 +367,33 @@ export async function startServer(options: StartServerOptions = {}): Promise<Hes
   if (!options.watch) args.push('--no-watch');
   args.push(...(options.extraArgs ?? []));
 
+  const env: NodeJS.ProcessEnv = { ...process.env, HESMAN_LOG_LEVEL: options.logLevel ?? 'info' };
+  if (options.explicitRoot ?? true) env.HESMAN_PROJECT_ROOT = projectRoot;
+  else delete env.HESMAN_PROJECT_ROOT;
+  if (options.tempDataDir ?? true) env.HESMAN_DATA_DIR = dataDir;
+  else delete env.HESMAN_DATA_DIR;
+  Object.assign(env, options.env);
+
   const transport = new RecordingStdioTransport({
     command: process.execPath,
     args,
-    cwd: projectRoot,
-    env: {
-      ...process.env,
-      HESMAN_PROJECT_ROOT: projectRoot,
-      HESMAN_DATA_DIR: dataDir,
-      HESMAN_LOG_LEVEL: options.logLevel ?? 'info',
-      ...options.env,
-    },
+    cwd: options.cwd ?? projectRoot,
+    env,
   });
-  const client = new Client({ name: 'hesman-e2e', version: '1.0.0' }, { capabilities: {} });
+
+  const advertisesRoots = options.roots !== undefined;
+  const client = new Client(
+    { name: 'hesman-e2e', version: '1.0.0' },
+    { capabilities: advertisesRoots ? { roots: { listChanged: true } } : {} },
+  );
+  let currentRoots = options.roots === 'unanswered' ? [] : (options.roots ?? []).map(toRootEntry);
+  if (advertisesRoots) {
+    client.setRequestHandler(ListRootsRequestSchema, () =>
+      options.roots === 'unanswered'
+        ? new Promise<never>(() => {}) // a client that advertises roots but never answers
+        : Promise.resolve({ roots: currentRoots }),
+    );
+  }
 
   let stopped = false;
   const stop = async (): Promise<void> => {
@@ -386,6 +428,11 @@ export async function startServer(options: StartServerOptions = {}): Promise<Hes
       return JSON.parse(toolText(await callTool(name, toolArgs, timeoutMs))) as T;
     },
     waitForIndex: (timeoutMs = readyTimeoutMs) => waitForIndexReady(client, { timeoutMs }),
+    async setRoots(roots: readonly string[]) {
+      if (!advertisesRoots) throw new Error('setRoots needs the `roots` option of startServer');
+      currentRoots = roots.map(toRootEntry);
+      await client.sendRootsListChanged();
+    },
     stop,
   };
 

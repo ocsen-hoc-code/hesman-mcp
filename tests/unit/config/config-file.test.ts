@@ -46,22 +46,13 @@ describe('Config — file loading + auto-detect', () => {
     expect(findConfigFile(join(TEST_ROOT, 'nested'))).toBe(join(TEST_ROOT, 'nested', 'hesman.config.json'));
   });
 
-  it('detectProjectRoot finds root by .git', async () => {
-    mkdirSync(join(TEST_ROOT, '.git'));
-    const { detectProjectRoot } = await import('../../../src/config/loader');
-    expect(detectProjectRoot(join(TEST_ROOT, 'nested', 'deep'))).toBe(TEST_ROOT);
-  });
-
-  it('detectProjectRoot finds root by package.json', async () => {
-    writeFileSync(join(TEST_ROOT, 'package.json'), '{}');
-    const { detectProjectRoot } = await import('../../../src/config/loader');
-    expect(detectProjectRoot(join(TEST_ROOT, 'nested'))).toBe(TEST_ROOT);
-  });
-
-  it('detectProjectRoot returns start directory when no markers found', async () => {
-    const { detectProjectRoot } = await import('../../../src/config/loader');
-    // No markers in TEST_ROOT subtree
-    expect(detectProjectRoot(TEST_ROOT)).toBe(TEST_ROOT);
+  it('parseCliFlagsToOverrides reads --project-root', async () => {
+    const { parseCliFlagsToOverrides } = await import('../../../src/config/loader');
+    expect(parseCliFlagsToOverrides(['--no-watch', '--project-root', '/some/project'])).toMatchObject({
+      projectRoot: '/some/project',
+      watchMode: false,
+    });
+    expect(parseCliFlagsToOverrides(['--no-watch']).projectRoot).toBeUndefined();
   });
 
   it('loadConfig merges config file values over defaults', async () => {
