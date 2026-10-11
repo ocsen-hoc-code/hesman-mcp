@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 4/7 done** · **M2: 5/7 done**
+Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 4/7 done** · **M2: 5/7 done** · **M3: 0/2 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -64,6 +64,17 @@ Goal: `npx -y hesman-mcp setup` configures every detected agent (Claude Code, Cl
 Recommended order: (01, 02 in parallel) → 03 → 04 → (05, 06, 07 in parallel).
 
 M2-04 is code-complete and merged but stays `pending`: two acceptance checks are manual (Claude Desktop under nvm; an `npx` entry surviving a Node major switch) and the `npx` path cannot be exercised until `hesman-mcp` is published on npm (not published as of 2026-10-11 — the owner decides when). M2-06 (one-click install links) is on hold for the same reason: a static link can only carry the `npx` entry.
+
+## M3 — Dashboard: logs, metrics, index graph, query playground
+
+Goal: `hesman ui` opens a local web page (127.0.0.1 + token) to watch logs and metrics, explore the index as a graph and try queries. Requested by the owner on 2026-10-11. The two tasks share one API contract and run in parallel.
+
+| # | Task | Area | Priority | Depends on | Status |
+|---|---|---|---|---|---|
+| M3-01 | [Observability data + `hesman ui` backend (HTTP API)](M3-01-observability-and-ui-api.md) | Server | P0 | M0-12 | pending |
+| M3-02 | [Dashboard frontend](M3-02-dashboard-frontend.md) | UI | P0 | M0-12 | pending |
+
+Publishing to npm: the owner decided on 2026-10-11 not to publish yet, so M2-06 and the `npx` checks of M2-04 stay on hold.
 
 ## Backlog after M0 (not specified, not scheduled)
 
