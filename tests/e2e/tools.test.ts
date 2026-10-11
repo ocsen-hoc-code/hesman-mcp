@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rmSync, existsSync } from 'node:fs';
 import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
+import { waitForIndexReady } from './helpers/server.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -48,9 +49,9 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     );
     await client.connect(transport);
 
-    // Wait for server startup — includes embedding model loading on first run
-    // (Xenova/all-MiniLM-L6-v2 can take 10-30s to download + load)
-    await new Promise((r) => setTimeout(r, 3000));
+    // The server answers right away and indexes in the background (which
+    // includes loading the embedding model), so wait for the index, not a fixed delay.
+    await waitForIndexReady(client);
 
     // Use the high-level listTools() method instead of raw client.request
     const result = await client.listTools({}, { timeout: 5000 });

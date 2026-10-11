@@ -4,6 +4,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rmSync, existsSync } from 'node:fs';
+import { waitForIndexReady } from './helpers/server.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -43,8 +44,8 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
     );
     await client.connect(transport);
 
-    // Wait for server startup
-    await new Promise((r) => setTimeout(r, 3000));
+    // The server indexes in the background: wait for the index, not a fixed delay.
+    await waitForIndexReady(client);
   }, 120000);
 
   afterAll(async () => {
