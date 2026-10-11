@@ -35,6 +35,7 @@ npm test
 
 ## Progress notes
 
+- 2026-10-11: merged into `rebuild/m1-m2` (commit `91b00e4`). Verified in a fresh clone: 0 type errors, lint 0 errors / 36 warnings, `npm test` 97 files / 1150 tests + 1 skipped. Scope item 4 (measuring the effect on real agent tool usage) remains unmeasured and is tracked in the backlog.
 - 2026-10-11: done on branch `worktree-agent-a707beb57960e6c7f` (the commit that adds this note). Scope 1-3 implemented in `src/cli/rules/` and `src/cli/clients/setup.ts`: 14-line block (one constant, tested against the tools the server registers), `hesman setup --rules`, removal by `hesman remove`, interactive question with default No. Instruction files per client checked against the official docs on 2026-10-11 (URLs in `src/cli/rules/index.ts`); Windsurf uses the root `AGENTS.md`, Claude Desktop is skipped. Both acceptance criteria are covered by unit tests (`tests/unit/cli/rules/`, `tests/unit/cli/clients/setup.test.ts`); `npm test`: 92 files, 1068 passed, 1 skipped.
 - 2026-10-11: **scope item 4 is NOT done.** No before/after comparison of real agent tool usage was run (it needs a live agent session with and without the block), so there is no evidence yet that the block changes agent behavior. The README and CHANGELOG say so. To do when the answer-quality eval exists, or by hand on one task.
 - 2026-10-11: started (branch `rebuild/m1-m2`).
