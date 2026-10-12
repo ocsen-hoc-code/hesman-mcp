@@ -37,7 +37,7 @@ Hesman solves this by:
 - **Serving only what the agent needs** — a focused function, its callers, its callees, or the symbols impacted by a change.
 - **Compacting and pruning code** — `get_context` strips comments and blank lines and returns only the lines around the focus location instead of the whole file.
 - **Never inflating responses** — a response is never larger than its plain payload. Summaries for long result lists are planned but not applied yet (see [Token Reduction Pipeline](#token-reduction-pipeline)).
-- **Running 100% locally** — no API keys, no network calls, no latency from external services. Your code never leaves your machine.
+- **Running on your machine** — no API keys, no external service, no latency from one. Your code never leaves your machine. The only downloads are the embedding model on first use and the grammars of on-demand languages; both can be turned off (`--no-semantic`, `HESMAN_GRAMMARS_OFFLINE=1`).
 - **Measurable savings** — every tool response except `index_status` includes `_meta.reduction` showing exactly how many tokens were saved vs. raw output.
 
 The result: agents work faster, cost less, and reason more accurately because they see the right code, not all the code.
@@ -107,7 +107,7 @@ List and call-graph tools (`get_references`, `get_callers`, `get_callees`, `list
 - **Content-hash indexing** — files are re-parsed only when their content actually changes
 - **Monorepo support** — auto-detects pnpm, lerna, nx, turbo, and npm workspaces
 - **Diagnostics** — `hesman diag` prints memory, store stats, pool state, and cache metrics
-- **CI-tested** — runs on Ubuntu, macOS, and Windows with Node 20 and 22
+- **Tested locally** — the full test suite, including end-to-end tests through the real server, runs on macOS; Linux and Windows are not verified yet
 
 ---
 
@@ -115,7 +115,7 @@ List and call-graph tools (`get_references`, `get_callers`, `get_callees`, `list
 
 ### Layer 1: Compact Mode
 
-Strips comments, blank lines, and trailing whitespace while preserving magic comments (`// @ts-ignore`, `// eslint-disable-*`). Level 2 adds AST-aware JSDoc handling and unused import removal.
+Strips comments, blank lines, and trailing whitespace while preserving magic comments (`// @ts-ignore`, `// eslint-disable-*`).
 
 Before:
 ```typescript
@@ -139,7 +139,7 @@ function calculateTotal(
 }
 ```
 
-After (Level 1):
+After:
 ```typescript
 function calculateTotal(
   items: CartItem[],
@@ -154,41 +154,11 @@ function calculateTotal(
 }
 ```
 
-After (Level 2 — AST-aware, preserves JSDoc only):
-```typescript
-/**
- * Calculates the total price including tax.
- * @param items - Shopping cart items
- * @param taxRate - Local tax rate as decimal (e.g., 0.08)
- */
-function calculateTotal(items: CartItem[], taxRate: number): number {
-  let total = 0;
-  for (const item of items) {
-    total += item.price * item.quantity;
-  }
-  total = total * (1 + taxRate);
-  return total;
-}
-```
-
 ### Layer 2: Context Pruning
 
-When an agent queries `get_context` for a specific symbol, Hesman returns only the relevant code:
+`get_context` does not return the whole file. It returns the requested line range plus `contextLines` lines above and below it (default 5, maximum 200), then applies compact mode to that excerpt. `_meta.reduction` compares the result with the whole file, and `_meta.layers` lists what was applied (`compact`, `prune`).
 
-```typescript
-// ... (45 lines omitted: unrelated imports and helper functions)
-
-/**
- * Processes the incoming webhook payload.
- */
-export async function handleWebhook(payload: WebhookPayload): Promise<Result> {
-  // ... (function body)
-}
-
-// ... (120 lines omitted: unrelated class definitions)
-```
-
-Pruning keeps: the focus symbol's definition, its doc comment, direct callers and callees within the same file, and in-file references — everything else is replaced with a count marker.
+Pruning is by line range only: it does not follow callers or callees. To read what a function calls or what calls it, ask `get_callees` / `get_callers` for the locations and then `get_context` for each.
 
 ### Layer 3: Smart Summarization (not applied yet)
 
@@ -460,6 +430,8 @@ hesman diag [path]             Print diagnostics: memory, store stats, pool, cac
 hesman diag --json             Output diagnostics as JSON
 hesman setup                   Add Hesman to your AI clients (--client, --all, --yes, --dry-run, --scope, --project-root, --command, --rules)
 hesman remove                  Remove Hesman from the clients again (--client, --all, --scope, --dry-run)
+hesman doctor                  Check the installation and each client's entry (--client, --json, --timeout)
+hesman ui [path]               Open the local dashboard: logs, metrics, index graph, playground (--port, --no-open)
 hesman grammars list           Bundled, cached and on-demand grammars with sizes (--json)
 hesman grammars install <lang…> Download grammars into the cache (--all, or --from <directory> without network)
 hesman install --agent <name>  Deprecated alias of: hesman setup --client <name> --yes
@@ -511,7 +483,7 @@ The table above is generated from the language registry (`npx tsx scripts/genera
 
 What the tiers mean today:
 
-- **deep** — definitions (functions, classes, methods, constants, ...) plus `calls` relations, so `get_references`, `get_symbol_context` and `impact_analysis` have a call graph. Calls are read from the syntax tree of each language (its call expressions, `new X(...)`, Ruby and Bash calls without parentheses), and are linked by name: the caller's own file first, then the files it imports, its directory, and the project; a name that stays ambiguous is left unlinked instead of being linked to every candidate. A call is linked to a definition rather than to a declaration without a body (a C/C++ prototype, an interface or abstract method), and `new X(...)` to the class `X` rather than to one of its constructors. Types are not resolved, so a method called on an interface with several implementations stays unlinked, and a Ruby method called without arguments or parentheses is not seen as a call. Import relations exist for TypeScript/JavaScript, Python, Go, C/C++ (`#include "..."`) and Ruby (`require`, `require_relative`); `extends` / `implements` relations only where a language writes `class X extends Y` or `class X implements Y`.
+- **deep** — definitions (functions, classes, methods, constants, ...) plus `calls` relations, so `get_callers`, `get_callees`, `get_references` and `impact_analysis` have a call graph. Calls are read from the syntax tree of each language (its call expressions, `new X(...)`, Ruby and Bash calls without parentheses), and are linked by name: the caller's own file first, then the files it imports, its directory, and the project; a name that stays ambiguous is left unlinked instead of being linked to every candidate. A call is linked to a definition rather than to a declaration without a body (a C/C++ prototype, an interface or abstract method), and `new X(...)` to the class `X` rather than to one of its constructors. Types are not resolved, so a method called on an interface with several implementations stays unlinked, and a Ruby method called without arguments or parentheses is not seen as a call. Import relations exist for TypeScript/JavaScript, Python, Go, C/C++ (`#include "..."`) and Ruby (`require`, `require_relative`); `extends` / `implements` relations only where a language writes `class X extends Y` or `class X implements Y`.
 - **structural** — definitions only. No bundled language is in this tier any more. The on-demand languages are structural because only their upstream symbols query is used: there is no visibility rule for them (every definition counts as exported) and no call extraction.
 - **text** — no symbols; see "Text tier" in [docs/TOOLS.md](./docs/TOOLS.md).
 
@@ -632,8 +604,8 @@ For the full contributing guide including how to add new languages, see **[docs/
 | **Node.js** | ≥ 20.0.0 |
 | **Memory (idle)** | ~100 MB |
 | **Memory (under load)** | ~350 MB |
-| **Disk** | ~80 MB (one-time embedding model download) |
-| **Network** | Only for initial `npm install`; zero runtime network calls |
+| **Disk** | ~30 MB for the package (bundled grammars), ~80 MB for the embedding model (one-time download), up to 47 MB for on-demand grammars if all are installed, plus the index in `.hesman/` |
+| **Network** | For installation, for the embedding model on first use, and for the grammar of an on-demand language the first time a project contains it. None otherwise; no code or query is ever sent anywhere |
 
 The embedding model (`all-MiniLM-L6-v2`) is downloaded on first use and cached indefinitely in the Transformers.js cache directory.
 
@@ -645,6 +617,7 @@ The embedding model (`all-MiniLM-L6-v2`) is downloaded on first use and cached i
 |---|---|
 | [README.md](./README.md) | Project overview, setup, and configuration (this file) |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Full architecture: data flow, module map, store schemas, worker pool design |
+| [docs/CLI.md](./docs/CLI.md) | Every subcommand: `setup`, `remove`, `doctor`, `ui`, `grammars`, with options and output |
 | [docs/TOOLS.md](./docs/TOOLS.md) | Complete input/output schemas for all 11 tools with examples |
 | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Development setup, test guide, language profile authoring, PR checklist |
 | [docs/SECURITY.md](./docs/SECURITY.md) | Threat model, guards on tool input, how to report a vulnerability |
