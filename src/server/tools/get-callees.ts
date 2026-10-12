@@ -3,6 +3,7 @@ import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
 import { ErrorCode, formatError } from '../error-codes.js';
 import { intArg, withArgValidation } from '../args.js';
+import { tierNoteField } from '../tier-note.js';
 
 const inputSchema = {
   type: 'object',
@@ -28,7 +29,7 @@ export function registerGetCalleesTool(server: McpServer, store: SqliteStore): v
     const callees = store.getCallees(symbolId, maxDepth, topK);
     const tookMs = Math.round((performance.now() - start) * 100) / 100;
 
-    const compressed = compressToolResponse('get_callees', { callees, tookMs }, { store });
+    const compressed = compressToolResponse('get_callees', { callees, tookMs, ...tierNoteField(store, symbolId, 'call graph') }, { store });
     return {
       content: [{ type: 'text', text: JSON.stringify(compressed) }],
     };
