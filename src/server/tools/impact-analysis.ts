@@ -3,6 +3,7 @@ import type { SqliteStore } from '../../stores/sqlite.js';
 import { compressToolResponse } from '../response-compressor.js';
 import { ErrorCode, formatError } from '../error-codes.js';
 import { intArg, withArgValidation } from '../args.js';
+import { tierNote, tierNoteField } from '../tier-note.js';
 
 const inputSchema = {
   type: 'object',
@@ -59,7 +60,10 @@ export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore
     // Get symbol info
     const symbol = store.getSymbolById(symbolId);
     if (!symbol) {
-      return { content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.SYMBOL_NOT_FOUND, `Symbol not found: ${symbolId}`)) }], isError: true };
+      // The id of a text chunk (from `semantic_search`) is no symbol: say why.
+      const note = typeof symbolId === 'string' ? tierNote(store, symbolId, 'call graph') : undefined;
+      const message = `Symbol not found: ${symbolId}${note ? ` (${note})` : ''}`;
+      return { content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.SYMBOL_NOT_FOUND, message)) }], isError: true };
     }
 
     // Get all references
@@ -123,6 +127,7 @@ export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore
         estimatedChanges: refs.length,
       },
       impactedFiles,
+      ...tierNoteField(store, symbolId, 'call graph'),
     };
     const compressed = compressToolResponse('impact_analysis', result, { store });
     return {

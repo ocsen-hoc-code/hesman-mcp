@@ -178,7 +178,7 @@ All responses are JSON: `{ "ok": true, "data": ... }` or `{ "ok": false, "error"
 
 | Method and path | Parameters (default, range) | `data` |
 |---|---|---|
-| `GET /api/status` | | `version`, `projectRoot`, `dataDir`, `serverTime`, `index` (the `index_status` payload), `limitations[] { feature, reason }` |
+| `GET /api/status` | | `version`, `projectRoot`, `dataDir`, `serverTime`, `index` (the `index_status` payload; each `languages[]` entry also carries `tier`: `deep` or `structural`), `limitations[] { feature, reason }` |
 | `GET /api/metrics` | `windowMinutes` (60, 1–10080) | `summary`, `byTool[]`, `series[]` (at most 61 equal buckets, oldest first) |
 | `GET /api/calls` | `limit` (50, 1–500), `before` (a `nextBefore`), `tool` | `calls[]` newest first, `nextBefore` |
 | `GET /api/logs` | `level` (minimum level, `info`), `q`, `limit` (200, 1–1000), `before` (a `nextBefore`) | `entries[]` newest first, `nextBefore` |

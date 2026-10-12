@@ -17,7 +17,7 @@ Server: `hesman ui [path] [--port <n>] [--no-open]` → `http://127.0.0.1:<port>
 
 | Method + path | Returns (`data`) |
 |---|---|
-| `GET /api/status` | `{ version, projectRoot, dataDir, serverTime, index: <index_status payload incl. indexing, languages, textTier, health> }` |
+| `GET /api/status` | `{ version, projectRoot, dataDir, serverTime, index: <index_status payload incl. indexing, languages, textTier, health, grammars; each `languages[]` entry also has `tier`: `deep` \| `structural`> }` |
 | `GET /api/metrics?windowMinutes=60` | `{ summary: { calls, errors, p50Ms, p95Ms, tokensOriginal, tokensReturned }, byTool: [{ tool, calls, errors, avgMs, p95Ms, tokensOriginal, tokensReturned }], series: [{ t, calls, errors, avgMs }] }` |
 | `GET /api/calls?limit=50&before=<id>&tool=` | `{ calls: [{ id, time, tool, durationMs, ok, errorCode, originalTokens, compressedTokens, argsPreview }], nextBefore }` |
 | `GET /api/logs?level=info&q=&limit=200&before=<cursor>` | `{ entries: [{ time, level, name, msg, fields }], nextBefore }` (newest first) |

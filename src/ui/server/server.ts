@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { HesmanConfig } from '../../config/schema.js';
 import { InvalidLogCursorError, isLogLevel, readLogEntries, resolveLogFilePath } from '../../diagnostics/log-file.js';
 import { readAllToolCalls, readToolCalls, summarizeToolCalls } from '../../diagnostics/tool-call-log.js';
+import { supportTier } from '../../parsers/grammar-report.js';
 import { McpServer } from '../../server/mcp-server.js';
 import { registerAllTools } from '../../server/tools/index.js';
 import { createLogger } from '../../utils/logger.js';
@@ -68,6 +69,19 @@ const CONTENT_SECURITY_POLICY = [
   "form-action 'none'",
   "frame-ancestors 'none'",
 ].join('; ');
+
+/**
+ * The `index_status` payload with the support tier (`deep` or `structural`)
+ * on every entry of `languages`, which the overview shows per language.
+ * `index_status` itself keeps the tier in `grammars.languages` only.
+ */
+function withLanguageTiers(index: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(index.languages)) return index;
+  return {
+    ...index,
+    languages: (index.languages as Array<{ language: string }>).map((row) => ({ ...row, tier: supportTier(row.language) })),
+  };
+}
 
 /** What this process cannot do, reported by `GET /api/status`. */
 const LIMITATIONS = [
@@ -277,7 +291,7 @@ export async function startUiServer(options: UiServerOptions): Promise<UiServer>
       projectRoot,
       dataDir,
       serverTime: new Date().toISOString(),
-      index: JSON.parse(text) as unknown,
+      index: withLanguageTiers(JSON.parse(text) as Record<string, unknown>),
       limitations: LIMITATIONS,
     };
   }

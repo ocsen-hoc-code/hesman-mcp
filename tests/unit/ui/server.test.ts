@@ -244,6 +244,18 @@ describe('hesman ui server', () => {
       expect(data.index.languages.map((l: { language: string }) => l.language).sort()).toEqual(['go', 'python', 'typescript']);
     });
 
+    it('adds the support tier to every entry of index.languages', async () => {
+      const { index } = (await api('/api/status')).json.data;
+      const rows = index.languages as Array<{ language: string; files: number; symbols: number; tier: string }>;
+      expect(rows.map(({ language, tier }) => ({ language, tier })).sort((a, b) => a.language.localeCompare(b.language))).toEqual([
+        { language: 'go', tier: 'deep' },
+        { language: 'python', tier: 'deep' },
+        { language: 'typescript', tier: 'deep' },
+      ]);
+      // The counts of index_status are kept.
+      expect(rows.every((row) => row.files > 0 && row.symbols > 0)).toBe(true);
+    });
+
     it('states what this process cannot do', async () => {
       const { limitations } = (await api('/api/status')).json.data;
       const features = (limitations as Array<{ feature: string; reason: string }>).map((l) => l.feature);

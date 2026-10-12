@@ -36,6 +36,10 @@ describe('the guidance block', () => {
     expect(RULES_BLOCK).toContain('precision: "text"');
   });
 
+  it('says that a note on an empty call or reference list means no call graph for that language', () => {
+    expect(RULES_BLOCK).toMatch(/`note` on an empty call or reference list means .*no call graph/);
+  });
+
   it('makes no token-saving or percentage claims', () => {
     expect(RULES_BLOCK).not.toMatch(/%|\btokens?\b|\bsav(e|es|ing)\b|\bfaster\b/i);
   });

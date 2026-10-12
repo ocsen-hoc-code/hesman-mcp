@@ -4,6 +4,7 @@ import type { SqliteStore } from '../../stores/sqlite.js';
 import { compactCode } from '../../parsers/compact-mode.js';
 import { ErrorCode, formatError } from '../error-codes.js';
 import { intArg, withArgValidation } from '../args.js';
+import { tierNoteField } from '../tier-note.js';
 
 const inputSchema = {
   type: 'object',
@@ -44,7 +45,7 @@ export function registerGetReferencesTool(server: McpServer, store: SqliteStore)
     }));
 
     const tookMs = Math.round((performance.now() - start) * 100) / 100;
-    const compressed = compressToolResponse('get_references', { references, totalCount, hasMore, nextCursor, tookMs }, { store });
+    const compressed = compressToolResponse('get_references', { references, totalCount, hasMore, nextCursor, tookMs, ...tierNoteField(store, symbolId, 'references') }, { store });
     return { content: [{ type: 'text', text: JSON.stringify(compressed) }] };
   };
 
