@@ -86,6 +86,13 @@ describe('healthRows', () => {
     expect(rows[2]).toEqual({ name: 'Embedding model', state: 'warn', label: 'Not loaded', detail: 'Semantic search is unavailable until the model loads.' });
   });
 
+  it('does not report a fault for the stores the dashboard process leaves to the MCP server', () => {
+    const limitation = { feature: 'semantic_search', reason: 'The vector store belongs to the MCP server.' };
+    const rows = healthRows({ sqliteOk: true, zvecOk: false, zvecDocCount: 0, embeddingModelLoaded: false, embeddingModelError: null }, limitation);
+    expect(rows[1]).toEqual({ name: 'Vector store', state: 'pending', label: 'Not opened here', detail: 'The vector store belongs to the MCP server.' });
+    expect(rows[2]).toEqual({ name: 'Embedding model', state: 'pending', label: 'Not loaded here', detail: '' });
+  });
+
   it('is empty without a health object', () => {
     expect(healthRows(null)).toEqual([]);
   });

@@ -98,7 +98,7 @@ export function mount(container, ctx) {
     if (!lastMetrics) return;
     const series = lastMetrics.series ?? [];
     if (series.every((p) => p.calls === 0)) {
-      replace(chartBox, emptyState('No calls in this period', 'Charts appear once an agent uses a Hesman tool. Try a longer period, or run a tool in the playground.'));
+      replace(chartBox, emptyState('No calls in this period', 'Charts appear once an agent calls a Hesman tool through the MCP server. Try a longer period.'));
       return;
     }
     const points = series.map((p) => ({ ...p, label: formatClock(p.t).slice(0, 5) }));
@@ -148,7 +148,7 @@ export function mount(container, ctx) {
     replace(
       callsBox,
       calls.length === 0
-        ? emptyState('No calls recorded', toolFilter ? `Nothing called ${toolFilter} yet.` : 'Tool calls made by an agent or in the playground are listed here.')
+        ? emptyState('No calls recorded', toolFilter ? `Nothing called ${toolFilter} yet.` : 'Tool calls an agent makes through the MCP server are listed here. Runs in the playground are not recorded.')
         : callsTable(calls),
     );
     olderButton.hidden = nextBefore === null || nextBefore === undefined;
@@ -209,7 +209,7 @@ export function mount(container, ctx) {
     h(
       'div',
       { className: 'page-head' },
-      h('div', {}, h('h1', {}, 'Metrics'), h('p', {}, 'Tool calls recorded by the Hesman server of this project. Refreshes every few seconds.')),
+      h('div', {}, h('h1', {}, 'Metrics'), h('p', {}, 'Tool calls recorded by the Hesman MCP server of this project. Refreshes every few seconds.')),
       h('div', { className: 'segmented', role: 'group', 'aria-label': 'Period' }, windowButtons),
     ),
     summaryBox,

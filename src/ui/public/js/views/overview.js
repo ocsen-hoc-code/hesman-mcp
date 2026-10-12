@@ -81,8 +81,8 @@ function languageSection(index) {
   );
 }
 
-function healthSection(health) {
-  const rows = healthRows(health);
+function healthSection(status) {
+  const rows = healthRows(status.index?.health, limitationOf(status, 'semantic_search'));
   return h(
     'section',
     { className: 'section', 'aria-labelledby': 'health-heading' },
@@ -132,7 +132,7 @@ export function mount(container, ctx) {
     replace(
       body,
       h('div', { className: 'page-head' }, h('div', {}, h('h1', {}, name), h('p', { className: 'code' }, status.projectRoot ?? ''))),
-      h('div', { className: 'columns' }, h('div', {}, indexSection(status), languageSection(status.index)), h('div', {}, healthSection(status.index?.health), limitsSection(status), projectSection(status))),
+      h('div', { className: 'columns' }, h('div', {}, indexSection(status), languageSection(status.index)), h('div', {}, healthSection(status), limitsSection(status), projectSection(status))),
     );
   });
 }

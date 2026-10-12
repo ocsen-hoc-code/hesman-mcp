@@ -85,21 +85,22 @@ export function indexSummary(index) {
   return { state: 'ok', label: 'Index ready', progress: null, detail: '' };
 }
 
-export function healthRows(health) {
+/**
+ * @param semanticLimit the `semantic_search` entry of the status `limitations`, when the dashboard
+ *   process does not open the vector store at all; that is then not a fault.
+ */
+export function healthRows(health, semanticLimit = null) {
   if (!health || typeof health !== 'object') return [];
-  const model = health.embeddingModelLoaded
-    ? { state: 'ok', label: 'Loaded', detail: '' }
-    : health.embeddingModelError
-      ? { state: 'error', label: 'Failed to load', detail: String(health.embeddingModelError) }
-      : { state: 'warn', label: 'Not loaded', detail: 'Semantic search is unavailable until the model loads.' };
+  let model = { state: 'warn', label: 'Not loaded', detail: 'Semantic search is unavailable until the model loads.' };
+  if (health.embeddingModelLoaded) model = { state: 'ok', label: 'Loaded', detail: '' };
+  else if (health.embeddingModelError) model = { state: 'error', label: 'Failed to load', detail: String(health.embeddingModelError) };
+  else if (semanticLimit) model = { state: 'pending', label: 'Not loaded here', detail: '' };
+  let vectors = { state: 'error', label: 'Unavailable', detail: 'Semantic search does not work without it.' };
+  if (health.zvecOk) vectors = { state: 'ok', label: 'Working', detail: `${formatCount(health.zvecDocCount ?? 0)} documents` };
+  else if (semanticLimit) vectors = { state: 'pending', label: 'Not opened here', detail: String(semanticLimit.reason ?? '') };
   return [
     { name: 'Symbol database', ...(health.sqliteOk ? { state: 'ok', label: 'Working', detail: '' } : { state: 'error', label: 'Unavailable', detail: '' }) },
-    {
-      name: 'Vector store',
-      ...(health.zvecOk
-        ? { state: 'ok', label: 'Working', detail: `${formatCount(health.zvecDocCount ?? 0)} documents` }
-        : { state: 'error', label: 'Unavailable', detail: 'Semantic search does not work without it.' }),
-    },
+    { name: 'Vector store', ...vectors },
     { name: 'Embedding model', ...model },
   ];
 }

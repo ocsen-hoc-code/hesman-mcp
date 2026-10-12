@@ -2,7 +2,7 @@
 // and links that open the playground with a tool prefilled.
 
 import { h } from '../dom.js';
-import { formatCount } from '../lib/format.js';
+import { formatCount, shortPath } from '../lib/format.js';
 import { connectionsOf } from '../lib/graph-model.js';
 import { playgroundRoute } from '../lib/router.js';
 
@@ -21,7 +21,14 @@ function nodeList(title, items, onSelect, describe) {
         h(
           'li',
           {},
-          h('button', { type: 'button', className: 'result', onclick: () => onSelect(item.node.id) }, h('span', { className: 'code' }, item.node.name), describe ? h('span', { className: 'muted' }, ` ${describe(item)}`) : null),
+          h(
+            'button',
+            { type: 'button', className: 'result', onclick: () => onSelect(item.node.id) },
+            h('span', { className: 'code' }, item.node.name),
+            describe ? h('span', { className: 'muted' }, ` ${describe(item)}`) : null,
+            // Several symbols can share a name (every tool has a `handler`), so the file tells them apart.
+            item.node.kind === 'file' ? null : h('span', { className: 'muted code node-file' }, shortPath(item.node.filePath, 34)),
+          ),
         ),
       ),
     ),

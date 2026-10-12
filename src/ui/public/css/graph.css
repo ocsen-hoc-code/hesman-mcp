@@ -205,6 +205,11 @@
   font-size: var(--text-sm);
 }
 
+.node-file {
+  display: block;
+  font-size: var(--text-xs);
+}
+
 @media (max-width: 760px) {
   .graph-layout {
     grid-template-columns: minmax(0, 1fr);
