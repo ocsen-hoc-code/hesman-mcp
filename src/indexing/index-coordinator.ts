@@ -376,7 +376,7 @@ export async function indexProject(
         }
 
         if (profile.relationQueries) {
-          const relations = extractRelations(result.symbols, content, file.filePath, profile, result.ignoredRanges);
+          const relations = extractRelations(result.symbols, content, file.filePath, profile, result.references);
           store.clearRelations(file.filePath);
           if (relations.length > 0) {
             store.upsertRelations(relations);

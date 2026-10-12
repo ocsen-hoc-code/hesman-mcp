@@ -482,16 +482,16 @@ hesman --help, -h              Show help text
 | Kotlin | `.kt`, `.kts` | deep | Symbols + call graph |
 | Swift | `.swift` | deep | Symbols + call graph |
 | Lua | `.lua` | deep | Symbols + call graph |
-| C | `.c`, `.h` | structural | Symbols only |
-| C++ | `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.ipp`, `.tpp` | structural | Symbols only |
-| Ruby | `.rb`, `.rake`, `.gemspec`, `.ru`, `.podspec` | structural | Symbols only |
-| Bash | `.sh`, `.bash` | structural | Symbols only |
+| C | `.c`, `.h` | deep | Symbols + call graph |
+| C++ | `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.ipp`, `.tpp` | deep | Symbols + call graph |
+| Ruby | `.rb`, `.rake`, `.gemspec`, `.ru`, `.podspec` | deep | Symbols + call graph |
+| Bash | `.sh`, `.bash` | deep | Symbols + call graph |
 | Everything else | any text file | text | Text chunks for `semantic_search`, `find_pattern` and `get_context` |
 
 These 16 grammars ship inside the package, so they work offline. What the tiers mean today:
 
-- **deep** — definitions (functions, classes, methods, constants, ...) plus `calls` relations, so `get_references`, `get_symbol_context` and `impact_analysis` have a call graph. Calls are still found by a language-agnostic text match on `name(`, not by a per-language analysis: calls without parentheses are missed, and in Java and C# a `new X(...)` is recorded but not linked, because the class and its constructor share one name. Import relations exist only for ES `import ... from '...'` statements, and `extends` / `implements` relations only where a language writes `class X extends Y` or `class X implements Y`.
-- **structural** — definitions only. C and C++ declare most functions twice (prototype and definition), which the call resolver cannot tell apart yet; Ruby and Bash call functions without parentheses.
+- **deep** — definitions (functions, classes, methods, constants, ...) plus `calls` relations, so `get_references`, `get_symbol_context` and `impact_analysis` have a call graph. Calls are read from the syntax tree of each language (its call expressions, `new X(...)`, Ruby and Bash calls without parentheses), and are linked by name: the caller's own file first, then the files it imports, its directory, and the project; a name that stays ambiguous is left unlinked instead of being linked to every candidate. A call is linked to a definition rather than to a declaration without a body (a C/C++ prototype, an interface or abstract method), and `new X(...)` to the class `X` rather than to one of its constructors. Types are not resolved, so a method called on an interface with several implementations stays unlinked, and a Ruby method called without arguments or parentheses is not seen as a call. Import relations exist for TypeScript/JavaScript, Python, Go, C/C++ (`#include "..."`) and Ruby (`require`, `require_relative`); `extends` / `implements` relations only where a language writes `class X extends Y` or `class X implements Y`.
+- **structural** — definitions only. No bundled language is in this tier any more; it remains for a grammar whose calls cannot be extracted reliably.
 - **text** — no symbols; see "Text tier" in [docs/TOOLS.md](./docs/TOOLS.md).
 
 Symbol kinds follow each grammar's own tags query, so some are coarser than the language: PHP and Kotlin methods are `function`, Rust and Swift enums and Kotlin interfaces are `class`, Rust type aliases are `class`. Adding a language requires a grammar, a tags query, a small profile and one entry in the language registry (`src/parsers/languages.ts`) — see the [Contributing Guide](./docs/CONTRIBUTING.md) for step-by-step instructions.

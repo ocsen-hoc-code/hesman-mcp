@@ -16,14 +16,14 @@ describe('TypeScript relation extraction', () => {
 
   it('extracts CALLS from function call expressions', async () => {
     const result = await parseFile(resolve(FIXTURE_DIR, 'src/index.ts'), tsProfile);
-    const rels = extractRelations(result.symbols, '', resolve(FIXTURE_DIR, 'src/index.ts'), tsProfile);
+    const rels = extractRelations(result.symbols, '', resolve(FIXTURE_DIR, 'src/index.ts'), tsProfile, result.references);
     const calls = rels.filter(r => r.kind === 'calls');
     expect(calls.length).toBeGreaterThan(0);
   });
 
   it('extracts IMPORTS from import statements', async () => {
     const result = await parseFile(resolve(FIXTURE_DIR, 'src/index.ts'), tsProfile);
-    const rels = extractRelations(result.symbols, '', resolve(FIXTURE_DIR, 'src/index.ts'), tsProfile);
+    const rels = extractRelations(result.symbols, '', resolve(FIXTURE_DIR, 'src/index.ts'), tsProfile, result.references);
     const imports = rels.filter(r => r.kind === 'imports');
     expect(imports.length).toBeGreaterThan(0);
   });
@@ -31,7 +31,7 @@ describe('TypeScript relation extraction', () => {
   it('returns empty array for profile without relation queries', async () => {
     const noQueryProfile = { ...tsProfile, relationQueries: undefined };
     const result = await parseFile(resolve(FIXTURE_DIR, 'src/index.ts'), noQueryProfile);
-    const rels = extractRelations(result.symbols, '', resolve(FIXTURE_DIR, 'src/index.ts'), noQueryProfile);
+    const rels = extractRelations(result.symbols, '', resolve(FIXTURE_DIR, 'src/index.ts'), noQueryProfile, result.references);
     expect(rels).toEqual([]);
   });
 });

@@ -21,6 +21,7 @@ describe('Python relation extraction', () => {
       '',
       resolve(FIXTURE_DIR, 'main.py'),
       pythonProfile,
+      result.references,
     );
     const calls = rels.filter((r) => r.kind === 'calls');
     // Calculator.add(self, n) calls the standalone add() function
@@ -34,12 +35,11 @@ describe('Python relation extraction', () => {
       '',
       resolve(FIXTURE_DIR, 'utils.py'),
       pythonProfile,
+      result.references,
     );
     const imports = rels.filter((r) => r.kind === 'imports');
-    // The import regex currently matches `import X` but not `from X import Y`;
-    // Python uses `from typing import List, Optional`, so no imports found
-    // by the regex-based extractor.  This test documents that behavior.
-    expect(Array.isArray(imports)).toBe(true);
+    // utils.py line 3: `from typing import List, Optional` (read from the syntax tree, M1-07).
+    expect(imports.map((r) => `${r.to_id}@${r.line}`)).toEqual(['unresolved:typing@3']);
   });
 
   it('returns empty array for profile without relation queries', async () => {
@@ -50,6 +50,7 @@ describe('Python relation extraction', () => {
       '',
       resolve(FIXTURE_DIR, 'main.py'),
       noQueryProfile,
+      result.references,
     );
     expect(rels).toEqual([]);
   });

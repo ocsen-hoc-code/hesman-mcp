@@ -22,6 +22,8 @@ export interface SymbolRow {
   is_exported: number;
   /** 1 for a function assigned to an object key or property (stored as 0 when absent). */
   is_property?: number;
+  /** 1 for a function or method declared without a body (stored as 0 when absent). */
+  is_declaration?: number;
   updated_at: number;
 }
 
@@ -73,6 +75,8 @@ export interface CallRelationToResolve {
 
 /** Kinds a call can never target (`foo(` is not a call of an interface or type). */
 const NON_CALLABLE_KINDS = ['interface', 'type', 'enum', 'namespace'];
+/** The kind of a symbol that `Name(...)` / `new Name(...)` instantiates. */
+const CLASS_KIND = 'class';
 
 /** SQLite caps bound parameters; stay well below the limit. */
 const IN_CHUNK = 500;
@@ -136,8 +140,11 @@ export interface DependencyResult {
  *   6 — extraction fixes (M1-08): `is_exported` follows the module's real
  *       exports, multi-line signatures, Python tuple assignments, no calls
  *       from strings/comments/signatures, `is_property` on symbols.
+ *   7 — calls and imports come from the syntax tree (M1-07): other call
+ *       relations for every language, calls for C, C++, Ruby and Bash, imports
+ *       for Python, Go, C, C++ and Ruby, `is_declaration` on symbols.
  */
-export const INDEX_SCHEMA_VERSION = 6;
+export const INDEX_SCHEMA_VERSION = 7;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
 /**
@@ -162,7 +169,8 @@ const MIGRATIONS = [
     language    TEXT NOT NULL,
     is_exported INTEGER NOT NULL DEFAULT 0,
     updated_at  INTEGER NOT NULL,
-    is_property INTEGER NOT NULL DEFAULT 0
+    is_property INTEGER NOT NULL DEFAULT 0,
+    is_declaration INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name)`,
   `CREATE INDEX IF NOT EXISTS idx_symbols_kind ON symbols(kind)`,
@@ -265,6 +273,10 @@ export class SqliteStore {
     if (!symbolColumns.some((c) => c.name === 'is_property')) {
       this.db.exec('ALTER TABLE symbols ADD COLUMN is_property INTEGER NOT NULL DEFAULT 0');
     }
+    // `is_declaration` was added in index schema 7.
+    if (!symbolColumns.some((c) => c.name === 'is_declaration')) {
+      this.db.exec('ALTER TABLE symbols ADD COLUMN is_declaration INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   private ensureFtsTriggers(): void {
@@ -340,12 +352,12 @@ export class SqliteStore {
       if (symbols.length === 0) return;
       const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO symbols
-          (id, name, kind, file_path, start_line, end_line, start_col, end_col, signature, doc_comment, parent_id, language, is_exported, is_property, updated_at)
+          (id, name, kind, file_path, start_line, end_line, start_col, end_col, signature, doc_comment, parent_id, language, is_exported, is_property, is_declaration, updated_at)
         VALUES
-          (@id, @name, @kind, @file_path, @start_line, @end_line, @start_col, @end_col, @signature, @doc_comment, @parent_id, @language, @is_exported, @is_property, @updated_at)
+          (@id, @name, @kind, @file_path, @start_line, @end_line, @start_col, @end_col, @signature, @doc_comment, @parent_id, @language, @is_exported, @is_property, @is_declaration, @updated_at)
       `);
       const insertMany = this.db.transaction((rows: SymbolRow[]) => {
-        for (const row of rows) stmt.run({ ...row, is_property: row.is_property ?? 0 });
+        for (const row of rows) stmt.run({ ...row, is_property: row.is_property ?? 0, is_declaration: row.is_declaration ?? 0 });
       });
       insertMany(symbols);
     });
@@ -530,13 +542,39 @@ export class SqliteStore {
     return [...rows.values()].sort((a, b) => a.rowid - b.rowid);
   }
 
-  /** Symbols named `name` that a call can target (excludes interfaces, types, …). */
+  /**
+   * Symbols named `name` that a call can target, ordered by file and line.
+   * Besides the kinds that are never called (interfaces, types, …), two rules
+   * remove same-named symbols that are not separate targets:
+   *
+   * - Constructors: when a class named `name` exists, a function or method of
+   *   the same name in the same language is its constructor (`Item(int n)` in
+   *   Java/C#, `Item::Item()` in C++). `new Item(...)` is linked to the class,
+   *   which is unique, where its constructors may be overloaded.
+   * - Declarations: a callable without a body (a C/C++ prototype, an interface,
+   *   abstract or trait method) is dropped when a same-named callable with a
+   *   body exists, so the call is linked to the implementation. With no
+   *   definition in the project the declaration stays the target; several
+   *   implementations stay several candidates (the resolver never fans out).
+   */
   getCallTargetCandidates(name: string): CallTargetCandidate[] {
     const placeholders = NON_CALLABLE_KINDS.map(() => '?').join(',');
-    const rows = this.db.prepare(
-      `SELECT id, file_path, (is_property = 1 AND is_exported = 0) AS local
+    let rows = this.db.prepare(
+      `SELECT id, file_path, kind, language, is_declaration AS declared, (is_property = 1 AND is_exported = 0) AS local
          FROM symbols WHERE name = ? AND kind NOT IN (${placeholders}) ORDER BY file_path, start_line`,
-    ).all(name, ...NON_CALLABLE_KINDS) as Array<{ id: string; file_path: string; local: number }>;
+    ).all(name, ...NON_CALLABLE_KINDS) as Array<{
+      id: string;
+      file_path: string;
+      kind: string;
+      language: string;
+      declared: number;
+      local: number;
+    }>;
+    if (rows.length > 1) {
+      const classLanguages = new Set(rows.filter((r) => r.kind === CLASS_KIND).map((r) => r.language));
+      if (classLanguages.size > 0) rows = rows.filter((r) => r.kind === CLASS_KIND || !classLanguages.has(r.language));
+      if (rows.some((r) => !r.declared)) rows = rows.filter((r) => !r.declared);
+    }
     return rows.map(({ id, file_path, local }) => (local ? { id, file_path, same_file_only: true } : { id, file_path }));
   }
 

@@ -222,6 +222,61 @@
       "origin": "hesman",
       "license": "MIT",
       "note": "tree-sitter-bash v0.25.1 ships no tags query; this is the whole query of the language."
+    },
+    {
+      "path": "javascript/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "python/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "go/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "java/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "c/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "cpp/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "csharp/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "rust/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "php/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "ruby/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
+      "path": "swift/hesman-relations.scm",
+      "origin": "hesman",
+      "license": "MIT"
     }
   ]
 }

@@ -233,8 +233,13 @@ profile that states the reason:
 - `includeDefinition(definition)` — drop a definition an unmodified upstream query tags
   (TypeScript body-less signatures, which would make call resolution ambiguous).
 
-`relationQueries` still marks a language for regex-based relation extraction
-(`relation-extractor.ts`); relation queries for more languages are a separate task (M1-07).
+`relationQueries` (set by `relations: true`) marks a language whose relations are extracted. Calls
+and imports are not written in the profile: they are the `@reference.call` and `@reference.import`
+patterns of the language's query layers (`@name` is the callee or the module specifier). Use the
+upstream tags query where it tags calls, and add what it misses in
+`queries/<lang>/hesman-relations.scm`, listed last in `tagsQuery` and recorded in
+`queries/SOURCES.json` and `NOTICE`. A pattern with a property predicate (`#is?`, `#is-not?`) is
+skipped, because the runtime does not evaluate it.
 
 ### 4. Add One Registry Entry
 

@@ -21,6 +21,7 @@ describe('Go relation extraction', () => {
       '',
       resolve(FIXTURE_DIR, 'server.go'),
       goProfile,
+      result.references,
     );
     const calls = rels.filter((r) => r.kind === 'calls');
     // NewServer calls `fmt.Sprintf`, Start calls `fmt.Sprintf`, Stop calls `fmt.Println`
@@ -34,6 +35,7 @@ describe('Go relation extraction', () => {
       '',
       resolve(FIXTURE_DIR, 'main.go'),
       goProfile,
+      result.references,
     );
     const calls = rels.filter((r) => r.kind === 'calls');
     // main() calls `add` and `fmt.Println`
@@ -48,12 +50,11 @@ describe('Go relation extraction', () => {
       '',
       resolve(FIXTURE_DIR, 'server.go'),
       goProfile,
+      result.references,
     );
     const imports = rels.filter((r) => r.kind === 'imports');
-    // The regex-based extractor currently only matches TypeScript-style
-    // `import X from Y`. Go uses `import "fmt"` syntax, so no imports
-    // are found by the regex-based extractor. This test documents that behavior.
-    expect(Array.isArray(imports)).toBe(true);
+    // server.go line 3: `import "fmt"` (read from the syntax tree, M1-07).
+    expect(imports.map((r) => `${r.to_id}@${r.line}`)).toEqual(['unresolved:fmt@3']);
   });
 
   it('returns empty array for profile without relation queries', async () => {
@@ -64,6 +65,7 @@ describe('Go relation extraction', () => {
       '',
       resolve(FIXTURE_DIR, 'main.go'),
       noQueryProfile,
+      result.references,
     );
     expect(rels).toEqual([]);
   });

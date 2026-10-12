@@ -14,6 +14,10 @@
         { "name": "name", "kind": "function", "line": 38, "isExported": true },
         { "name": "record", "kind": "function", "line": 41, "isExported": false },
         { "name": "restock", "kind": "method", "line": 48, "isExported": true }
+      ],
+      "calls": [
+        { "from": "restock", "to": "clamp" },
+        { "from": "restock", "to": "record" }
       ]
     }
   }

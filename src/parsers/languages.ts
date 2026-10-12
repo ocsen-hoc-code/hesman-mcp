@@ -62,7 +62,8 @@ export interface LanguageDefinition {
    * as paths relative to the `queries/` directory. A list is layered in order
    * and when two layers tag the same name the earlier one wins: list the
    * grammar's upstream queries first and Hesman's gap fillers
-   * (`hesman-tags.scm`) last, so they only add definitions. A
+   * (`hesman-tags.scm` for definitions, `hesman-relations.scm` for calls and
+   * imports) last, so they only add to what upstream tags. A
    * `hesman-overrides.scm` layer is listed *before* upstream, for the rare
    * pattern whose upstream definition node is wrong (the file states why).
    * Every file must be recorded in `queries/SOURCES.json` and `NOTICE`. A
@@ -71,7 +72,8 @@ export interface LanguageDefinition {
   readonly tagsQuery?: string | readonly string[];
   /**
    * Optional Tree-sitter query files (paths relative to the `parsers/` directory),
-   * keyed by relation kind. Reserved for M1: query-driven extraction.
+   * keyed by relation kind. Unused: calls and imports are driven by the
+   * `@reference.*` patterns of `tagsQuery` (M1-07).
    */
   readonly queries?: Readonly<Partial<Record<keyof RelationQueries, string>>>;
   /**
@@ -82,16 +84,34 @@ export interface LanguageDefinition {
 }
 
 /** Layers shared by TypeScript and TSX: both grammars extend the JavaScript grammar. */
-const TS_TAGS = ['javascript/tags.scm', 'typescript/tags.scm', 'typescript/hesman-tags.scm'] as const;
+const TS_TAGS = [
+  'javascript/tags.scm',
+  'typescript/tags.scm',
+  'typescript/hesman-tags.scm',
+  'javascript/hesman-relations.scm',
+] as const;
 
 /**
  * All registered languages: the bundled core set of ADR 0001 (section 10).
  * Their grammars ship in `parsers/`; every other file is indexed by the text
  * tier (`text-languages.ts`).
  *
- * `tier` is `deep` only where the regex call extractor finds every call
- * between the definitions of the language's conformance fixture and reports no
- * false self-call; the reason for each `structural` entry is next to it.
+ * `tier` is `deep` only where every call between the definitions of the
+ * language's conformance fixture is extracted from the syntax tree and
+ * resolved, with no false self-call; an entry that cannot promise that is
+ * `structural` and says why. Since M1-07 all sixteen are `deep`.
+ *
+ * Calls and imports come from the same query layers as the symbols: the
+ * `@reference.call` patterns of the upstream tags query where it has them,
+ * plus `hesman-relations.scm` for what upstream does not tag
+ * (`TagsQuery.relations`). Per language:
+ * - upstream calls only: go, python (+ Hesman imports), kotlin, lua;
+ * - upstream calls + Hesman additions: typescript, tsx, javascript (`new X()`,
+ *   `#private()`, imports), java (`new X()`), csharp (plain and generic calls,
+ *   `new X()`), php (plain function calls, `new X()`), rust (path and
+ *   turbofish calls), ruby (`X.new`, requires; upstream's bare-identifier
+ *   pattern needs an unsupported predicate and is skipped);
+ * - Hesman calls only (upstream tags no reference): c, cpp, swift, bash.
  */
 export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
   {
@@ -118,7 +138,7 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     tier: 'deep',
     extensions: ['.js', '.jsx', '.mjs', '.cjs'],
     grammar: 'tree-sitter-javascript.wasm',
-    tagsQuery: ['javascript/tags.scm', 'javascript/hesman-tags.scm'],
+    tagsQuery: ['javascript/tags.scm', 'javascript/hesman-tags.scm', 'javascript/hesman-relations.scm'],
     profile: javascriptProfile,
   },
   {
@@ -126,7 +146,7 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     tier: 'deep',
     extensions: ['.py', '.pyw', '.pyi'],
     grammar: 'tree-sitter-python.wasm',
-    tagsQuery: ['python/tags.scm', 'python/hesman-tags.scm'],
+    tagsQuery: ['python/tags.scm', 'python/hesman-tags.scm', 'python/hesman-relations.scm'],
     profile: pythonProfile,
   },
   {
@@ -134,7 +154,7 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     tier: 'deep',
     extensions: ['.go'],
     grammar: 'tree-sitter-go.wasm',
-    tagsQuery: ['go/tags.scm', 'go/hesman-tags.scm'],
+    tagsQuery: ['go/tags.scm', 'go/hesman-tags.scm', 'go/hesman-relations.scm'],
     profile: goProfile,
   },
   {
@@ -142,23 +162,23 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     tier: 'deep',
     extensions: ['.java'],
     grammar: 'tree-sitter-java.wasm',
-    tagsQuery: ['java/tags.scm', 'java/hesman-tags.scm'],
+    tagsQuery: ['java/tags.scm', 'java/hesman-tags.scm', 'java/hesman-relations.scm'],
     profile: javaProfile,
   },
   {
     id: 'c',
-    tier: 'structural',
+    tier: 'deep',
     extensions: ['.c', '.h'],
     grammar: 'tree-sitter-c.wasm',
-    tagsQuery: ['c/hesman-overrides.scm', 'c/tags.scm', 'c/hesman-tags.scm'],
+    tagsQuery: ['c/hesman-overrides.scm', 'c/tags.scm', 'c/hesman-tags.scm', 'c/hesman-relations.scm'],
     profile: cProfile,
   },
   {
     id: 'cpp',
-    tier: 'structural',
+    tier: 'deep',
     extensions: ['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx', '.ipp', '.tpp'],
     grammar: 'tree-sitter-cpp.wasm',
-    tagsQuery: ['cpp/hesman-overrides.scm', 'cpp/tags.scm', 'cpp/hesman-tags.scm'],
+    tagsQuery: ['cpp/hesman-overrides.scm', 'cpp/tags.scm', 'cpp/hesman-tags.scm', 'cpp/hesman-relations.scm'],
     profile: cppProfile,
   },
   {
@@ -166,7 +186,7 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     tier: 'deep',
     extensions: ['.cs', '.csx'],
     grammar: 'tree-sitter-c_sharp.wasm',
-    tagsQuery: ['csharp/tags.scm', 'csharp/hesman-tags.scm'],
+    tagsQuery: ['csharp/tags.scm', 'csharp/hesman-tags.scm', 'csharp/hesman-relations.scm'],
     profile: csharpProfile,
   },
   {
@@ -174,7 +194,7 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     tier: 'deep',
     extensions: ['.rs'],
     grammar: 'tree-sitter-rust.wasm',
-    tagsQuery: ['rust/tags.scm', 'rust/hesman-tags.scm'],
+    tagsQuery: ['rust/tags.scm', 'rust/hesman-tags.scm', 'rust/hesman-relations.scm'],
     profile: rustProfile,
   },
   {
@@ -182,15 +202,15 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     tier: 'deep',
     extensions: ['.php', '.phtml'],
     grammar: 'tree-sitter-php.wasm',
-    tagsQuery: ['php/tags.scm', 'php/hesman-tags.scm'],
+    tagsQuery: ['php/tags.scm', 'php/hesman-tags.scm', 'php/hesman-relations.scm'],
     profile: phpProfile,
   },
   {
     id: 'ruby',
-    tier: 'structural',
+    tier: 'deep',
     extensions: ['.rb', '.rake', '.gemspec', '.ru', '.podspec'],
     grammar: 'tree-sitter-ruby.wasm',
-    tagsQuery: ['ruby/tags.scm', 'ruby/hesman-tags.scm'],
+    tagsQuery: ['ruby/tags.scm', 'ruby/hesman-tags.scm', 'ruby/hesman-relations.scm'],
     profile: rubyProfile,
   },
   {
@@ -207,13 +227,13 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     tier: 'deep',
     extensions: ['.swift'],
     grammar: 'tree-sitter-swift.wasm',
-    tagsQuery: ['swift/hesman-overrides.scm', 'swift/tags.scm'],
+    tagsQuery: ['swift/hesman-overrides.scm', 'swift/tags.scm', 'swift/hesman-relations.scm'],
     profile: swiftProfile,
   },
   {
     // No tags query upstream: the query is written for Hesman.
     id: 'bash',
-    tier: 'structural',
+    tier: 'deep',
     extensions: ['.sh', '.bash'],
     grammar: 'tree-sitter-bash.wasm',
     tagsQuery: 'bash/hesman-tags.scm',

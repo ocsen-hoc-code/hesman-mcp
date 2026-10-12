@@ -157,11 +157,12 @@ for (const def of LANGUAGES) {
       if (!pending) {
         pending = (async () => {
           const path = join(fixtures.dir, file);
-          const { symbols } = await parseFile(path, def.profile).catch((err: Error) => {
+          // The same extraction path as production (worker.ts, index-coordinator.ts).
+          const { symbols, references } = await parseFile(path, def.profile).catch((err: Error) => {
             throw new Error(`[${lang}] ${file}: extraction failed: ${err.message}`);
           });
           const names = new Map(symbols.map((s) => [s.id, s.name]));
-          const relations = extractRelations(symbols, readFileSync(path, 'utf-8'), path, def.profile);
+          const relations = extractRelations(symbols, readFileSync(path, 'utf-8'), path, def.profile, references);
           const calls = new Set(
             relations.filter((r) => r.kind === 'calls').map((r) => callSubject({ from: names.get(r.from_id) ?? '?', to: r.to_name ?? '?' })),
           );

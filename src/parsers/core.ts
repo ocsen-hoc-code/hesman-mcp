@@ -3,8 +3,14 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { LanguageProfile } from './language-profile.js';
 import { languageById, tagsQueryFiles, QUERIES_DIR } from './languages.js';
-import { TagsQuery, ignoredRangesAt, signatureOf, docCommentAbove, type OffsetRange } from './tags-engine.js';
-import { callSiteOffsets } from './relation-extractor.js';
+import {
+  TagsQuery,
+  hasBody,
+  signatureOf,
+  docCommentAbove,
+  type ParsedReferences,
+  type TagDefinition,
+} from './tags-engine.js';
 import { isEcmaScriptExported, isPropertyAssigned } from './ecmascript.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -29,16 +35,21 @@ export interface ExtractedSymbol {
    * property; the call resolver links such a function in its own file only.
    */
   is_property?: number;
+  /**
+   * 1 for a function or method declared without a body (a C/C++ prototype, an
+   * interface, abstract or trait method): the call resolver prefers a
+   * same-named definition that has one.
+   */
+  is_declaration?: number;
 }
 
 export interface ParseResult {
   symbols: ExtractedSymbol[];
   /**
-   * Source ranges that cannot hold a call (string and comment text,
-   * signature-only declarations), sorted and non-overlapping. Pass them to
+   * The calls and imports found in the syntax tree. Pass them to
    * `extractRelations`; empty for a language without relation extraction.
    */
-  ignoredRanges: OffsetRange[];
+  references: ParsedReferences;
   language: string;
   parseQuality: 'full' | 'partial';
   errors: Array<{ line: number; message: string }>;
@@ -114,7 +125,13 @@ export async function parseFile(
     // hasError is a boolean property on the node, not a method
     const hasError = tree.rootNode.hasError;
 
-    const symbols = tags ? extractSymbols(tree.rootNode, source, filePath, profile, tags) : [];
+    const none: ParsedReferences = { calls: [], imports: [] };
+    const { definitions, references } = !tags
+      ? { definitions: [], references: none }
+      : profile.relationQueries
+        ? tags.analyze(tree.rootNode)
+        : { definitions: tags.definitions(tree.rootNode), references: none };
+    const symbols = extractSymbols(definitions, source, filePath, profile);
     const errors: Array<{ line: number; message: string }> = [];
     if (hasError) {
       collectErrorNodes(tree.rootNode, source, errors);
@@ -122,7 +139,7 @@ export async function parseFile(
 
     return {
       symbols,
-      ignoredRanges: profile.relationQueries ? ignoredRangesAt(tree.rootNode, callSiteOffsets(source)) : [],
+      references,
       language: profile.language,
       parseQuality: hasError ? 'partial' : 'full',
       errors,
@@ -135,6 +152,8 @@ export async function parseFile(
 
 /** Kinds whose members get a `parent_id` pointing back at them. */
 const CONTAINER_KINDS = new Set(['class', 'interface', 'namespace']);
+/** Kinds that can be declared without a body (see `ExtractedSymbol.is_declaration`). */
+const CALLABLE_KINDS = new Set(['function', 'method']);
 
 /**
  * Turns the definitions found by the language's tags queries into symbols.
@@ -142,18 +161,17 @@ const CONTAINER_KINDS = new Set(['class', 'interface', 'namespace']);
  * and the documented `includeDefinition` / `extractDocComment` overrides.
  */
 function extractSymbols(
-  root: SyntaxNode,
+  definitions: readonly TagDefinition[],
   source: string,
   filePath: string,
   profile: LanguageProfile,
-  tags: TagsQuery,
 ): ExtractedSymbol[] {
   const results: ExtractedSymbol[] = [];
   // Enclosing containers of the current definition, outermost first.
   // Definitions arrive in document order, an outer one before its members.
   const containers: Array<{ id: string; endIndex: number }> = [];
 
-  for (const definition of tags.definitions(root)) {
+  for (const definition of definitions) {
     if (profile.includeDefinition && !profile.includeDefinition(definition)) continue;
     const { name, kind, node } = definition;
 
@@ -180,6 +198,7 @@ function extractSymbols(
       language: profile.language,
       is_exported: (profile.isExported ? profile.isExported(name, node) : isEcmaScriptExported(name, node)) ? 1 : 0,
       is_property: kind === 'function' && isPropertyAssigned(node) ? 1 : 0,
+      is_declaration: CALLABLE_KINDS.has(kind) && !hasBody(node) ? 1 : 0,
     });
 
     if (CONTAINER_KINDS.has(kind)) containers.push({ id, endIndex: node.endIndex });

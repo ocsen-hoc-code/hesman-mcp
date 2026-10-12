@@ -15,7 +15,7 @@ const POLYGLOT = resolve(__dirname, '..', '..', 'fixtures', 'polyglot-basic');
 
 async function extract(file: string, profile: LanguageProfile): Promise<{ symbols: ExtractedSymbol[]; calls: RelationRow[] }> {
   const result = await parseFile(file, profile);
-  const rels = extractRelations(result.symbols, '', file, profile);
+  const rels = extractRelations(result.symbols, '', file, profile, result.references);
   return { symbols: result.symbols, calls: rels.filter((r) => r.kind === 'calls') };
 }
 

@@ -124,7 +124,7 @@ src/
 │   ├── context-pruner.ts            # Layer 2: context pruning
 │   ├── summarizer.ts                # Layer 3: symbol summaries, call chain compression
 │   ├── chunker.ts                   # Symbol chunker for embedding
-│   ├── relation-extractor.ts        # Regex-based relation extraction (calls, imports, extends, implements)
+│   ├── relation-extractor.ts        # Relations: calls and imports from the syntax tree, extends/implements by regex
 │   └── profiles/
 │       ├── typescript.ts            # TypeScript/JavaScript language profile
 │       ├── python.ts                # Python language profile
@@ -255,7 +255,7 @@ After all packages are indexed, cross-package relations are discovered by resolv
 ## Key Design Decisions
 
 1. **No LSP dependency** — Tree-sitter provides language-agnostic parsing without starting language servers
-2. **Regex-based relation extraction** — Simpler than full Tree-sitter query matching for the initial version; Tree-sitter queries saved in profiles for future migration
+2. **Query-based call and import extraction** — calls and imports are the `@reference.call` / `@reference.import` matches of each language's query layers (`TagsQuery.relations`), attributed to the innermost enclosing function and linked by name after indexing (`call-resolver.ts`). `extends` / `implements` are still matched by regex
 3. **Response-level compression** — Applied per-response rather than at the parser level so the original data is always available for non-MCP use
 4. **Content-hash incremental indexing** — Files are re-parsed only when their SHA-256 hash changes, detected during scanning
 5. **Single SQLite store for all packages** — In monorepo mode, all packages share one database; package isolation is achieved via the `file_path` column

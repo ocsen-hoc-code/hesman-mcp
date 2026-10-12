@@ -36,7 +36,7 @@ describe('parsers store 1-based, inclusive line numbers', () => {
   it('relation lines are 1-based', async () => {
     const file = join(POLYGLOT, 'ts', 'greet.ts');
     const result = await parseFile(file, typescriptProfile);
-    const rels = extractRelations(result.symbols, '', file, typescriptProfile);
+    const rels = extractRelations(result.symbols, '', file, typescriptProfile, result.references);
     const greet = result.symbols.find((s) => s.name === 'tsGreet');
     // Callees are recorded by name and linked to symbols after indexing (M0-13).
     const calls = rels.filter((r) => r.kind === 'calls' && r.from_id === greet?.id && r.to_name === 'tsFormatName');

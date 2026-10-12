@@ -102,6 +102,72 @@ describe('SqliteStore call targets', () => {
     expect(store.getCallTargetCandidates('onClick')).toEqual([{ id: 'P', file_path: '/p/a.ts', same_file_only: true }]);
   });
 
+  it('is at index schema 7: calls come from the syntax tree, more languages have them (M1-07)', () => {
+    expect(INDEX_SCHEMA_VERSION).toBe(7);
+  });
+
+  it('offers a definition, not its body-less declaration, as a call target (M1-07)', () => {
+    store = new SqliteStore(dir);
+    store.open();
+    store.upsertSymbols([
+      { ...sym('PROTO', 'item_restock', 'function', '/p/include/inventory.h'), is_declaration: 1 },
+      sym('DEF', 'item_restock', 'function', '/p/src/inventory.c'),
+      { ...sym('ONLY', 'external_api', 'function', '/p/include/api.h'), is_declaration: 1 },
+    ]);
+    expect(store.getCallTargetCandidates('item_restock')).toEqual([{ id: 'DEF', file_path: '/p/src/inventory.c' }]);
+    // A declaration whose definition is not in the project is still the best target there is.
+    expect(store.getCallTargetCandidates('external_api')).toEqual([{ id: 'ONLY', file_path: '/p/include/api.h' }]);
+    expect(store.getSymbolById('PROTO')?.is_declaration).toBe(1);
+    expect(store.getSymbolById('DEF')?.is_declaration).toBe(0);
+  });
+
+  it('keeps every implementation when an interface method has several (no fan-out, M1-07)', () => {
+    store = new SqliteStore(dir);
+    store.open();
+    store.upsertSymbols([
+      { ...sym('IFACE', 'restock', 'method', '/p/Stocker.java'), is_declaration: 1 },
+      sym('A', 'restock', 'method', '/p/Item.java'),
+      sym('B', 'restock', 'method', '/p/Crate.java'),
+    ]);
+    expect(store.getCallTargetCandidates('restock').map((c) => c.id)).toEqual(['B', 'A']);
+  });
+
+  it('offers a class, not its constructors, as the target of a call to the class name (M1-07)', () => {
+    store = new SqliteStore(dir);
+    store.open();
+    store.upsertSymbols([
+      { ...sym('CLASS', 'Item', 'class', '/p/Item.java'), language: 'java' },
+      { ...sym('CTOR1', 'Item', 'method', '/p/Item.java'), language: 'java', parent_id: 'CLASS', start_line: 3 },
+      { ...sym('CTOR2', 'Item', 'method', '/p/Item.java'), language: 'java', parent_id: 'CLASS', start_line: 6 },
+      // C++: the class is declared in a header, its constructor defined in another file.
+      { ...sym('CPPCLASS', 'Box', 'class', '/p/include/box.hpp'), language: 'cpp' },
+      { ...sym('CPPCTOR', 'Box', 'function', '/p/src/box.cpp'), language: 'cpp' },
+      // Another language's function of the same name is not a constructor of that class.
+      { ...sym('PYFN', 'Box', 'function', '/p/tools/box.py'), language: 'python' },
+    ]);
+    expect(store.getCallTargetCandidates('Item')).toEqual([{ id: 'CLASS', file_path: '/p/Item.java' }]);
+    expect(store.getCallTargetCandidates('Box').map((c) => c.id)).toEqual(['CPPCLASS', 'PYFN']);
+  });
+
+  it('adds is_declaration to a symbols table created by an older version (M1-07)', () => {
+    const db = new Database(join(dir, 'symbols.db'));
+    db.exec(`CREATE TABLE symbols (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, file_path TEXT NOT NULL,
+      start_line INTEGER NOT NULL, end_line INTEGER NOT NULL, start_col INTEGER NOT NULL DEFAULT 0,
+      end_col INTEGER NOT NULL DEFAULT 0, signature TEXT, doc_comment TEXT, parent_id TEXT,
+      language TEXT NOT NULL, is_exported INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL,
+      is_property INTEGER NOT NULL DEFAULT 0)`);
+    db.close();
+
+    store = new SqliteStore(dir);
+    store.open();
+    store.upsertSymbols([
+      { ...sym('PROTO', 'f', 'function', '/p/a.h'), is_declaration: 1 },
+      sym('DEF', 'f', 'function', '/p/a.c'),
+    ]);
+    expect(store.getCallTargetCandidates('f')).toEqual([{ id: 'DEF', file_path: '/p/a.c' }]);
+  });
+
   it('lists the import specifiers of a file', () => {
     store = new SqliteStore(dir);
     store.open();

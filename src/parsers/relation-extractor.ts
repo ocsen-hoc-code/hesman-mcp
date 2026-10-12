@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { ExtractedSymbol } from './core.js';
 import type { LanguageProfile } from './language-profile.js';
-import type { OffsetRange } from './tags-engine.js';
+import type { ParsedReferences } from './tags-engine.js';
 
 export interface RelationRow {
   from_id: string;
@@ -22,75 +22,8 @@ export function unresolvedCallId(name: string): string {
   return `${UNRESOLVED_CALL_PREFIX}${name}`;
 }
 
-const CALL_KEYWORDS = new Set([
-  'if', 'for', 'while', 'switch', 'catch', 'return', 'throw', 'new', 'typeof', 'instanceof',
-]);
-
-/** What a call looks like in source text: a name directly followed by `(`. */
-const CALL_SITE_PATTERN = /\b([a-zA-Z_$][\w$]*)\s*\(/.source;
-
-/**
- * Offsets (ascending) of every name that textually looks like a callee. The
- * parser checks these against the syntax tree (`ignoredRangesAt`) while the
- * tree is alive, so that `extractRelations` can skip the ones that are text
- * or declarations.
- */
-export function callSiteOffsets(source: string): number[] {
-  const offsets: number[] = [];
-  const pattern = new RegExp(CALL_SITE_PATTERN, 'g');
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(source)) !== null) {
-    if (!CALL_KEYWORDS.has(match[1])) offsets.push(match.index);
-  }
-  return offsets;
-}
-
 /** Kinds that own a call in preference to an enclosing non-callable symbol. */
 const CALLABLE_KINDS = new Set(['function', 'method']);
-
-/** Offset of the first character of every line (index 0 is line 1). */
-function lineStartOffsets(source: string): number[] {
-  const starts = [0];
-  for (let i = source.indexOf('\n'); i !== -1; i = source.indexOf('\n', i + 1)) {
-    starts.push(i + 1);
-  }
-  return starts;
-}
-
-/** 1-based line containing `offset`. */
-function lineOf(lineStarts: number[], offset: number): number {
-  let lo = 0;
-  let hi = lineStarts.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (lineStarts[mid] <= offset) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo + 1;
-}
-
-function escapeRegex(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Offset of each symbol's name in its own declaration: the first whole-word
- * occurrence of the name from the start of the symbol's first line and inside
- * its range (skips decorators and keywords such as `func` / `export function`).
- */
-function declarationOffsets(symbols: ExtractedSymbol[], source: string, lineStarts: number[]): Set<number> {
-  const offsets = new Set<number>();
-  for (const sym of symbols) {
-    const from = lineStarts[sym.start_line - 1];
-    if (from === undefined) continue;
-    const to = sym.end_line < lineStarts.length ? lineStarts[sym.end_line] : source.length;
-    const re = new RegExp(`(?<![\\w$])${escapeRegex(sym.name)}(?![\\w$])`, 'g');
-    re.lastIndex = from;
-    const found = re.exec(source);
-    if (found && found.index < to) offsets.add(found.index);
-  }
-  return offsets;
-}
 
 /**
  * The symbol a call on `line` belongs to: the innermost function/method whose
@@ -127,30 +60,26 @@ function findSymbolByName(
   });
 }
 
-/** True if `offset` lies inside one of the sorted, non-overlapping `ranges`. */
-function isInRanges(ranges: readonly OffsetRange[], offset: number): boolean {
-  let lo = 0;
-  let hi = ranges.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (offset < ranges[mid][0]) hi = mid - 1;
-    else if (offset >= ranges[mid][1]) lo = mid + 1;
-    else return true;
-  }
-  return false;
-}
-
 /**
- * @param ignoredRanges - `ParseResult.ignoredRanges` of the same source: string
- *   and comment text and signature-only declarations, found in the syntax tree.
- *   A `name(` inside them is not a call. Without them every textual match counts.
+ * Builds the relations of one file.
+ *
+ * Calls and imports come from the syntax tree: `references` is
+ * `ParseResult.references` of the same file (the `@reference.call` /
+ * `@reference.import` captures of the language's query layers, see
+ * `TagsQuery.relations`). Without it no call and no import is reported.
+ * `extends` / `implements` are still matched in the source text.
+ *
+ * A call belongs to the innermost function or method that contains its line.
+ * The callee is recorded by name (`to_name` + placeholder `to_id`);
+ * `resolveCallRelations` links it to a symbol once all files are indexed, so
+ * calls into other files resolve and survive re-indexing of the callee's file.
  */
 export function extractRelations(
   symbols: ExtractedSymbol[],
   source: string,
   filePath: string,
   profile: LanguageProfile,
-  ignoredRanges: readonly OffsetRange[] = [],
+  references?: ParsedReferences,
 ): RelationRow[] {
   if (!profile.relationQueries) return [];
 
@@ -167,66 +96,36 @@ export function extractRelations(
     nameMap.set(sym.name, existing);
   }
 
-  // CALLS: match function calls like `funcName(...)`. The callee is recorded
-  // by name (`to_name` + placeholder `to_id`); `resolveCallRelations` links it
-  // to a symbol once all files are indexed, so calls into other files resolve
-  // and survive re-indexing of the callee's file.
-  const lineStarts = lineStartOffsets(sourceCode);
-  const declarations = declarationOffsets(symbols, sourceCode, lineStarts);
-  const callRegex = new RegExp(CALL_SITE_PATTERN, 'g');
-  let match: RegExpExecArray | null;
-  while ((match = callRegex.exec(sourceCode)) !== null) {
-    const calleeName = match[1];
-    if (CALL_KEYWORDS.has(calleeName)) continue;
-    // The symbol's own name in its declaration (`func GoGreet(`) is not a call.
-    if (declarations.has(match.index)) continue;
-    // Text of a string or comment, or a declaration without a body (`area(): number;`).
-    if (isInRanges(ignoredRanges, match.index)) continue;
-
-    const line = lineOf(lineStarts, match.index); // 1-based
-    const col = match.index - lineStarts[line - 1];
-
-    const caller = innermostSymbolAt(symbols, line);
+  for (const call of references?.calls ?? []) {
+    const caller = innermostSymbolAt(symbols, call.line);
     if (!caller) continue;
     results.push({
       from_id: caller.id,
-      to_id: unresolvedCallId(calleeName),
-      to_name: calleeName,
+      to_id: unresolvedCallId(call.name),
+      to_name: call.name,
       kind: 'calls',
       file_path: filePath,
-      line,
-      col,
+      line: call.line,
+      col: call.col,
     });
   }
 
-  // IMPORTS: match `import { ... } from '...'`
-  const importRegex = /import\s+(?:type\s+)?(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s+from\s+['"]([^'"]+)['"]/g;
-  while ((match = importRegex.exec(sourceCode)) !== null) {
-    const modulePath = match[1];
-    const line = sourceCode.substring(0, match.index).split('\n').length; // 1-based
-    const col = match[0].indexOf('from');
-
-    // Determine if local file or package
-    const toId = `unresolved:${modulePath}`;
-
-    // Find the symbol containing this line (the importer).
-    // For file-level imports (no containing symbol), fall back to the
-    // first top-level symbol in the file so the relation is still recorded.
-    let importer = symbols.find(s => s.start_line <= line && s.end_line >= line);
-    if (!importer && symbols.length > 0) {
-      importer = symbols[0];
-    }
-    if (importer) {
-      results.push({
-        from_id: importer.id,
-        to_id: toId,
-        kind: 'imports',
-        file_path: filePath,
-        line,
-        col,
-      });
-    }
+  // File-level imports have no containing symbol: they are recorded on the
+  // first symbol of the file so the relation is still stored.
+  for (const site of references?.imports ?? []) {
+    const importer = symbols.find((s) => s.start_line <= site.line && s.end_line >= site.line) ?? symbols[0];
+    if (!importer) continue;
+    results.push({
+      from_id: importer.id,
+      to_id: `unresolved:${site.specifier}`,
+      kind: 'imports',
+      file_path: filePath,
+      line: site.line,
+      col: site.col,
+    });
   }
+
+  let match: RegExpExecArray | null;
 
   // EXTENDS: match `class X extends Y`
   const extendsRegex = /class\s+(\w+)\s+extends\s+(\w+)/g;

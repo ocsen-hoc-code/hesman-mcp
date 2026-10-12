@@ -51,7 +51,7 @@ interface Extraction {
 async function extractFile(path: string, profile: LanguageProfile, source: string): Promise<Extraction> {
   const result = await parseFile(path, profile);
   const names = new Map(result.symbols.map((s) => [s.id, s.name]));
-  const calls = extractRelations(result.symbols, source, path, profile, result.ignoredRanges).filter((r) => r.kind === 'calls');
+  const calls = extractRelations(result.symbols, source, path, profile, result.references).filter((r) => r.kind === 'calls');
   return {
     symbols: result.symbols,
     calls: calls.map((c) => `${names.get(c.from_id)}->${c.to_name}`),
@@ -427,14 +427,12 @@ describe('M1-08 item 4: no calls from strings, comments or signature-only declar
     const source = lines.join('\n') + '\n';
     writeFileSync(path, source);
     const result = await parseFile(path, profile);
-    const callees = (ranges?: typeof result.ignoredRanges): string[] =>
-      extractRelations(result.symbols, source, path, profile, ranges)
-        .filter((r) => r.kind === 'calls')
-        .map((r) => r.to_name ?? '');
-    // Without the syntax tree the text matches; with it only the real call is left.
-    expect(callees()).toContain('fake');
-    expect(callees(result.ignoredRanges)).not.toContain('fake');
-    expect(callees(result.ignoredRanges)).toContain('real');
+    const callees = extractRelations(result.symbols, source, path, profile, result.references)
+      .filter((r) => r.kind === 'calls')
+      .map((r) => r.to_name ?? '');
+    // Calls are nodes of the syntax tree (M1-07), so text never matches.
+    expect(callees).not.toContain('fake');
+    expect(callees).toContain('real');
   });
 
   it('Rust: a trait method without a body is not a call', async () => {
@@ -469,13 +467,17 @@ describe('M1-08 item 4: no calls from strings, comments or signature-only declar
     expect(callSites.sort()).toEqual(['f->f@4', 'fact->fact@2']);
   });
 
-  it('behaves as before when no ignored ranges are passed', async () => {
+  it('reports no call without the parsed references of the file (M1-07: there is no text fallback)', async () => {
     const path = join(dir, 'legacy-call.ts');
     const source = "export function run(): string {\n  return real('x');\n}\n";
     writeFileSync(path, source);
     const result = await parseFile(path, tsProfile);
-    const calls = extractRelations(result.symbols, source, path, tsProfile).filter((r) => r.kind === 'calls');
-    expect(calls.map((c) => c.to_name)).toEqual(['real']);
+    const calls = (references?: typeof result.references): Array<string | null | undefined> =>
+      extractRelations(result.symbols, source, path, tsProfile, references)
+        .filter((r) => r.kind === 'calls')
+        .map((c) => c.to_name);
+    expect(calls()).toEqual([]);
+    expect(calls(result.references)).toEqual(['real']);
   });
 });
 
