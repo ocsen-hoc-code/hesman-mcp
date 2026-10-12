@@ -38,7 +38,8 @@ function startUi(args: string[], env: NodeJS.ProcessEnv, timeoutMs = 20_000): Pr
     child.stdout?.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
       const match = /(http:\/\/127\.0\.0\.1:\d+)\/\?token=([A-Za-z0-9_-]+)/.exec(stdout);
-      if (match) {
+      // The URL is followed by a few more lines; wait for the last one.
+      if (match && stdout.includes('Ctrl+C')) {
         clearTimeout(timer);
         resolveUi({ child, origin: match[1], token: match[2], stdout: () => stdout, stderr: () => stderr });
       }
