@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fieldRows, mergeLogEntries } from '../../../src/ui/public/js/lib/logs-model.js';
+import { fieldRows, logKey, mergeLogEntries } from '../../../src/ui/public/js/lib/logs-model.js';
 import { loadHistory, pushHistory } from '../../../src/ui/public/js/lib/history.js';
 import { buildRoute, parseRoute } from '../../../src/ui/public/js/lib/router.js';
 import { summarizeToolRun } from '../../../src/ui/public/js/lib/tool-result.js';
@@ -37,6 +37,16 @@ describe('mergeLogEntries', () => {
     const out = mergeLogEntries([], many, 10);
     expect(out).toHaveLength(10);
     expect(out[0].msg).toBe('m29');
+  });
+});
+
+describe('logKey', () => {
+  it('is equal for the same entry and different when any visible part differs', () => {
+    const entry = { time: '2026-10-12T08:00:01Z', level: 'info', name: 'hesman', msg: 'a', fields: {} };
+    expect(logKey({ ...entry })).toBe(logKey(entry));
+    expect(logKey({ ...entry, msg: 'b' })).not.toBe(logKey(entry));
+    expect(logKey({ ...entry, level: 'warn' })).not.toBe(logKey(entry));
+    expect(logKey({ ...entry, fields: { callId: 'c2' } })).not.toBe(logKey({ ...entry, fields: { callId: 'c1' } }));
   });
 });
 

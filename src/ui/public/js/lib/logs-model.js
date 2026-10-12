@@ -6,14 +6,14 @@ import { parseTime } from './format.js';
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];
 
 /** Entries carry no id in the API, so identity is the visible content. */
-const keyOf = (entry) => `${entry.time}|${entry.level}|${entry.name}|${entry.msg}`;
+export const logKey = (entry) => `${entry.time}|${entry.level}|${entry.name}|${entry.msg}|${JSON.stringify(entry.fields ?? null)}`;
 
 /** Merge a fresh page into the list shown: no duplicates, newest first, at most `max` entries. */
 export function mergeLogEntries(existing, incoming, max = 2000) {
   const seen = new Set();
   const merged = [];
   for (const entry of [...incoming, ...existing]) {
-    const key = keyOf(entry);
+    const key = logKey(entry);
     if (seen.has(key)) continue;
     seen.add(key);
     merged.push(entry);

@@ -1,0 +1,223 @@
+/* Graph explorer: layout, drawing and details panel. */
+
+.graph-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 19rem;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.graph-notices > * {
+  margin-bottom: var(--space-2);
+}
+
+.graph-stage {
+  min-height: 12rem;
+}
+
+.graph-canvas {
+  position: relative;
+  border: 1px solid var(--rule-strong);
+  /* Drafting grid: fine lines every 20px, drawn with the theme's grid colour. */
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 20px 20px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 20px 20px,
+    var(--surface);
+}
+
+.graph-svg {
+  display: block;
+  width: 100%;
+  height: min(68vh, 40rem);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.graph-controls {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  display: flex;
+  gap: var(--space-1);
+}
+
+.edge {
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+}
+
+.edge-imports {
+  stroke-dasharray: 6 4;
+}
+
+.edge-inherits {
+  stroke-dasharray: 1.5 3.5;
+  stroke-linecap: round;
+  stroke-width: 1.6;
+}
+
+.edge.is-active {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+}
+
+.edge-arrow {
+  fill: var(--rule-strong);
+}
+
+.node {
+  cursor: pointer;
+}
+
+.node:focus-visible {
+  box-shadow: none;
+}
+
+.node-shape {
+  fill: var(--surface);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.kind-callable .node-shape {
+  fill: var(--series-original);
+}
+
+.is-root .node-shape,
+.is-selected .node-shape {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.is-root .node-shape {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+}
+
+.node:focus-visible .node-shape,
+.node:hover .node-shape {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.node-ring {
+  fill: none;
+  stroke: var(--ink-muted);
+  stroke-width: 1;
+}
+
+.node-label {
+  display: none;
+  fill: var(--ink);
+  font-size: 11px;
+  font-family: var(--font-code);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.has-label .node-label,
+.node:hover .node-label,
+.node:focus .node-label {
+  display: inline;
+}
+
+.is-selected .node-label,
+.is-root .node-label {
+  font-weight: 700;
+}
+
+.legend-line {
+  width: 1.8rem;
+  border-top: 1.5px solid var(--ink-muted);
+}
+
+.line-dashed {
+  border-top-style: dashed;
+}
+
+.line-dotted {
+  border-top-style: dotted;
+  border-top-width: 2px;
+}
+
+.legend-shape {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1.5px solid var(--ink);
+  background: var(--surface);
+}
+
+.shape-circle {
+  border-radius: 50%;
+  background: var(--series-original);
+}
+
+.shape-triangle {
+  border: 0;
+  background: var(--ink);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.shape-ring {
+  border-radius: 50%;
+  border-color: var(--ink-muted);
+  border-width: 1px;
+  outline: 1.5px solid var(--ink);
+  outline-offset: -4px;
+}
+
+.graph-details {
+  position: sticky;
+  top: var(--space-4);
+  max-height: calc(100vh - 2 * var(--space-4));
+  overflow-y: auto;
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--rule-strong);
+  min-height: 6rem;
+}
+
+.graph-details h2 {
+  margin-bottom: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.graph-details h3 {
+  margin: var(--space-4) 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-muted);
+}
+
+.signature,
+.doc-comment {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.action-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 760px) {
+  .graph-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .graph-details {
+    position: static;
+    max-height: none;
+    padding: var(--space-4) 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--rule-strong);
+  }
+
+  .graph-svg {
+    height: 56vh;
+  }
+}
