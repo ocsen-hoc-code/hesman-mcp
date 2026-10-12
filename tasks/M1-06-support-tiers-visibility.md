@@ -1,10 +1,10 @@
 ---
 id: M1-06
 title: Expose support tiers to agents and users
-status: todo
+status: pending
 priority: P1
 depends_on: [M1-04, M1-05]
-updated: 2026-10-06
+updated: 2026-10-12
 ---
 
 ## Context
@@ -42,5 +42,7 @@ npm test && npm run test:e2e
 ```
 
 ## Progress notes
+
+- 2026-10-12: started (branch `rebuild/m1-m2`). The project has no CI: the "CI fails" criterion is met by a unit test that fails when the README matrix is stale.
 
 - 2026-10-06: task created.

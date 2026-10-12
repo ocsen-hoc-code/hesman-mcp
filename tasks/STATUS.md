@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 7/8 done** · **M2: 5/7 done** · **M3: 2/2 done**
+Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 7/9 done** · **M2: 5/7 done** · **M3: 2/2 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -42,9 +42,10 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 | M1-03 | [Language conformance test suite](M1-03-language-conformance-suite.md) | Test | P0 | M1-02 | done |
 | M1-04 | [Universal text tier for files without a grammar](M1-04-universal-text-tier.md) | Indexing | P1 | M1-03 | done |
 | M1-05 | [Grammar delivery: bundled core + verified download](M1-05-grammar-delivery.md) | Distribution | P1 | M1-01, M0-10 | done |
-| M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | todo |
+| M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | pending |
 | M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | done |
 | M1-08 | [Fix the extraction bugs found by the conformance suite](M1-08-extraction-bug-fixes.md) | Parsing | P0 | M1-03 | done |
+| M1-09 | [Call-link precision and recovery from a corrupt index](M1-09-call-link-precision.md) | Parsing | P0 | M1-07 | pending |
 
 Recommended order: 01 → 02 → 03 → (04, 05 in parallel) → 06 → 07 (one sub-task per language).
 
