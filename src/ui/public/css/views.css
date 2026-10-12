@@ -243,23 +243,18 @@
 }
 
 .token-bars {
-  display: grid;
-  gap: 2px;
-  min-width: 7rem;
-  padding-top: 0.2rem;
-}
-
-.token-bar {
   display: block;
-  height: 0.4rem;
+  width: 100%;
+  min-width: 7rem;
+  height: 0.9rem;
 }
 
 .token-bar-original {
-  background: var(--series-original);
+  fill: var(--series-original);
 }
 
 .token-bar-returned {
-  background: var(--series-returned);
+  fill: var(--series-returned);
 }
 
 /* ── Logs ──────────────────────────────────────────────────────────── */

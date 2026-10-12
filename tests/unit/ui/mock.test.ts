@@ -13,7 +13,8 @@ const keys = (o: object) => Object.keys(o).sort();
 describe('mock backend: contract shapes', () => {
   it('GET /api/status', async () => {
     const s = await mockApi().status();
-    expect(keys(s)).toEqual(['dataDir', 'index', 'projectRoot', 'serverTime', 'version']);
+    expect(keys(s)).toEqual(['dataDir', 'index', 'limitations', 'projectRoot', 'serverTime', 'version']);
+    expect(s.limitations).toEqual([]);
     expect(keys(s.index)).toEqual(
       expect.arrayContaining(['totalFiles', 'totalSymbols', 'totalRelations', 'indexing', 'health', 'languages', 'textTier']),
     );
@@ -156,6 +157,23 @@ describe('mock backend: tools', () => {
 
   it('answers 404 for an unknown tool', async () => {
     await expect(mockApi().runTool('nope', {})).rejects.toMatchObject({ kind: 'not_found' });
+  });
+});
+
+describe('mock backend: limited scenario (dashboard next to a running MCP server)', () => {
+  it('reports its limitations in the status', async () => {
+    const s = await mockApi('limited').status();
+    expect(s.limitations.map((l: { feature: string }) => l.feature)).toEqual(['semantic_search', 'indexing_progress', 'writes']);
+    expect(s.limitations.every((l: { reason: string }) => l.reason.length > 10)).toBe(true);
+  });
+
+  it('does not list semantic_search and refuses to run it with 409 TOOL_UNAVAILABLE', async () => {
+    const api = mockApi('limited');
+    const { tools } = await api.tools();
+    expect(tools).toHaveLength(10);
+    expect(tools.map((t: { name: string }) => t.name)).not.toContain('semantic_search');
+    await expect(api.runTool('semantic_search', { query: 'x' })).rejects.toMatchObject({ status: 409, code: 'TOOL_UNAVAILABLE' });
+    await expect(api.runTool('find_symbol', { name: 'get' })).resolves.toMatchObject({ isError: false });
   });
 });
 

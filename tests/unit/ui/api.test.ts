@@ -156,6 +156,19 @@ describe('describeError', () => {
     expect(d.blocking).toBe(false);
   });
 
+  it('explains a tool the dashboard cannot run', () => {
+    const d = describeError(new ApiError('bad_request', 409, 'TOOL_UNAVAILABLE', 'semantic_search needs the vector store'));
+    expect(d.title).toBe('This tool cannot run in the dashboard');
+    expect(d.detail).toContain('semantic_search needs the vector store');
+    expect(d.blocking).toBe(false);
+  });
+
+  it('explains a request body over the size limit', () => {
+    const d = describeError(new ApiError('bad_request', 413, 'PAYLOAD_TOO_LARGE', 'body too large'));
+    expect(d.title).toBe('The arguments are too large');
+    expect(d.detail).toContain('1 MiB');
+  });
+
   it('handles unknown errors', () => {
     expect(describeError(new Error('weird')).detail).toContain('weird');
   });

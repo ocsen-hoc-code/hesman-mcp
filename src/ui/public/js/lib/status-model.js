@@ -103,3 +103,24 @@ export function healthRows(health) {
     { name: 'Embedding model', ...model },
   ];
 }
+
+const LIMITATION_NAMES = {
+  semantic_search: 'Semantic search',
+  indexing_progress: 'Live indexing progress',
+  writes: 'Changes to the index',
+};
+
+/** What the dashboard process cannot do, from `limitations` of `GET /api/status`: `[{ feature, name, reason }]`. */
+export function limitationRows(status) {
+  return list(status?.limitations)
+    .filter((row) => row && typeof row.feature === 'string')
+    .map((row) => ({
+      feature: row.feature,
+      name: LIMITATION_NAMES[row.feature] ?? row.feature.replaceAll('_', ' '),
+      reason: String(row.reason ?? ''),
+    }));
+}
+
+export function limitationOf(status, feature) {
+  return limitationRows(status).find((row) => row.feature === feature) ?? null;
+}

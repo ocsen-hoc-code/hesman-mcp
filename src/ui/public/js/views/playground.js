@@ -7,6 +7,7 @@ import { emptyState, errorState, h, loadingState, mark, replace } from '../dom.j
 import { formatClock, formatDuration, formatTokens } from '../lib/format.js';
 import { HISTORY_KEY, loadHistory, pushHistory } from '../lib/history.js';
 import { buildFormModel, coerceValues, initialValues } from '../lib/schema-form.js';
+import { limitationOf } from '../lib/status-model.js';
 import { summarizeToolRun } from '../lib/tool-result.js';
 
 function storage() {
@@ -75,10 +76,13 @@ export function mount(container, ctx) {
   let tools = [];
   let current = null; // { tool, model }
   let alive = true;
+  let status = null;
   const store = storage();
 
   const toolSelect = h('select', { id: 'tool-select', onchange: () => chooseTool(toolSelect.value) });
   const description = h('p', { className: 'muted', id: 'tool-description' });
+  const missingBox = h('div', {});
+  const limitBox = h('div', {});
   const formBox = h('div', {}, loadingState('the tool list'));
   const resultBox = h('div', { 'aria-live': 'polite' });
   const historyBox = h('div', {});
@@ -123,7 +127,13 @@ export function mount(container, ctx) {
 
   function chooseTool(name, prefill) {
     const tool = tools.find((t) => t.name === name);
-    if (!tool) return;
+    if (!tool) {
+      // A link or a history entry can name a tool this server does not offer.
+      const why = limitationOf(status, name)?.reason;
+      replace(missingBox, h('p', { className: 'notice', role: 'status' }, `${name} is not offered by this server${why ? `: ${why}` : '.'}`));
+      return;
+    }
+    replace(missingBox);
     toolSelect.value = name;
     description.textContent = tool.description ?? '';
     const model = buildFormModel(tool.inputSchema);
@@ -185,6 +195,13 @@ export function mount(container, ctx) {
     }
   }
 
+  /** Say which tools the dashboard process cannot offer, with the server's reason. */
+  function renderLimits() {
+    const limit = limitationOf(status, 'semantic_search');
+    const absent = tools.length > 0 && !tools.some((t) => t.name === 'semantic_search');
+    replace(limitBox, limit && absent ? h('p', { className: 'muted' }, `semantic_search is not in this list. ${limit.reason}`) : null);
+  }
+
   async function loadTools() {
     replace(formBox, loadingState('the tool list'));
     try {
@@ -198,6 +215,8 @@ export function mount(container, ctx) {
       replace(toolSelect, tools.map((tool) => h('option', { value: tool.name }, tool.name)));
       const wanted = tools.some((t) => t.name === ctx.params.tool) ? ctx.params.tool : tools[0].name;
       chooseTool(wanted, wanted === ctx.params.tool ? parseArgs(ctx.params.args) : undefined);
+      if (ctx.params.tool && wanted !== ctx.params.tool) chooseTool(ctx.params.tool);
+      renderLimits();
     } catch (err) {
       if (!alive || ctx.blocked(err)) return;
       replace(formBox, errorState(describeError(err), loadTools));
@@ -210,14 +229,20 @@ export function mount(container, ctx) {
     h(
       'div',
       { className: 'columns' },
-      h('div', {}, h('div', { className: 'field' }, h('label', { htmlFor: 'tool-select' }, 'Tool'), toolSelect, description), formBox, h('section', { className: 'section' }, h('h2', {}, 'Result'), resultBox)),
+      h('div', {}, h('div', { className: 'field' }, h('label', { htmlFor: 'tool-select' }, 'Tool'), toolSelect, description), limitBox, missingBox, formBox, h('section', { className: 'section' }, h('h2', {}, 'Result'), resultBox)),
       h('section', { className: 'section section-first', 'aria-labelledby': 'history-heading' }, h('h2', { id: 'history-heading' }, 'History'), historyBox),
     ),
   );
   renderHistory();
   loadTools();
 
+  const stopStatus = ctx.onStatus((latest) => {
+    status = latest;
+    renderLimits();
+  });
+
   return () => {
     alive = false;
+    stopStatus();
   };
 }

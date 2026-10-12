@@ -13,6 +13,7 @@ import { MAX_GRAPH_NODES, emptyGraph, fileGraphFromPayload, mergeNeighborhood } 
 const SYMBOL_KINDS = ['function', 'class', 'method', 'variable', 'interface', 'type', 'enum', 'namespace', 'constant'];
 const NEIGHBOR_LIMIT = 80;
 const FILE_LIMIT = 200;
+const SEARCH_LIMIT = 30;
 
 /** The drawing area grows with the node count so ~100 nodes keep their distance. */
 function sizeFor(count) {
@@ -74,7 +75,15 @@ export function mount(container, ctx) {
     }
     if (graph.capped) list.push(`Incomplete: the drawing is full at ${MAX_GRAPH_NODES} symbols, so some connections are left out. Start again from another symbol to see them.`);
     if (graph.fileOverviewTruncated) list.push(`Incomplete: only the ${formatCount(graph.nodes.length)} files with the most symbols are drawn. This project has more.`);
-    const count = graph.nodes.length > 0 ? h('p', { className: 'muted' }, `${formatCount(graph.nodes.length)} ${mode === 'files' ? 'files' : 'symbols'}, ${formatCount(graph.edges.length)} relations drawn`) : null;
+    const count =
+      graph.nodes.length > 0
+        ? h(
+            'p',
+            { className: 'muted' },
+            `${formatCount(graph.nodes.length)} ${mode === 'files' ? 'files' : 'symbols'}, ${formatCount(graph.edges.length)} relations drawn.`,
+            mode === 'files' ? ' Only files with symbols are drawn, and import links exist only for relative ES imports.' : '',
+          )
+        : null;
     replace(notices, list.map((text) => h('p', { className: 'notice' }, text)), count);
   }
 
@@ -197,9 +206,9 @@ export function mount(container, ctx) {
     }
     searchState.textContent = 'Searching…';
     try {
-      const data = await ctx.api.graphSearch({ q, kind: kindSelect.value, limit: 30 });
+      const data = await ctx.api.graphSearch({ q, kind: kindSelect.value, limit: SEARCH_LIMIT });
       if (!alive || run !== searchRun) return;
-      searchState.textContent = data.symbols.length === 0 ? `No symbol matches “${q}”. Check the spelling or choose another kind.` : `${data.symbols.length} ${data.symbols.length === 1 ? 'match' : 'matches'}${data.symbols.length === 30 ? ' (first 30)' : ''}. Choose one to draw it.`;
+      searchState.textContent = data.symbols.length === 0 ? `No symbol matches “${q}”. Check the spelling or choose another kind.` : `${data.symbols.length} ${data.symbols.length === 1 ? 'match' : 'matches'}${data.truncated === true || data.symbols.length === SEARCH_LIMIT ? ` (the first ${SEARCH_LIMIT}; type more to narrow it down)` : ''}. Choose one to draw it.`;
       replace(
         results,
         data.symbols.map((symbol) =>

@@ -97,6 +97,11 @@ export function createApi({ fetchImpl, token = '', base = '' }) {
 export function describeError(err) {
   const kind = err instanceof ApiError ? err.kind : 'unknown';
   const message = err instanceof Error ? err.message : String(err);
+  const code = err instanceof ApiError ? err.code : '';
+  if (code === 'TOOL_UNAVAILABLE') return { title: 'This tool cannot run in the dashboard', detail: message, blocking: false };
+  if (code === 'PAYLOAD_TOO_LARGE') {
+    return { title: 'The arguments are too large', detail: `A request may carry at most 1 MiB. Shorten the arguments and run again. (${message})`, blocking: false };
+  }
   switch (kind) {
     case 'unauthorized':
       return {

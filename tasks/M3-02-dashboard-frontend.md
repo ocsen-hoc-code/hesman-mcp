@@ -4,7 +4,7 @@ title: Dashboard frontend (overview, metrics, logs, graph explorer, query playgr
 status: pending
 priority: P0
 depends_on: [M0-12]
-updated: 2026-10-11
+updated: 2026-10-12
 ---
 
 ## Context
@@ -48,10 +48,10 @@ File paths in responses are project-relative with `/`. Line numbers are 1-based.
 
 ## Acceptance criteria
 
-- [ ] All five screens work in mock mode and against the real backend after integration.
-- [ ] No network request leaves 127.0.0.1 (checked in the browser's network panel or by test).
-- [ ] The playground can run every tool the server lists.
-- [ ] `npm test` green; no new runtime dependency.
+- [ ] All five screens work in mock mode and against the real backend after integration. *(Mock mode verified in a browser on 2026-10-12; the real backend is awaiting integration with M3-01.)*
+- [x] No network request leaves 127.0.0.1 (checked in the browser's network panel or by test).
+- [ ] The playground can run every tool the server lists. *(Verified for the 11 tools in mock mode, and the form model is tested against the schemas the real server registers; a run through the real `POST /api/tools/:name` awaits M3-01.)*
+- [x] `npm test` green; no new runtime dependency.
 
 ## Verification
 
@@ -62,5 +62,7 @@ node dist/index.js ui    # then use each screen
 
 ## Progress notes
 
+- 2026-10-12: handled the additions the finished M3-01 backend made to the contract: `limitations` in `/api/status` (shown on the overview and in the playground), `TOOL_UNAVAILABLE` (409) and `PAYLOAD_TOO_LARGE` (413) messages, numeric or string `nextBefore` cursors, `null` token counts, `truncated` on graph search, and the `default-src 'self'` policy (no inline script or style; checked in Chrome against a scratch server sending that header). Mock scenario `limited` reproduces the dashboard next to a running MCP server.
+- 2026-10-12: frontend built under `src/ui/public/` with unit tests in `tests/unit/ui/`; status stays `pending`, awaiting integration with the M3-01 backend. Checked in Chrome through the DevTools protocol: all five screens in mock mode at 1280 px and at 390 px, light and dark, the `indexing`, `empty`, `unauthorized`, `forbidden` and `offline` scenarios, and the real `fetch` path (Bearer token, JSON over HTTP, `POST /api/tools/:name`) against a scratch server that answers the contract from the mock data. No console errors apart from the browser's own line for an expected 401; every request went to 127.0.0.1. No graph library was vendored: the graph is an SVG renderer with a small force layout. Open points for integration are listed in the hand-over report (language tier and signature are not in the contract; meaning of `level` in `/api/logs`).
 - 2026-10-12: started (branch `rebuild/m1-m2`), in parallel with M1-08 at the owner's request.
 - 2026-10-11: task created. Not started: the owner asked to fix the extraction bugs (M1-08) first.

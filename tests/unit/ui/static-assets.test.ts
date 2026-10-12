@@ -69,6 +69,26 @@ describe('dashboard static files', () => {
     }
   });
 
+  it("works under the server's Content-Security-Policy (default-src 'self')", () => {
+    const html = read(join(PUBLIC_DIR, 'index.html'));
+    // No inline script, inline event handler or inline style in the page.
+    expect(html).not.toMatch(/<script(?![^>]*\bsrc=)[^>]*>/i);
+    expect(html).not.toMatch(/\son[a-z]+\s*=/i);
+    expect(html).not.toMatch(/<style|\sstyle\s*=/i);
+    for (const file of files.filter((f) => f.endsWith('.js'))) {
+      // No code from strings, and no style attributes written from script.
+      expect(read(file), rel(file)).not.toMatch(/\beval\(|new Function\(|\bstyle:|\.style\.|setAttribute\('style'/);
+    }
+  });
+
+  it('uses no path the server refuses to serve (dotfiles, a "server" folder)', () => {
+    for (const path of files.map(rel)) {
+      const parts = path.split(/[\\/]/);
+      expect(parts.some((part) => part.startsWith('.')), path).toBe(false);
+      expect(parts[0], path).not.toBe('server');
+    }
+  });
+
   it('keeps every file small and readable', () => {
     for (const file of files) {
       expect(read(file).split('\n').length, rel(file)).toBeLessThanOrEqual(600);

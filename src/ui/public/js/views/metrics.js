@@ -3,7 +3,7 @@
 // Data: GET /api/metrics?windowMinutes=, GET /api/calls?limit=&before=&tool=.
 
 import { callsChart, latencyChart } from '../charts.js';
-import { dataTable, emptyState, errorState, h, loadingState, mark, poll, replace } from '../dom.js';
+import { dataTable, emptyState, errorState, h, loadingState, mark, poll, replace, s } from '../dom.js';
 import { describeError } from '../api.js';
 import { DASH, formatClock, formatCount, formatDateTime, formatDuration, formatPercent, formatTokens, tokenSavings } from '../lib/format.js';
 
@@ -19,12 +19,12 @@ const figure = (term, value, note) => h('div', {}, h('dt', {}, term), h('dd', {}
 
 /** Two bars on one scale: tokens before compression (light) and tokens returned (solid). */
 function tokenBars(row, max) {
-  const width = (n) => `width:${max > 0 ? Math.max(1, (100 * n) / max).toFixed(1) : 0}%`;
-  return h(
-    'div',
-    { className: 'token-bars', title: `${formatCount(row.tokensOriginal)} before, ${formatCount(row.tokensReturned)} returned` },
-    h('span', { className: 'token-bar token-bar-original', style: width(row.tokensOriginal) }),
-    h('span', { className: 'token-bar token-bar-returned', style: width(row.tokensReturned) }),
+  const width = (n) => (max > 0 && n > 0 ? Math.max(1, (100 * n) / max) : 0);
+  return s(
+    'svg',
+    { class: 'token-bars', viewBox: '0 0 100 10', preserveAspectRatio: 'none', role: 'img', 'aria-label': `${formatCount(row.tokensOriginal)} tokens before, ${formatCount(row.tokensReturned)} returned` },
+    s('rect', { x: 0, y: 0, width: width(row.tokensOriginal), height: 4, class: 'token-bar-original' }),
+    s('rect', { x: 0, y: 6, width: width(row.tokensReturned), height: 4, class: 'token-bar-returned' }),
   );
 }
 
@@ -175,7 +175,7 @@ export function mount(container, ctx) {
   }
 
   async function loadOlder() {
-    if (!nextBefore) return;
+    if (nextBefore === null || nextBefore === undefined) return;
     olderButton.disabled = true;
     try {
       const data = await ctx.api.calls({ limit: PAGE, before: nextBefore, tool: toolFilter });

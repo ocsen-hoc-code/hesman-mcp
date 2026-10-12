@@ -1,12 +1,19 @@
 /* global setTimeout, URL */
 // Mock backend for `?mock=1`: a `fetch`-compatible function that answers every endpoint of the
 // API contract from generated data, so the dashboard is fully usable without `hesman ui`.
-// Scenarios (`?mock=1&scenario=<name>`): ready (default), indexing, empty, unauthorized, forbidden, offline.
+// Scenarios (`?mock=1&scenario=<name>`): ready (default), indexing, empty, limited (what `hesman ui` reports
+// next to a running MCP server), unauthorized, forbidden, offline.
 
 import { TEXT_TIER, buildProject, emptyProject, fileEdges, languageStats, prng } from './project.js';
 import { TOOLS, runMockTool } from './tools.js';
 
-export const SCENARIOS = ['ready', 'indexing', 'empty', 'unauthorized', 'forbidden', 'offline'];
+export const SCENARIOS = ['ready', 'indexing', 'empty', 'limited', 'unauthorized', 'forbidden', 'offline'];
+
+const LIMITATIONS = [
+  { feature: 'semantic_search', reason: 'The vector store is open in the MCP server of this project and cannot be shared with the dashboard.' },
+  { feature: 'indexing_progress', reason: 'Indexing runs in the MCP server; the dashboard only sees what is already stored.' },
+  { feature: 'writes', reason: 'The dashboard opens the index read-only.' },
+];
 
 const SLOT_MS = 10_000; // activity is generated per 10-second slot, seeded by the slot number
 const LEVEL_RANK = { debug: 0, info: 1, warn: 2, error: 3 };
@@ -193,6 +200,7 @@ export function createMockFetch(options = {}) {
   const startedAt = now();
   const project = scenario === 'empty' ? emptyProject() : buildProject();
   const active = project.symbols.length > 0;
+  const tools = scenario === 'limited' ? TOOLS.filter((tool) => tool.name !== 'semantic_search') : TOOLS;
 
   function route(method, path, params, body) {
     const t = now();
@@ -200,13 +208,14 @@ export function createMockFetch(options = {}) {
     if (method === 'POST' && path.startsWith('/api/tools/')) {
       const name = decodeURIComponent(path.slice('/api/tools/'.length));
       if (!TOOLS.some((tool) => tool.name === name)) return fail(404, 'NOT_FOUND', `Unknown tool: ${name}`);
+      if (!tools.some((tool) => tool.name === name)) return fail(409, 'TOOL_UNAVAILABLE', `${name} is not available: ${LIMITATIONS[0].reason}`);
       const run = runMockTool(name, body?.args, project, index());
       return ok({ ...run, durationMs: round(0.6 + (JSON.stringify(run.result).length % 97) / 9) });
     }
     if (method !== 'GET') return fail(404, 'NOT_FOUND', `No route for ${method} ${path}`);
     switch (path) {
       case '/api/status':
-        return ok({ version: '0.9.0-mock', projectRoot: '/Users/dev/code/harbor-shop', dataDir: '/Users/dev/code/harbor-shop/.hesman', serverTime: new Date(t).toISOString(), index: index() });
+        return ok({ version: '0.9.0-mock', projectRoot: '/Users/dev/code/harbor-shop', dataDir: '/Users/dev/code/harbor-shop/.hesman', serverTime: new Date(t).toISOString(), index: index(), limitations: scenario === 'limited' ? LIMITATIONS : [] });
       case '/api/metrics':
         return ok(metrics(project, t, Math.min(1440, Math.max(1, numberParam(params, 'windowMinutes', 60)))));
       case '/api/calls': {
@@ -257,7 +266,7 @@ export function createMockFetch(options = {}) {
         return ok({ nodes, edges: fileEdges(project).filter((e) => ids.has(e.from) && ids.has(e.to)), truncated: project.files.length > limit });
       }
       case '/api/tools':
-        return ok({ tools: TOOLS });
+        return ok({ tools });
       default:
         return fail(404, 'NOT_FOUND', `No route for GET ${path}`);
     }

@@ -69,7 +69,7 @@ export function mount(container, ctx) {
         ? emptyState('No log entries match', q ? 'Clear the text filter or choose a lower level.' : level === 'info' ? 'Nothing was logged yet.' : 'Choose a lower level to see more.')
         : null,
     );
-    olderButton.hidden = !nextBefore;
+    olderButton.hidden = nextBefore === null || nextBefore === undefined;
   }
 
   async function refresh() {
@@ -88,7 +88,7 @@ export function mount(container, ctx) {
   }
 
   async function loadOlder() {
-    if (!nextBefore) return;
+    if (nextBefore === null || nextBefore === undefined) return;
     const mine = generation;
     olderButton.disabled = true;
     try {

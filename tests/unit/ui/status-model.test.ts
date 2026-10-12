@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LANGUAGES } from '../../../src/parsers/languages.js';
-import { LANGUAGE_TIERS, healthRows, indexSummary, languageRows } from '../../../src/ui/public/js/lib/status-model.js';
+import { LANGUAGE_TIERS, healthRows, indexSummary, languageRows, limitationOf, limitationRows } from '../../../src/ui/public/js/lib/status-model.js';
 
 describe('language tiers shown on the overview', () => {
   it('lists every registered language with the tier of the registry', () => {
@@ -88,5 +88,37 @@ describe('healthRows', () => {
 
   it('is empty without a health object', () => {
     expect(healthRows(null)).toEqual([]);
+  });
+});
+
+describe('limitations of the dashboard process', () => {
+  const status = {
+    limitations: [
+      { feature: 'semantic_search', reason: 'The vector store is in use by the MCP server.' },
+      { feature: 'indexing_progress', reason: 'Progress is only known to the MCP server.' },
+      { feature: 'writes', reason: 'The dashboard opens the index read-only.' },
+      { feature: 'something_new', reason: 'Not known to this page.' },
+      { feature: 7 },
+    ],
+  };
+
+  it('gives every limitation a readable name and keeps the server reason', () => {
+    expect(limitationRows(status)).toEqual([
+      { feature: 'semantic_search', name: 'Semantic search', reason: 'The vector store is in use by the MCP server.' },
+      { feature: 'indexing_progress', name: 'Live indexing progress', reason: 'Progress is only known to the MCP server.' },
+      { feature: 'writes', name: 'Changes to the index', reason: 'The dashboard opens the index read-only.' },
+      { feature: 'something_new', name: 'something new', reason: 'Not known to this page.' },
+    ]);
+  });
+
+  it('finds one limitation by feature', () => {
+    expect(limitationOf(status, 'semantic_search')?.reason).toBe('The vector store is in use by the MCP server.');
+    expect(limitationOf(status, 'find_symbol')).toBeNull();
+  });
+
+  it('is empty when the server sends none', () => {
+    expect(limitationRows({})).toEqual([]);
+    expect(limitationRows(undefined)).toEqual([]);
+    expect(limitationOf(null, 'writes')).toBeNull();
   });
 });

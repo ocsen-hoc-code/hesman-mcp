@@ -3,7 +3,7 @@
 
 import { dataTable, emptyState, h, loadingState, mark, replace } from '../dom.js';
 import { DASH, formatCount, formatDateTime, formatRelative } from '../lib/format.js';
-import { TIER_NOTES, healthRows, indexSummary, languageRows } from '../lib/status-model.js';
+import { TIER_NOTES, healthRows, indexSummary, languageRows, limitationOf, limitationRows } from '../lib/status-model.js';
 
 const fact = (term, ...value) => [h('dt', {}, term), h('dd', {}, value)];
 
@@ -11,6 +11,7 @@ function indexSection(status) {
   const index = status.index ?? {};
   const summary = indexSummary(index);
   const now = Date.parse(status.serverTime) || Date.now();
+  const progressLimit = limitationOf(status, 'indexing_progress');
   const progress =
     summary.state === 'busy'
       ? h(
@@ -30,6 +31,7 @@ function indexSection(status) {
     progress,
     summary.state !== 'busy' && summary.detail ? h('p', { className: summary.state === 'error' ? 'notice notice-error' : 'muted' }, summary.detail) : null,
     summary.state === 'busy' ? h('p', { className: 'notice' }, 'Search and graph results are incomplete until indexing finishes.') : null,
+    progressLimit && summary.state !== 'busy' ? h('p', { className: 'muted' }, `This state is what is stored on disk. ${progressLimit.reason}`) : null,
     h(
       'dl',
       { className: 'figures' },
@@ -111,6 +113,17 @@ function projectSection(status) {
   );
 }
 
+function limitsSection(status) {
+  const rows = limitationRows(status);
+  if (rows.length === 0) return null;
+  return h(
+    'section',
+    { className: 'section', 'aria-labelledby': 'limits-heading' },
+    h('h2', { id: 'limits-heading' }, 'Not available in this dashboard'),
+    h('ul', { className: 'health' }, rows.map((row) => h('li', {}, h('span', { className: 'health-name' }, row.name), mark('warn', 'Unavailable'), h('span', { className: 'muted' }, row.reason)))),
+  );
+}
+
 export function mount(container, ctx) {
   const body = h('div', {}, loadingState('the project status'));
   replace(container, body);
@@ -119,7 +132,7 @@ export function mount(container, ctx) {
     replace(
       body,
       h('div', { className: 'page-head' }, h('div', {}, h('h1', {}, name), h('p', { className: 'code' }, status.projectRoot ?? ''))),
-      h('div', { className: 'columns' }, h('div', {}, indexSection(status), languageSection(status.index)), h('div', {}, healthSection(status.index?.health), projectSection(status))),
+      h('div', { className: 'columns' }, h('div', {}, indexSection(status), languageSection(status.index)), h('div', {}, healthSection(status.index?.health), limitsSection(status), projectSection(status))),
     );
   });
 }
