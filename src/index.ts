@@ -19,8 +19,10 @@ import {
   noProjectResult,
   pickProjectRoot,
 } from './server/project-root.js';
-import { createLogger } from './utils/logger.js';
+import { attachLogFile, createLogger } from './utils/logger.js';
 import { MetricsCollector } from './diagnostics/metrics.js';
+import { resolveLogFilePath } from './diagnostics/log-file.js';
+import { ToolCallLog } from './diagnostics/tool-call-log.js';
 
 const log = createLogger('hesman');
 
@@ -37,6 +39,8 @@ interface OpenProject {
   store: SqliteStore;
   zvecStore?: ZVecStore;
   metrics: MetricsCollector;
+  /** Records every tool call in the data directory, for `hesman ui`. */
+  calls: ToolCallLog;
   /** Aborts the background startup (model wait, initial index). */
   abort: AbortController;
   /** Settles when the background startup has ended; never rejects. */
@@ -93,6 +97,12 @@ async function main(): Promise<void> {
   if (args[0] === 'diag') {
     const { runDiag } = await import('./cli/commands.js');
     await runDiag(args.slice(1));
+    return;
+  }
+
+  if (args[0] === 'ui') {
+    const { runUi } = await import('./cli/commands.js');
+    await runUi(args.slice(1));
     return;
   }
 
@@ -223,6 +233,8 @@ async function main(): Promise<void> {
    */
   function openProject(root: string, source: string): void {
     const dataDir = resolve(root, config.dataDir);
+    // From here on log lines also go to the project's log file (earlier lines are replayed into it).
+    attachLogFile(resolveLogFilePath(root, dataDir, config.logFile));
     log.info({ projectRoot: root, dataDir, source }, 'Opening project');
 
     const store = new SqliteStore(dataDir);
@@ -248,6 +260,8 @@ async function main(): Promise<void> {
     const metrics = new MetricsCollector(dataDir);
     server.setMetrics(metrics);
     metrics.startPeriodicFlush(60000);
+    const calls = new ToolCallLog(dataDir);
+    server.setCallRecorder(calls);
 
     // Mark the index as in progress before any request can be answered from
     // these stores, so no client ever sees an empty index reported as complete.
@@ -258,6 +272,7 @@ async function main(): Promise<void> {
       store,
       zvecStore,
       metrics,
+      calls,
       abort: new AbortController(),
       startup: Promise.resolve(),
     };
@@ -276,6 +291,8 @@ async function main(): Promise<void> {
   function releaseProject(opened: OpenProject): void {
     opened.metrics.stop();
     server.setMetrics(undefined);
+    server.setCallRecorder(undefined);
+    opened.calls.close();
     if (project === opened) project = undefined;
     storeRef.unbind();
     zvecRef.unbind();

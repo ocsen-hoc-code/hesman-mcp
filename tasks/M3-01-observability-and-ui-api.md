@@ -1,10 +1,10 @@
 ---
 id: M3-01
 title: Observability data + `hesman ui` backend (HTTP API)
-status: pending
+status: done
 priority: P0
 depends_on: [M0-12]
-updated: 2026-10-11
+updated: 2026-10-12
 ---
 
 ## Context
@@ -43,10 +43,10 @@ File paths in responses are project-relative with `/`. Line numbers are 1-based.
 
 ## Acceptance criteria
 
-- [ ] Every endpoint of the contract is implemented and tested.
-- [ ] Unauthenticated, wrong-Host and cross-Origin requests are rejected (tests).
-- [ ] Logs and tool calls written by a running MCP server are visible through the API from a separate `hesman ui` process (e2e).
-- [ ] No new runtime dependency; `npm test` green.
+- [x] Every endpoint of the contract is implemented and tested.
+- [x] Unauthenticated, wrong-Host and cross-Origin requests are rejected (tests).
+- [x] Logs and tool calls written by a running MCP server are visible through the API from a separate `hesman ui` process (e2e).
+- [x] No new runtime dependency; `npm test` green.
 
 ## Verification
 
@@ -57,5 +57,6 @@ node dist/index.js ui --no-open   # prints the URL
 
 ## Progress notes
 
+- 2026-10-12: done. Log file (`<dataDir>/logs/hesman.log`, 5 MB + one rotated file, honors `logFile`) and tool-call log (`<dataDir>/tool-calls.jsonl`, 2 MB + one rotated file) are written by the MCP server through `src/diagnostics/rotating-file.ts`. JSONL was chosen over a SQLite table: an `O_APPEND` write cannot wait on a database lock held by the indexer, a reader in another process never blocks the writer, and `src/stores/sqlite.ts` stays untouched. `hesman ui` (`src/ui/server/`) implements every endpoint of the contract on `node:http`, opens the index read-only and runs tools through `McpServer.callTool`, the same path as MCP `tools/call`. Not available in the dashboard process: `semantic_search` (the vector store is locked by the process that opened it) and live indexing progress; `/api/status` lists them under `limitations` (an addition to the contract). Tests: `tests/unit/ui/`, `tests/unit/diagnostics/`, `tests/unit/server/mcp-server-call.test.ts`, `tests/e2e/ui.test.ts` (dashboard as a second process next to a running MCP server).
 - 2026-10-12: started (branch `rebuild/m1-m2`), in parallel with M1-08 at the owner's request.
 - 2026-10-11: task created. Not started: the owner asked to fix the extraction bugs (M1-08) first.
