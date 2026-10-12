@@ -51,6 +51,11 @@
       "path": "go/hesman-tags.scm",
       "origin": "hesman",
       "license": "MIT"
+    },
+    {
+      "path": "python/hesman-tags.scm",
+      "origin": "hesman",
+      "license": "MIT"
     }
   ]
 }

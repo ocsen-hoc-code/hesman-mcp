@@ -250,6 +250,104 @@ export class TagsQuery {
   }
 }
 
+/** A half-open range of source offsets: `[start, end)`. */
+export type OffsetRange = readonly [start: number, end: number];
+
+/**
+ * Node types that are text, not code: `name(` inside them is never a call.
+ * They are the innermost nodes of string and comment text, so code inside an
+ * interpolation (`${f()}`, `f"{f()}"`) is not covered and stays visible.
+ */
+const TEXT_NODE_TYPES = new Set([
+  'comment',
+  'line_comment',
+  'block_comment',
+  'string_fragment',
+  'string_content',
+  'escape_sequence',
+  'interpreted_string_literal',
+  'interpreted_string_literal_content',
+  'raw_string_literal',
+  'raw_string_literal_content',
+  'regex_pattern',
+  'jsx_text',
+]);
+
+/**
+ * Declarations that name a callable and its parameters but are not calls and
+ * have no body: interface and abstract members, overloads, ambient functions,
+ * Go interface method specifications.
+ */
+const SIGNATURE_NODE_TYPES = new Set([
+  'method_signature',
+  'function_signature',
+  'abstract_method_signature',
+  'method_elem',
+  'method_spec',
+]);
+
+/**
+ * The source ranges, among those that contain one of `offsets`, in which
+ * `name(` is not a call: string and comment text, and signature-only
+ * declarations. `offsets` are the places where the regex call extractor
+ * (`relation-extractor.ts`) sees a callee name; it skips the ones inside the
+ * returned ranges.
+ *
+ * Only the given offsets are looked up in the tree (one node each), which is
+ * far cheaper than collecting every string and comment of a file. The node
+ * types are language-neutral lists; nothing here knows a specific language.
+ *
+ * @param offsets - ascending source offsets, each at the start of an identifier
+ * @returns ranges sorted by start, non-overlapping
+ */
+export function ignoredRangesAt(root: Node, offsets: readonly number[]): OffsetRange[] {
+  const ranges: OffsetRange[] = [];
+  let covered = -1;
+  for (const offset of offsets) {
+    if (offset < covered) continue;
+    const node = root.descendantForIndex(offset, offset + 1);
+    if (!node) continue;
+    let ignored: Node | null = null;
+    if (TEXT_NODE_TYPES.has(node.type)) {
+      ignored = node;
+    } else {
+      // The name of a signature is a direct child of the signature node.
+      const parent = node.parent;
+      if (parent && SIGNATURE_NODE_TYPES.has(parent.type)) ignored = parent;
+    }
+    if (!ignored) continue;
+    // Everything before `offset` is already decided, so a range never reaches back over an earlier one.
+    ranges.push([Math.max(ignored.startIndex, covered), ignored.endIndex]);
+    covered = ignored.endIndex;
+  }
+  return ranges;
+}
+
+/** The parameter list of a definition, or of the function it binds (`const f = (a) => a`, `{ key: function (a) {} }`). */
+function parametersOf(node: Node): Node | null {
+  const own = node.childForFieldName('parameters');
+  if (own) return own;
+  const value = node.childForFieldName('value') ?? node.childForFieldName('right');
+  return value?.childForFieldName('parameters') ?? null;
+}
+
+/** Joins the lines of a parameter list into one: `f(\n  a,\n  b,\n)` → `f(a, b)`. */
+function joinLines(text: string): string {
+  let joined = '';
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (line.length === 0) continue;
+    if (joined.length === 0 || /[([]$/.test(joined)) {
+      joined += line;
+    } else if (/^[)\]]/.test(line)) {
+      joined = joined.replace(/,$/, '') + line;
+    } else {
+      joined += ` ${line}`;
+    }
+  }
+  return joined;
+}
+
 /**
  * Signature of a definition, for any language: the first line of the node,
  * without its body and without a trailing block opener (`{` or `:`), trimmed
@@ -258,12 +356,39 @@ export class TagsQuery {
  * The body is recognized by the grammar's `body` field, which most grammars
  * use for function, class and interface bodies; a one-line definition such as
  * `func f() int { return 1 }` therefore yields `func f() int`.
+ *
+ * A parameter list (the grammar's `parameters` field) that starts on the first
+ * line and ends on a later one is included in full, joined into one line, up
+ * to the end of the line it closes on.
  */
 export function signatureOf(node: Node, source: string): string {
   const body = node.childForFieldName('body');
-  const end = body && body.startIndex > node.startIndex ? body.startIndex : node.endIndex;
-  const header = source.slice(node.startIndex, end);
-  const firstLine = header.split('\n', 1)[0].trim();
+  let end = body && body.startIndex > node.startIndex ? body.startIndex : node.endIndex;
+  const lineEnd = (from: number): number => {
+    const newline = source.indexOf('\n', from);
+    return newline === -1 || newline > end ? end : newline;
+  };
+
+  let stop = lineEnd(node.startIndex);
+  if (stop < end) {
+    const parameters = parametersOf(node);
+    if (parameters && parameters.startIndex < stop && parameters.endIndex > stop) {
+      const ownerBody = parameters.parent?.childForFieldName('body');
+      if (ownerBody && ownerBody.startIndex >= parameters.endIndex) end = Math.min(end, ownerBody.startIndex);
+      stop = lineEnd(parameters.endIndex);
+      // Comments between parameters are not part of the signature.
+      let text = '';
+      let from = node.startIndex;
+      for (const child of parameters.namedChildren) {
+        if (!child || !child.type.includes('comment')) continue;
+        text += source.slice(from, child.startIndex);
+        from = child.endIndex;
+      }
+      const joined = joinLines(text + source.slice(from, stop));
+      return joined.replace(/\s*[{:]$/, '').trimEnd().slice(0, MAX_SIGNATURE_LENGTH);
+    }
+  }
+  const firstLine = source.slice(node.startIndex, stop).trim();
   return firstLine.replace(/\s*[{:]$/, '').trimEnd().slice(0, MAX_SIGNATURE_LENGTH);
 }
 

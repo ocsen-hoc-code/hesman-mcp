@@ -20,7 +20,21 @@ export interface SymbolRow {
   parent_id: string | null;
   language: string;
   is_exported: number;
+  /** 1 for a function assigned to an object key or property (stored as 0 when absent). */
+  is_property?: number;
   updated_at: number;
+}
+
+/** A symbol a call may be linked to. */
+export interface CallTargetCandidate {
+  id: string;
+  file_path: string;
+  /**
+   * Set for a function that is only reachable through an object and is not
+   * exported (`{ onClick: () => ... }`, `obj.h = function ...`): a call from
+   * another file is never linked to it, however unique its name is.
+   */
+  same_file_only?: true;
 }
 
 export interface RelationRow {
@@ -116,8 +130,11 @@ export interface DependencyResult {
  *       text chunks in the vector store); older indexes never saw them (M1-04).
  *   4 — symbols come from tags queries: some kinds, and therefore ids, differ
  *       and more definitions are indexed (M1-02).
+ *   5 — extraction fixes (M1-08): `is_exported` follows the module's real
+ *       exports, multi-line signatures, Python tuple assignments, no calls
+ *       from strings/comments/signatures, `is_property` on symbols.
  */
-export const INDEX_SCHEMA_VERSION = 4;
+export const INDEX_SCHEMA_VERSION = 5;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
 /**
@@ -141,7 +158,8 @@ const MIGRATIONS = [
     parent_id   TEXT,
     language    TEXT NOT NULL,
     is_exported INTEGER NOT NULL DEFAULT 0,
-    updated_at  INTEGER NOT NULL
+    updated_at  INTEGER NOT NULL,
+    is_property INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name)`,
   `CREATE INDEX IF NOT EXISTS idx_symbols_kind ON symbols(kind)`,
@@ -239,6 +257,11 @@ export class SqliteStore {
       this.db.exec('ALTER TABLE relations ADD COLUMN to_name TEXT');
     }
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_relations_to_name ON relations(to_name)');
+    // `is_property` was added in index schema 5; older databases lack the column.
+    const symbolColumns = this.db.prepare('PRAGMA table_info(symbols)').all() as Array<{ name: string }>;
+    if (!symbolColumns.some((c) => c.name === 'is_property')) {
+      this.db.exec('ALTER TABLE symbols ADD COLUMN is_property INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   private ensureFtsTriggers(): void {
@@ -314,12 +337,12 @@ export class SqliteStore {
       if (symbols.length === 0) return;
       const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO symbols
-          (id, name, kind, file_path, start_line, end_line, start_col, end_col, signature, doc_comment, parent_id, language, is_exported, updated_at)
+          (id, name, kind, file_path, start_line, end_line, start_col, end_col, signature, doc_comment, parent_id, language, is_exported, is_property, updated_at)
         VALUES
-          (@id, @name, @kind, @file_path, @start_line, @end_line, @start_col, @end_col, @signature, @doc_comment, @parent_id, @language, @is_exported, @updated_at)
+          (@id, @name, @kind, @file_path, @start_line, @end_line, @start_col, @end_col, @signature, @doc_comment, @parent_id, @language, @is_exported, @is_property, @updated_at)
       `);
       const insertMany = this.db.transaction((rows: SymbolRow[]) => {
-        for (const row of rows) stmt.run(row);
+        for (const row of rows) stmt.run({ ...row, is_property: row.is_property ?? 0 });
       });
       insertMany(symbols);
     });
@@ -505,11 +528,13 @@ export class SqliteStore {
   }
 
   /** Symbols named `name` that a call can target (excludes interfaces, types, …). */
-  getCallTargetCandidates(name: string): Array<{ id: string; file_path: string }> {
+  getCallTargetCandidates(name: string): CallTargetCandidate[] {
     const placeholders = NON_CALLABLE_KINDS.map(() => '?').join(',');
-    return this.db.prepare(
-      `SELECT id, file_path FROM symbols WHERE name = ? AND kind NOT IN (${placeholders}) ORDER BY file_path, start_line`,
-    ).all(name, ...NON_CALLABLE_KINDS) as Array<{ id: string; file_path: string }>;
+    const rows = this.db.prepare(
+      `SELECT id, file_path, (is_property = 1 AND is_exported = 0) AS local
+         FROM symbols WHERE name = ? AND kind NOT IN (${placeholders}) ORDER BY file_path, start_line`,
+    ).all(name, ...NON_CALLABLE_KINDS) as Array<{ id: string; file_path: string; local: number }>;
+    return rows.map(({ id, file_path, local }) => (local ? { id, file_path, same_file_only: true } : { id, file_path }));
   }
 
   /** Module specifiers imported by `filePath` (e.g. `./greet.js`). */

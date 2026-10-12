@@ -3,7 +3,9 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { LanguageProfile } from './language-profile.js';
 import { languageById, tagsQueryFiles, QUERIES_DIR } from './languages.js';
-import { TagsQuery, signatureOf, docCommentAbove } from './tags-engine.js';
+import { TagsQuery, ignoredRangesAt, signatureOf, docCommentAbove, type OffsetRange } from './tags-engine.js';
+import { callSiteOffsets } from './relation-extractor.js';
+import { isEcmaScriptExported, isPropertyAssigned } from './ecmascript.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('parser');
@@ -22,10 +24,21 @@ export interface ExtractedSymbol {
   parent_id: string | null;
   language: string;
   is_exported: number;
+  /**
+   * 1 for a function that is the value of an object key or is assigned to a
+   * property; the call resolver links such a function in its own file only.
+   */
+  is_property?: number;
 }
 
 export interface ParseResult {
   symbols: ExtractedSymbol[];
+  /**
+   * Source ranges that cannot hold a call (string and comment text,
+   * signature-only declarations), sorted and non-overlapping. Pass them to
+   * `extractRelations`; empty for a language without relation extraction.
+   */
+  ignoredRanges: OffsetRange[];
   language: string;
   parseQuality: 'full' | 'partial';
   errors: Array<{ line: number; message: string }>;
@@ -109,6 +122,7 @@ export async function parseFile(
 
     return {
       symbols,
+      ignoredRanges: profile.relationQueries ? ignoredRangesAt(tree.rootNode, callSiteOffsets(source)) : [],
       language: profile.language,
       parseQuality: hasError ? 'partial' : 'full',
       errors,
@@ -164,22 +178,14 @@ function extractSymbols(
       doc_comment: profile.extractDocComment?.(node, source) ?? docCommentAbove(node, source),
       parent_id: containers.length > 0 ? containers[containers.length - 1].id : null,
       language: profile.language,
-      is_exported: (profile.isExported ? profile.isExported(name, node) : isNodeExported(node)) ? 1 : 0,
+      is_exported: (profile.isExported ? profile.isExported(name, node) : isEcmaScriptExported(name, node)) ? 1 : 0,
+      is_property: kind === 'function' && isPropertyAssigned(node) ? 1 : 0,
     });
 
     if (CONTAINER_KINDS.has(kind)) containers.push({ id, endIndex: node.endIndex });
   }
 
   return results;
-}
-
-function isNodeExported(node: SyntaxNode): boolean {
-  let current: SyntaxNode | null = node;
-  while (current) {
-    if (current.type === 'export_statement') return true;
-    current = current.parent;
-  }
-  return false;
 }
 
 /**

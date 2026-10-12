@@ -62,6 +62,7 @@ queries/go/tags.scm
 
 queries/typescript/hesman-tags.scm
 queries/go/hesman-tags.scm
+queries/python/hesman-tags.scm
   Written for Hesman. License: MIT, Copyright (c) 2026 Minh Do (see LICENSE).
 
 ================================================================================

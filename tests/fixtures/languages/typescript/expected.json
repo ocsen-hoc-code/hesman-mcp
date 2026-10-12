@@ -43,8 +43,8 @@
         { "name": "failures", "kind": "variable", "line": 6, "isExported": false },
         { "name": "backoff", "kind": "function", "line": 9, "isExported": true, "doc": "Waits before the next attempt." },
         { "name": "Retrier", "kind": "class", "line": 14, "isExported": true, "doc": "Runs a task until it succeeds or the retries run out." },
-        { "name": "constructor", "kind": "method", "line": 15, "isExported": false },
-        { "name": "run", "kind": "method", "line": 20, "isExported": false, "doc": "Runs the task once per attempt." },
+        { "name": "constructor", "kind": "method", "line": 15, "isExported": true },
+        { "name": "run", "kind": "method", "line": 20, "isExported": true, "doc": "Runs the task once per attempt." },
         { "name": "sleep", "kind": "function", "line": 34, "isExported": false },
         { "name": "createRetrier", "kind": "function", "line": 37, "isExported": true, "doc": "Creates a retrier with the default settings." }
       ],
@@ -87,48 +87,6 @@
       "check": "parse",
       "reason": "the registry maps .jsx to the TypeScript grammar, which has no JSX rules and reports ERROR nodes on JSX (ADR 0001, section 2)",
       "fixedBy": "M1-05 (separate javascript registry entry)"
-    },
-    {
-      "file": "view.jsx",
-      "check": "symbols",
-      "subject": "increment@11",
-      "reason": "a declaration local to an exported function is reported as exported: the default export rule (isNodeExported in src/parsers/core.ts) accepts any ancestor export_statement",
-      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
-    },
-    {
-      "file": "shapes.ts",
-      "check": "symbols",
-      "subject": "addArea@53",
-      "reason": "a declaration local to an exported function is reported as exported: the default export rule (isNodeExported in src/parsers/core.ts) accepts any ancestor export_statement",
-      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
-    },
-    {
-      "file": "shapes.ts",
-      "check": "symbols",
-      "subject": "describe@45",
-      "reason": "a `private` member of an exported class is reported as exported: the default export rule ignores accessibility modifiers",
-      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
-    },
-    {
-      "file": "legacy.js",
-      "check": "symbols",
-      "subject": "backoff@9",
-      "reason": "CommonJS exports (`module.exports = { ... }`) are not recognized; only ES `export` statements count",
-      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
-    },
-    {
-      "file": "legacy.js",
-      "check": "symbols",
-      "subject": "Retrier@14",
-      "reason": "CommonJS exports (`module.exports = { ... }`) are not recognized; only ES `export` statements count",
-      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
-    },
-    {
-      "file": "legacy.js",
-      "check": "symbols",
-      "subject": "createRetrier@37",
-      "reason": "CommonJS exports (`module.exports = { ... }`) are not recognized; only ES `export` statements count",
-      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
     }
   ]
 }
