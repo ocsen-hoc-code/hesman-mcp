@@ -72,8 +72,8 @@ Goal: `hesman ui` opens a local web page (127.0.0.1 + token) to watch logs and m
 
 | # | Task | Area | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| M3-01 | [Observability data + `hesman ui` backend (HTTP API)](M3-01-observability-and-ui-api.md) | Server | P0 | M0-12 | todo |
-| M3-02 | [Dashboard frontend](M3-02-dashboard-frontend.md) | UI | P0 | M0-12 | todo |
+| M3-01 | [Observability data + `hesman ui` backend (HTTP API)](M3-01-observability-and-ui-api.md) | Server | P0 | M0-12 | pending |
+| M3-02 | [Dashboard frontend](M3-02-dashboard-frontend.md) | UI | P0 | M0-12 | pending |
 
 Publishing to npm: the owner decided on 2026-10-11 not to publish yet, so M2-06 and the `npx` checks of M2-04 stay on hold.
 
