@@ -335,6 +335,8 @@ export class SqliteStore {
     // `receiver` and `names` were added in index schema 8.
     if (!columns.some((c) => c.name === 'receiver')) this.db.exec('ALTER TABLE relations ADD COLUMN receiver TEXT');
     if (!columns.some((c) => c.name === 'names')) this.db.exec('ALTER TABLE relations ADD COLUMN names TEXT');
+    // Relations are replaced, and imports read, one file at a time (M1-09 stores more of them).
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_relations_file ON relations(file_path, kind)');
     // `is_property` was added in index schema 6; older databases lack the column.
     const symbolColumns = this.db.prepare('PRAGMA table_info(symbols)').all() as Array<{ name: string }>;
     if (!symbolColumns.some((c) => c.name === 'is_property')) {

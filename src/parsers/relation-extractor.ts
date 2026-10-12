@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { makeSymbolId, type ExtractedSymbol } from './core.js';
 import type { LanguageProfile } from './language-profile.js';
@@ -56,9 +57,11 @@ export const MODULE_CALLER_PREFIX = 'module:';
  * Source of a call made at the top level of `filePath` (or inside a callback
  * that has no name there). It is not a symbol: the call site is kept, so
  * references and impact analysis still see it, without a made-up caller.
+ * The path is hashed like a symbol id, since the id is stored with every such
+ * call and the relation already carries the file path.
  */
 export function moduleCallerId(filePath: string): string {
-  return `${MODULE_CALLER_PREFIX}${filePath}`;
+  return `${MODULE_CALLER_PREFIX}${createHash('sha256').update(filePath).digest('hex').slice(0, 16)}`;
 }
 
 function findSymbolByName(
