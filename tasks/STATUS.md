@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 5/8 done** · **M2: 5/7 done** · **M3: 0/2 done**
+Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 5/8 done** · **M2: 5/7 done** · **M3: 0/2 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
