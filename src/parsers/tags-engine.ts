@@ -187,7 +187,9 @@ export class TagsQuery {
   private readonly referencePatterns: Array<{ layer: string; text: string }> = [];
   /** The reference patterns that tag a call or an import. */
   private readonly relationPatterns: Array<{ layer: string; text: string }> = [];
+  /** Compiled on first use: a language with relations only ever runs the combined query. */
   private definitionQuery: CompiledPatterns | null = null;
+  private deleted = false;
   private referenceQuery: CompiledPatterns | null = null;
   private relationQuery: CompiledPatterns | null = null;
   /** Definition patterns followed by relation patterns: one tree walk for both (see `analyze`). */
@@ -207,8 +209,10 @@ export class TagsQuery {
         if (RELATION_CAPTURES.some((capture) => text.includes(capture))) this.relationPatterns.push({ layer: layer.name, text });
       }
     }
-    // Definitions are needed for every file; references are compiled on first use.
-    this.definitionQuery = this.compile(this.definitionPatterns);
+  }
+
+  private assertUsable(): void {
+    if (this.deleted) throw new Error('TagsQuery used after delete()');
   }
 
   /**
@@ -243,9 +247,9 @@ export class TagsQuery {
    * before the definitions inside it). Matches without a `@name` are skipped.
    */
   definitions(root: Node): TagDefinition[] {
-    const compiled = this.definitionQuery;
-    if (!compiled) throw new Error('TagsQuery used after delete()');
-    return this.definitionsFrom(compiled.query.matches(root));
+    this.assertUsable();
+    this.definitionQuery ??= this.compile(this.definitionPatterns);
+    return this.definitionsFrom(this.definitionQuery.query.matches(root));
   }
 
   /** Builds the definitions from matches whose pattern indexes are indexes into `definitionPatterns`. */
@@ -298,7 +302,7 @@ export class TagsQuery {
    * `(type_identifier) @name @reference.type` also matches it.
    */
   references(root: Node, definitions: readonly TagDefinition[] = this.definitions(root)): TagReference[] {
-    if (!this.definitionQuery) throw new Error('TagsQuery used after delete()');
+    this.assertUsable();
     this.referenceQuery ??= this.compile(this.referencePatterns);
 
     const definitionNames = new Set(definitions.map((d) => d.nameNode.id));
@@ -351,7 +355,7 @@ export class TagsQuery {
     definitions: readonly TagDefinition[] = this.definitions(root),
     source: string = root.text,
   ): ParsedReferences {
-    if (!this.definitionQuery) throw new Error('TagsQuery used after delete()');
+    this.assertUsable();
     if (this.relationPatterns.length === 0) return { calls: [], imports: [] };
     this.relationQuery ??= this.compile(this.relationPatterns);
     const skipped = this.unevaluatedIn(this.relationQuery.query, 0);
@@ -365,7 +369,7 @@ export class TagsQuery {
    * @param source - the text the tree was parsed from, when the caller has it
    */
   analyze(root: Node, source: string = root.text): { definitions: TagDefinition[]; references: ParsedReferences } {
-    if (!this.definitionQuery) throw new Error('TagsQuery used after delete()');
+    this.assertUsable();
     if (this.relationPatterns.length === 0) return { definitions: this.definitions(root), references: { calls: [], imports: [] } };
     this.combinedQuery ??= this.compile([...this.definitionPatterns, ...this.relationPatterns]);
     const offset = this.definitionPatterns.length;
@@ -480,6 +484,7 @@ export class TagsQuery {
     this.referenceQuery?.query.delete();
     this.relationQuery?.query.delete();
     this.combinedQuery?.query.delete();
+    this.deleted = true;
     this.combinedQuery = null;
     this.definitionQuery = null;
     this.referenceQuery = null;
