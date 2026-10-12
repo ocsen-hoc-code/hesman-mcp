@@ -1,6 +1,6 @@
 # Hesman CLI
 
-`hesman` without a subcommand runs the MCP server on stdio. This page covers the subcommands that connect it to AI clients: `setup`, `remove` and `doctor`. `hesman --help` lists the others (`index`, `status`, `clean`, `diag`).
+`hesman` without a subcommand runs the MCP server on stdio. This page covers the subcommands that connect it to AI clients (`setup`, `remove`, `doctor`) and the local dashboard (`ui`). `hesman --help` lists the others (`index`, `status`, `clean`, `diag`).
 
 Supported clients and their `--client` names: `claude-code`, `claude-desktop`, `codex`, `cursor`, `antigravity`, `vscode`, `gemini-cli`, `windsurf`. Accepted short names: `gemini` (gemini-cli), `copilot` and `code` (vscode), `codex-cli` (codex). `claude` is rejected as ambiguous.
 
@@ -130,3 +130,62 @@ One object on stdout:
 ```
 
 Every check has `id`, `status` (`pass`, `warn`, `fail`, `skip`) and `message`; `fix` and `details` are present only when there is something to say. A client that is not configured has `configured: null`, `expected: null` and one `config` check followed by five `skip` checks. The types are `DoctorReport`, `ClientReport` and `Check` in `src/cli/doctor/types.ts`.
+
+## `hesman ui`
+
+Starts a local dashboard server for one project and prints its URL. It serves a JSON API (logs, tool-call metrics, the symbol graph, a tool playground) and the web page that uses it.
+
+```bash
+hesman ui                 # the project in the current directory, a free port, opens the browser
+hesman ui path/to/project # another project
+hesman ui --port 4100     # a fixed port
+hesman ui --no-open       # only print the URL
+```
+
+| Flag | Meaning |
+|---|---|
+| `[path]` | Project root. Default: `projectRoot` from the config, else the current directory. |
+| `--port <n>` | Port on `127.0.0.1`. Default `0`: the system picks a free one. A port in use is an error. |
+| `--no-open` | Do not start the browser. |
+| `--data-dir <dir>` | Data directory, as for the server (also `HESMAN_DATA_DIR`). It must be the one the MCP server uses. |
+
+The project needs an index: run `hesman index` or start the MCP server once. Without one the command exits with code 1 and writes nothing. Stop it with Ctrl+C.
+
+The URL has the form `http://127.0.0.1:<port>/?token=<random>`. The token changes on every start; `/api/*` answers `401` without it. See "Dashboard" in [SECURITY.md](./SECURITY.md) for the access rules.
+
+### Next to a running MCP server
+
+`hesman ui` is a separate process. It opens the SQLite index read-only, so it works while an MCP server for the same project is running and sees what that server commits. It reads two files the MCP server writes into the data directory:
+
+| File | Content | Size bound |
+|---|---|---|
+| `logs/hesman.log` (or the `logFile` setting; a relative path resolves against the project root) | The server's log lines as JSON, the same lines it writes to stderr. | 5 MB, then renamed to `hesman.log.1` (one rotated file, so at most 10 MB) |
+| `tool-calls.jsonl` | One JSON line per tool call: `id`, `time`, `tool`, `durationMs`, `ok`, `errorCode`, `originalTokens`, `compressedTokens`, `argsPreview`. | 2 MB, then renamed to `tool-calls.jsonl.1` (about 20,000 calls in total) |
+
+If you set `logFile`, put it outside the project or inside the data directory, so the file watcher does not see it change.
+
+Not available in the dashboard process, and reported under `limitations` by `GET /api/status`:
+
+- `semantic_search`: the vector store can be open in one process only and the MCP server holds its lock. The tool is not listed by `GET /api/tools`, and `POST /api/tools/semantic_search` answers `409 TOOL_UNAVAILABLE`.
+- Live indexing progress: it is kept in the memory of the MCP server. `index.indexing.inProgress` is always `false` here; the counts are what is committed so far.
+- Anything that writes: there is no endpoint to index or to change files.
+
+Tool calls made from the dashboard are not added to `tool-calls.jsonl`; the metrics show what agents did through the MCP server.
+
+### API
+
+All responses are JSON: `{ "ok": true, "data": ... }` or `{ "ok": false, "error": { "code", "message" } }`. File paths are project-relative with `/`; line numbers are 1-based. Numeric parameters that are not numbers answer `400 INVALID_INPUT`; out-of-range values are clamped.
+
+| Method and path | Parameters (default, range) | `data` |
+|---|---|---|
+| `GET /api/status` | | `version`, `projectRoot`, `dataDir`, `serverTime`, `index` (the `index_status` payload), `limitations[] { feature, reason }` |
+| `GET /api/metrics` | `windowMinutes` (60, 1–10080) | `summary`, `byTool[]`, `series[]` (at most 61 equal buckets, oldest first) |
+| `GET /api/calls` | `limit` (50, 1–500), `before` (a `nextBefore`), `tool` | `calls[]` newest first, `nextBefore` |
+| `GET /api/logs` | `level` (minimum level, `info`), `q`, `limit` (200, 1–1000), `before` (a `nextBefore`) | `entries[]` newest first, `nextBefore` |
+| `GET /api/graph/search` | `q` (part of the name, case-insensitive), `kind`, `language`, `limit` (30, 1–200) | `symbols[]`: exact names first, then prefixes |
+| `GET /api/graph/neighborhood` | `symbolId` (required), `depth` (1, 1–3), `limit` (80, 1–500 nodes) | `center`, `nodes[]`, `edges[]`, `truncated` |
+| `GET /api/graph/files` | `limit` (200, 1–1000 files) | `nodes[]` (files with the most symbols first), `edges[]`, `truncated` |
+| `GET /api/tools` | | `tools[] { name, description, inputSchema }` |
+| `POST /api/tools/:name` | body `{ "args": { ... } }` as `application/json`, at most 1 MiB | `result` (the tool's JSON, including `_meta`), `isError`, `durationMs` |
+
+A tool error is a `200` with `isError: true` and the tool's `error` object in `result`, exactly as over MCP. HTTP errors use the codes `UNAUTHORIZED` (401), `FORBIDDEN` (403), `NOT_FOUND` and `SYMBOL_NOT_FOUND` (404), `METHOD_NOT_ALLOWED` (405), `TOOL_UNAVAILABLE` (409), `PAYLOAD_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `INVALID_INPUT` (400) and `INTERNAL_ERROR` (500).
