@@ -103,6 +103,8 @@ get_references({ symbolId: "a1b2c3d4e5f6g7h8", referenceKind: "calls", topK: 10 
 
 **Output:** `references` array with `filePath`, `line`, `col`, `kind`, `callerName`, plus `totalCount`, `hasMore`, `nextCursor` for pagination.
 
+**Calls outside a function:** a call made at the top level of a file, in the initializer of a module-level constant or in a callback that has no name (a test body) is listed with its file and line and `callerName: null`: no symbol makes that call. `get_callers` lists symbols only, so it does not show these call sites.
+
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
 
@@ -133,6 +135,8 @@ get_callers({ symbolId: "a1b2c3d4e5f6g7h8", maxDepth: 2 })
 ```
 
 **Output:** `callers` array with `symbolId`, `name`, `kind`, `filePath`, `depth`, and `callSite`.
+
+**Which calls are linked:** a caller is a function, a method, a class (member initializers) or a variable whose value is a function, never a plain variable. A call is linked to a symbol the calling file can reach: a name it imports is linked through that import only (a name imported from a package or a built-in is not linked to a project symbol of the same name), a declaration that is not exported is not a target for another file, and a member call (`a.b()`) is linked to a method or a property function, not to a free function or a variable named `b`. The type of a receiver is not resolved: a member call is linked when exactly one such member is in reach, so a method named like a built-in one (`has`, `get`, `close`) can still collect calls made on other objects.
 
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
