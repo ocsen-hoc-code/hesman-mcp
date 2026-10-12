@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { LanguageProfile } from './language-profile.js';
 import { languageById, tagsQueryFiles, QUERIES_DIR } from './languages.js';
+import { grammarFileFor } from './grammar-store.js';
 import { TagsQuery, signatureOf, docCommentAbove } from './tags-engine.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -57,7 +58,8 @@ export async function initParser(profile: LanguageProfile): Promise<void> {
 }
 
 async function createRuntime(profile: LanguageProfile): Promise<LanguageRuntime> {
-  const language = await Language.load(profile.parserWasmPath);
+  // A bundled grammar is loaded from `parsers/`; an on-demand one from the cache, hashed again first.
+  const language = await Language.load(grammarFileFor(profile));
   const parser = new Parser();
   parser.setLanguage(language);
 

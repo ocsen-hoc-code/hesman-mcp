@@ -44,6 +44,10 @@ function applyEnvOverrides(raw: Record<string, unknown>): Record<string, unknown
   if (process.env.HESMAN_WATCH_MODE) {
     result.watchMode = process.env.HESMAN_WATCH_MODE === 'true' || process.env.HESMAN_WATCH_MODE === '1';
   }
+  if (process.env.HESMAN_GRAMMARS_OFFLINE) {
+    const offline = process.env.HESMAN_GRAMMARS_OFFLINE === 'true' || process.env.HESMAN_GRAMMARS_OFFLINE === '1';
+    result.grammars = { ...(result.grammars as object | undefined), offline };
+  }
 
   return result;
 }
