@@ -12,7 +12,7 @@
  * lives in the query files (`queries/<lang>/`) and, as a documented exception,
  * in the override hooks of a `LanguageProfile`.
  */
-import { Query, type Language, type Node } from 'web-tree-sitter';
+import { Query, type Language, type Node, type QueryMatch } from 'web-tree-sitter';
 import { kindForTagSuffix } from './symbol-kinds.js';
 
 const DEFINITION_PREFIX = 'definition.';
@@ -149,8 +149,10 @@ export class TagsQuery {
   private definitionQuery: CompiledPatterns | null = null;
   private referenceQuery: CompiledPatterns | null = null;
   private relationQuery: CompiledPatterns | null = null;
-  /** Indexes of the relation patterns that cannot be evaluated (see `relations`). */
-  private unevaluated: ReadonlySet<number> = new Set();
+  /** Definition patterns followed by relation patterns: one tree walk for both (see `analyze`). */
+  private combinedQuery: CompiledPatterns | null = null;
+  /** Indexes (into `relationPatterns`) of the patterns that cannot be evaluated (see `relations`). */
+  private unevaluated: ReadonlySet<number> | null = null;
 
   constructor(language: Language, layers: readonly TagsQueryLayer[]) {
     this.language = language;
@@ -202,10 +204,15 @@ export class TagsQuery {
   definitions(root: Node): TagDefinition[] {
     const compiled = this.definitionQuery;
     if (!compiled) throw new Error('TagsQuery used after delete()');
+    return this.definitionsFrom(compiled.query.matches(root));
+  }
 
+  /** Builds the definitions from matches whose pattern indexes are indexes into `definitionPatterns`. */
+  private definitionsFrom(matches: readonly QueryMatch[]): TagDefinition[] {
     // name node id → winning match (lowest pattern index = earliest layer).
     const byName = new Map<number, { pattern: number; definition: TagDefinition }>();
-    for (const match of compiled.query.matches(root)) {
+    for (const match of matches) {
+      if (match.patternIndex >= this.definitionPatterns.length) continue;
       let node: Node | undefined;
       let nameNode: Node | undefined;
       let suffix = '';
@@ -229,7 +236,7 @@ export class TagsQuery {
           kind: kindForTagSuffix(suffix),
           node,
           nameNode,
-          layer: compiled.layerOf[match.patternIndex],
+          layer: this.definitionPatterns[match.patternIndex].layer,
         },
       });
     }
@@ -301,22 +308,50 @@ export class TagsQuery {
   relations(root: Node, definitions: readonly TagDefinition[] = this.definitions(root)): ParsedReferences {
     if (!this.definitionQuery) throw new Error('TagsQuery used after delete()');
     if (this.relationPatterns.length === 0) return { calls: [], imports: [] };
-    if (!this.relationQuery) {
-      this.relationQuery = this.compile(this.relationPatterns);
-      const { assertedProperties, refutedProperties } = this.relationQuery.query;
-      const skipped = new Set<number>();
-      for (let i = 0; i < this.relationPatterns.length; i++) {
-        if (hasProperties(assertedProperties[i]) || hasProperties(refutedProperties[i])) skipped.add(i);
-      }
-      this.unevaluated = skipped;
-    }
+    this.relationQuery ??= this.compile(this.relationPatterns);
+    return this.relationsFrom(this.relationQuery.query.matches(root), 0, this.unevaluatedIn(this.relationQuery.query, 0), definitions);
+  }
 
+  /**
+   * `definitions(root)` and `relations(root)` in one walk of the tree: what
+   * the parser needs for every file of a language with a call graph.
+   */
+  analyze(root: Node): { definitions: TagDefinition[]; references: ParsedReferences } {
+    if (!this.definitionQuery) throw new Error('TagsQuery used after delete()');
+    if (this.relationPatterns.length === 0) return { definitions: this.definitions(root), references: { calls: [], imports: [] } };
+    this.combinedQuery ??= this.compile([...this.definitionPatterns, ...this.relationPatterns]);
+    const offset = this.definitionPatterns.length;
+    const matches = this.combinedQuery.query.matches(root);
+    const definitions = this.definitionsFrom(matches);
+    const skipped = this.unevaluatedIn(this.combinedQuery.query, offset);
+    return { definitions, references: this.relationsFrom(matches, offset, skipped, definitions) };
+  }
+
+  /** The relation patterns of `query` (which start at pattern `offset`) that have a property predicate. */
+  private unevaluatedIn(query: Query, offset: number): ReadonlySet<number> {
+    if (this.unevaluated) return this.unevaluated;
+    const skipped = new Set<number>();
+    for (let i = 0; i < this.relationPatterns.length; i++) {
+      if (hasProperties(query.assertedProperties[offset + i]) || hasProperties(query.refutedProperties[offset + i])) skipped.add(i);
+    }
+    this.unevaluated = skipped;
+    return skipped;
+  }
+
+  /** Builds calls and imports from matches; relation pattern `i` has pattern index `offset + i`. */
+  private relationsFrom(
+    matches: readonly QueryMatch[],
+    offset: number,
+    skipped: ReadonlySet<number>,
+    definitions: readonly TagDefinition[],
+  ): ParsedReferences {
     const definitionNames = new Set(definitions.map((d) => d.nameNode.id));
     const seen = new Set<number>();
     const calls: Array<CallSite & { index: number }> = [];
     const imports: Array<ImportSite & { index: number }> = [];
-    for (const match of this.relationQuery.query.matches(root)) {
-      if (this.unevaluated.has(match.patternIndex)) continue;
+    for (const match of matches) {
+      const pattern = match.patternIndex - offset;
+      if (pattern < 0 || skipped.has(pattern)) continue;
       let nameNode: Node | undefined;
       let node: Node | undefined;
       let suffix = '';
@@ -349,6 +384,8 @@ export class TagsQuery {
     this.definitionQuery?.query.delete();
     this.referenceQuery?.query.delete();
     this.relationQuery?.query.delete();
+    this.combinedQuery?.query.delete();
+    this.combinedQuery = null;
     this.definitionQuery = null;
     this.referenceQuery = null;
     this.relationQuery = null;

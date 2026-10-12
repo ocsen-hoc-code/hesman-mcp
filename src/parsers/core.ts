@@ -125,7 +125,12 @@ export async function parseFile(
     // hasError is a boolean property on the node, not a method
     const hasError = tree.rootNode.hasError;
 
-    const definitions = tags ? tags.definitions(tree.rootNode) : [];
+    const none: ParsedReferences = { calls: [], imports: [] };
+    const { definitions, references } = !tags
+      ? { definitions: [], references: none }
+      : profile.relationQueries
+        ? tags.analyze(tree.rootNode)
+        : { definitions: tags.definitions(tree.rootNode), references: none };
     const symbols = extractSymbols(definitions, source, filePath, profile);
     const errors: Array<{ line: number; message: string }> = [];
     if (hasError) {
@@ -134,8 +139,7 @@ export async function parseFile(
 
     return {
       symbols,
-      references:
-        tags && profile.relationQueries ? tags.relations(tree.rootNode, definitions) : { calls: [], imports: [] },
+      references,
       language: profile.language,
       parseQuality: hasError ? 'partial' : 'full',
       errors,

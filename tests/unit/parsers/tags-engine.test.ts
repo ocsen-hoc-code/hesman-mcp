@@ -366,4 +366,82 @@ describe('tags engine', () => {
       expect(docOf('typescript', source, 'method_definition')).toBe('Runs.');
     });
   });
+  describe('TagsQuery.relations and TagsQuery.analyze (M1-07)', () => {
+    const LAYER = {
+      name: 'inline',
+      source: [
+        '(function_declaration name: (identifier) @name) @definition.function',
+        '(call_expression function: (identifier) @name) @reference.call',
+        '(call_expression function: (member_expression property: (property_identifier) @name)) @reference.send',
+        '(import_statement source: (string (string_fragment) @name)) @reference.import',
+        '(type_annotation (type_identifier) @name) @reference.type',
+      ].join('\n'),
+    };
+    const SOURCE = [
+      "import { b } from './b.js';",
+      'function a(x: Thing): number {',
+      "  // c(1) 'd(2)'",
+      '  return b(x) + x.e();',
+      '}',
+    ].join('\n');
+
+    it('reports calls (`@reference.call`, `@reference.send`) at the callee name, in document order', () => {
+      const query = new TagsQuery(languages.typescript, [LAYER]);
+      const { calls } = query.relations(parse('typescript', SOURCE).rootNode);
+      // Line 4: `  return b(x) + x.e();` — `b` at column 9, `e` at column 18.
+      expect(calls).toEqual([
+        { name: 'b', line: 4, col: 9 },
+        { name: 'e', line: 4, col: 18 },
+      ]);
+      query.delete();
+    });
+
+    it('reports imports with the line of the statement and the specifier without quotes', () => {
+      const query = new TagsQuery(languages.typescript, [LAYER]);
+      const { imports } = query.relations(parse('typescript', SOURCE).rootNode);
+      expect(imports).toEqual([{ specifier: './b.js', line: 1, col: 19 }]);
+      query.delete();
+    });
+
+    it('does not report other references, nor the name of a definition', () => {
+      const query = new TagsQuery(languages.typescript, [
+        LAYER,
+        // A broad pattern that also matches the name in `function a(`.
+        { name: 'broad', source: '((identifier) @name @reference.call (#eq? @name "a"))' },
+      ]);
+      const { calls } = query.relations(parse('typescript', `${SOURCE}\nfunction f() { a(1); }`).rootNode);
+      expect(calls.map((c) => `${c.name}@${c.line}`)).toEqual(['b@4', 'e@4', 'a@6']);
+      query.delete();
+    });
+
+    it('skips a pattern with a property predicate, which the runtime cannot evaluate', () => {
+      const query = new TagsQuery(languages.typescript, [
+        LAYER,
+        { name: 'locals', source: '((identifier) @name @reference.call (#is-not? local))' },
+      ]);
+      const { calls } = query.relations(parse('typescript', SOURCE).rootNode);
+      expect(calls.map((c) => c.name)).toEqual(['b', 'e']);
+      query.delete();
+    });
+
+    it('analyze() returns the same definitions and relations as the two separate calls', () => {
+      const query = new TagsQuery(languages.typescript, [LAYER]);
+      const root = parse('typescript', SOURCE).rootNode;
+      const both = query.analyze(root);
+      expect(both.definitions.map((d) => `${d.kind} ${d.name}`)).toEqual(['function a']);
+      expect(both.definitions.map((d) => d.name)).toEqual(query.definitions(root).map((d) => d.name));
+      expect(both.references).toEqual(query.relations(root));
+      query.delete();
+    });
+
+    it('a language without relation patterns has no relations', () => {
+      const query = new TagsQuery(languages.typescript, [
+        { name: 'defs', source: '(function_declaration name: (identifier) @name) @definition.function' },
+      ]);
+      const root = parse('typescript', SOURCE).rootNode;
+      expect(query.relations(root)).toEqual({ calls: [], imports: [] });
+      expect(query.analyze(root).references).toEqual({ calls: [], imports: [] });
+      query.delete();
+    });
+  });
 });
