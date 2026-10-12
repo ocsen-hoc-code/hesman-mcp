@@ -1,5 +1,5 @@
 import { dirname, extname, join, resolve } from 'node:path';
-import type { SqliteStore } from '../stores/sqlite.js';
+import type { CallTargetCandidate, SqliteStore } from '../stores/sqlite.js';
 import { unresolvedCallId } from '../parsers/relation-extractor.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -46,21 +46,25 @@ export function importedFiles(callerFile: string, specifiers: string[]): Set<str
  *   4. the whole project.
  * The first tier with any candidate decides: exactly one → that symbol;
  * several → ambiguous, returns `null` (no fan-out to every same-named symbol).
+ *
+ * A `same_file_only` candidate (a non-exported function assigned to an object
+ * key or property) only exists for tier 1: a bare `name()` in another file
+ * cannot reach it, so it is neither picked nor counted in tiers 2–4.
  */
 export function pickCallTarget(
   callerFile: string,
-  candidates: Array<{ id: string; file_path: string }>,
+  candidates: CallTargetCandidate[],
   imported: Set<string>,
 ): string | null {
   const callerDir = dirname(callerFile);
-  const tiers: Array<(c: { file_path: string }) => boolean> = [
+  const tiers: Array<(c: CallTargetCandidate) => boolean> = [
     (c) => c.file_path === callerFile,
     (c) => imported.has(c.file_path),
     (c) => dirname(c.file_path) === callerDir,
     () => true,
   ];
-  for (const inTier of tiers) {
-    const hits = candidates.filter(inTier);
+  for (const [tier, inTier] of tiers.entries()) {
+    const hits = candidates.filter((c) => inTier(c) && (tier === 0 || !c.same_file_only));
     if (hits.length === 1) return hits[0].id;
     if (hits.length > 1) return null;
   }
@@ -74,7 +78,7 @@ export function pickCallTarget(
  */
 export function resolveCallRelations(store: SqliteStore, scope?: CallResolutionScope): number {
   const rows = store.getCallRelationsToResolve(scope);
-  const candidatesByName = new Map<string, Array<{ id: string; file_path: string }>>();
+  const candidatesByName = new Map<string, CallTargetCandidate[]>();
   const importsByFile = new Map<string, Set<string>>();
   const updates: Array<{ rowid: number; to_id: string }> = [];
 

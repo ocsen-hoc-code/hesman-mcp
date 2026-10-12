@@ -71,6 +71,37 @@ describe('SqliteStore call targets', () => {
     expect(store.getCallTargetCandidates('thing')).toEqual([{ id: 'F', file_path: '/p/a.ts' }]);
   });
 
+  it('marks a non-exported property-assigned function as a same-file-only call target (M1-08)', () => {
+    store = new SqliteStore(dir);
+    store.open();
+    store.upsertSymbols([
+      { ...sym('P', 'onClick', 'function', '/p/a.ts'), is_property: 1, is_exported: 0 },
+      { ...sym('E', 'shared', 'function', '/p/a.ts'), is_property: 1, is_exported: 1 },
+      { ...sym('D', 'declared', 'function', '/p/a.ts'), is_exported: 0 },
+    ]);
+    expect(store.getCallTargetCandidates('onClick')).toEqual([{ id: 'P', file_path: '/p/a.ts', same_file_only: true }]);
+    // `exports.shared = () => ...` is reachable by a bare call after an import.
+    expect(store.getCallTargetCandidates('shared')).toEqual([{ id: 'E', file_path: '/p/a.ts' }]);
+    expect(store.getCallTargetCandidates('declared')).toEqual([{ id: 'D', file_path: '/p/a.ts' }]);
+    expect(store.getSymbolById('P')?.is_property).toBe(1);
+    expect(store.getSymbolById('D')?.is_property).toBe(0);
+  });
+
+  it('adds is_property to a symbols table created by an older version (M1-08)', () => {
+    const db = new Database(join(dir, 'symbols.db'));
+    db.exec(`CREATE TABLE symbols (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, file_path TEXT NOT NULL,
+      start_line INTEGER NOT NULL, end_line INTEGER NOT NULL, start_col INTEGER NOT NULL DEFAULT 0,
+      end_col INTEGER NOT NULL DEFAULT 0, signature TEXT, doc_comment TEXT, parent_id TEXT,
+      language TEXT NOT NULL, is_exported INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)`);
+    db.close();
+
+    store = new SqliteStore(dir);
+    store.open();
+    store.upsertSymbols([{ ...sym('P', 'onClick', 'function', '/p/a.ts'), is_property: 1, is_exported: 0 }]);
+    expect(store.getCallTargetCandidates('onClick')).toEqual([{ id: 'P', file_path: '/p/a.ts', same_file_only: true }]);
+  });
+
   it('lists the import specifiers of a file', () => {
     store = new SqliteStore(dir);
     store.open();

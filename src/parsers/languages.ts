@@ -126,7 +126,7 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     tier: 'deep',
     extensions: ['.py', '.pyw', '.pyi'],
     grammar: 'tree-sitter-python.wasm',
-    tagsQuery: 'python/tags.scm',
+    tagsQuery: ['python/tags.scm', 'python/hesman-tags.scm'],
     profile: pythonProfile,
   },
   {
