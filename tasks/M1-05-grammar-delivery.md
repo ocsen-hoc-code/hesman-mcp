@@ -39,6 +39,7 @@ npm pack --dry-run   # check package size
 
 ## Progress notes
 
+- 2026-10-12: first half ("M1-05a", scope item 1) merged into `rebuild/m1-m2` (commit `ef8a8ff`): 16 bundled grammars, `parsers/` 27.3 MB (budget 30 MB), tarball about +2.2 MB gzipped (budget +3 MB); `npm test` 101 files / 1541 tests + 1 skipped. Status stays `pending` until the second half (manifest, cache, on-demand download, `hesman grammars`, offline switch, fallback to the text tier) is done.
 - 2026-10-12: **first half done (scope item 1, the bundled core set); items 2-5 are still open, status stays `pending`.**
   - **Registry:** 3 -> 16 languages (`typescript`, `tsx`, `javascript`, `python`, `go`, `java`, `c`, `cpp`, `csharp`, `rust`, `php`, `ruby`, `kotlin`, `swift`, `bash`, `lua`). `.tsx` -> `tsx`; `.js/.jsx/.mjs/.cjs` -> `javascript`; `.ts/.mts/.cts` -> `typescript`. `INDEX_SCHEMA_VERSION` 4 -> 5.
   - **Grammars:** the `.wasm` asset of each grammar's own upstream GitHub release, pinned by URL + sha256 in `scripts/download-parsers.ts`, committed in `parsers/`. All 16 load in `web-tree-sitter` 0.25.10 (ABI 14: typescript, tsx, javascript, python, go, java, cpp, ruby, kotlin; ABI 15: c, csharp, rust, php, swift, bash, lua). Tags as in ADR 0001 section 3; C, not in that table, is `tree-sitter/tree-sitter-c` v0.24.2 (645,157 B). Deleting the 13 new files and running the script downloads them again with matching hashes.
