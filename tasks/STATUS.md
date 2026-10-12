@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 5/8 done** · **M2: 5/7 done** · **M3: 0/2 done**
+Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 5/8 done** · **M2: 5/7 done** · **M3: 1/2 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -72,13 +72,14 @@ Goal: `hesman ui` opens a local web page (127.0.0.1 + token) to watch logs and m
 
 | # | Task | Area | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| M3-01 | [Observability data + `hesman ui` backend (HTTP API)](M3-01-observability-and-ui-api.md) | Server | P0 | M0-12 | pending |
+| M3-01 | [Observability data + `hesman ui` backend (HTTP API)](M3-01-observability-and-ui-api.md) | Server | P0 | M0-12 | done |
 | M3-02 | [Dashboard frontend](M3-02-dashboard-frontend.md) | UI | P0 | M0-12 | pending |
 
 Publishing to npm: the owner decided on 2026-10-11 not to publish yet, so M2-06 and the `npx` checks of M2-04 stay on hold.
 
 ## Backlog after M0 (not specified, not scheduled)
 
+- **M3-01 follow-ups (dashboard backend):** `ReadOnlySqliteStore` reaches into `SqliteStore`'s private `db` through a cast (add a proper `openReadOnly()`); `/api/graph/search` is a `LIKE '%q%'` scan; `/api/logs` re-reads up to 10 MB per request; a `logFile` placed inside the project but outside the data directory is seen by the file watcher (no guard); the dashboard cannot run `semantic_search` (ZVec exclusive lock) or show live indexing progress; Windows and the browser-open path are unverified. One `npm test` run in five failed 2 tests while three other agents were running suites (load average ~40); not reproduced in four further runs, the failing tests were not captured.
 - **Answer-quality eval suite** — measure tokens *and* accuracy against an agent reading files directly (all four roles in the dev-team session agreed; codebase-memory-mcp's published weakness is 83% vs 92%).
 - **ADR: daemon + stdio shim architecture** — prerequisite for multi-project and the dashboard.
 - **Multi-project support** and **web dashboard** (bind 127.0.0.1, token-protected).
