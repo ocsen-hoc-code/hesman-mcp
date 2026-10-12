@@ -3,7 +3,7 @@ import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { HesmanConfig } from '../../config/schema.js';
 import { ErrorCode, formatError } from '../error-codes.js';
 import { intArg, withArgValidation } from '../args.js';
-import { isLanguageId } from '../../parsers/languages.js';
+import { hasGrammar } from '../../parsers/languages.js';
 import { Worker } from 'node:worker_threads';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -182,8 +182,9 @@ export function registerFindPatternTool(server: McpServer, config: HesmanConfig)
       {
         matches: outcome.matches,
         totalFound: outcome.matches.length,
-        // Files of a language without a grammar are searched as plain text.
-        ...(isLanguageId(language) ? {} : { precision: 'text' }),
+        // Files of a language without an available grammar (none exists, or an
+        // on-demand one is not cached yet) are searched as plain text.
+        ...(hasGrammar(language) ? {} : { precision: 'text' }),
         truncated,
         ...(truncated ? { truncatedReason: reasons.join('; ') } : {}),
         tookMs: Date.now() - started,

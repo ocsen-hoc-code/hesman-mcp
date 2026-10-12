@@ -3,6 +3,7 @@ import type { SqliteStore } from '../../stores/sqlite.js';
 import type { ZVecStore } from '../../stores/zvec.js';
 import { isEmbeddingReady } from '../../stores/embedding.js';
 import { indexState } from '../../indexing/index-state.js';
+import { grammarReport } from '../../parsers/grammar-report.js';
 
 const inputSchema = {
   type: 'object',
@@ -18,6 +19,8 @@ export function registerIndexStatusTool(
     const stats = store.getStats();
     const zvecStats = zvecStore?.stats();
     const indexing = indexState.snapshot();
+    const languages = store.getLanguageStats();
+    const textLanguages = store.getTextLanguageStats();
 
     return {
       content: [
@@ -47,9 +50,11 @@ export function registerIndexStatusTool(
               embeddingModelLoaded: isEmbeddingReady(),
               embeddingModelError: indexing.modelError,
             },
-            languages: store.getLanguageStats(),
+            languages,
             // Files without a grammar, indexed as text chunks (no symbols).
-            textTier: { ...store.getTextStats(), languages: store.getTextLanguageStats() },
+            textTier: { ...store.getTextStats(), languages: textLanguages },
+            // Per indexed language: grammar bundled / cached / missing, and why (M1-05).
+            grammars: grammarReport(languages, textLanguages),
           }),
         },
       ],

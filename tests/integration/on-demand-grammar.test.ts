@@ -17,6 +17,42 @@ import { WorkerPool } from '../../src/indexing/worker-pool';
 import { SqliteStore } from '../../src/stores/sqlite';
 import { defaultConfig } from '../../src/config/defaults';
 import { configureGrammarStore, grammarStore, loadGrammarManifest, type GrammarFetch } from '../../src/parsers/grammar-store';
+import type { McpServer, ToolHandler } from '../../src/server/mcp-server';
+import { registerIndexStatusTool } from '../../src/server/tools/index-status';
+import { registerFindPatternTool } from '../../src/server/tools/find-pattern';
+import { registerGetContextTool } from '../../src/server/tools/get-context';
+
+function captureTool(register: (server: McpServer) => void): ToolHandler {
+  let captured: ToolHandler | undefined;
+  register({
+    registerTool(_name: string, _description: string, _schema: object, handler: ToolHandler) {
+      captured = handler;
+    },
+  } as unknown as McpServer);
+  if (!captured) throw new Error('tool was not registered');
+  return captured;
+}
+
+async function call<T>(handler: ToolHandler, args: Record<string, unknown>): Promise<T> {
+  const result = (await handler(args)) as { content: Array<{ text?: string }>; isError?: boolean };
+  expect(result.isError, result.content[0]?.text).toBeFalsy();
+  return JSON.parse(result.content[0].text ?? '{}') as T;
+}
+
+interface GrammarRow {
+  language: string;
+  tier: 'parsed' | 'text';
+  files: number;
+  grammar: 'bundled' | 'cached' | 'missing';
+  reason?: string;
+  detail?: string;
+}
+interface Status {
+  totalFiles: number;
+  languages: Array<{ language: string; files: number; symbols: number }>;
+  textTier: { files: number; languages: Array<{ language: string }> };
+  grammars: { offline: boolean; cacheDir: string; languages: GrammarRow[] };
+}
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const R_GRAMMAR = readFileSync(join(REPO, 'tests', 'fixtures', 'grammars', 'tree-sitter-r.wasm'));
@@ -157,6 +193,85 @@ describe('indexing a project with an on-demand language', () => {
     } finally {
       await pool.terminate(true);
     }
+  });
+
+  describe('tools', () => {
+    const status = (): Promise<Status> => call<Status>(captureTool((s) => registerIndexStatusTool(s, store)), {});
+    const row = async (language: string): Promise<GrammarRow | undefined> =>
+      (await status()).grammars.languages.find((l) => l.language === language);
+
+    it('index_status says per language whether its grammar is bundled, cached or missing, and why', async () => {
+      configureGrammarStore({ cacheRoot, fetch: () => new Promise<Response>(() => {}), offline: false });
+      await indexProject(root, store, config());
+
+      const before = await status();
+      expect(before.grammars.offline).toBe(false);
+      expect(before.grammars.cacheDir).toBe(grammarStore().cacheDir);
+      expect(before.grammars.languages).toEqual([
+        { language: 'typescript', tier: 'parsed', files: 1, grammar: 'bundled' },
+        { language: 'markdown', tier: 'text', files: 1, grammar: 'missing', reason: 'no-tags-query' },
+        { language: 'r', tier: 'text', files: 1, grammar: 'missing', reason: 'downloading' },
+      ]);
+      // The fields that existed before are untouched.
+      expect(before.languages).toEqual([{ language: 'typescript', files: 1, symbols: 1 }]);
+      expect(before.textTier.languages.map((l) => l.language)).toEqual(['markdown', 'r']);
+    });
+
+    it('index_status reports offline mode, a failed download and a language outside the catalog', async () => {
+      writeFileSync(join(root, 'payroll.cob'), '       IDENTIFICATION DIVISION.\n       PROGRAM-ID. PAYROLL.\n');
+      configureGrammarStore({ cacheRoot, fetch: serving(Buffer.from('tampered')), offline: true });
+      await indexProject(root, store, config());
+      expect((await status()).grammars.offline).toBe(true);
+      expect(await row('r')).toEqual({ language: 'r', tier: 'text', files: 1, grammar: 'missing', reason: 'offline' });
+      expect(await row('cobol')).toEqual({ language: 'cobol', tier: 'text', files: 1, grammar: 'missing', reason: 'not-in-catalog' });
+
+      configureGrammarStore({ cacheRoot, offline: false });
+      const run = await indexProject(root, store, config());
+      await waitForRequestedGrammars(run.grammarsRequested);
+      expect(await row('r')).toEqual({
+        language: 'r',
+        tier: 'text',
+        files: 1,
+        grammar: 'missing',
+        reason: 'download-failed',
+        detail: expect.stringContaining('Checksum mismatch'),
+      });
+    });
+
+    it('index_status shows the language as parsed with a cached grammar once it arrived and was re-indexed', async () => {
+      configureGrammarStore({ cacheRoot, fetch: serving(R_GRAMMAR), offline: false });
+      const run = await indexProject(root, store, config());
+      await waitForRequestedGrammars(run.grammarsRequested);
+      // Cached, but the files are still stored as text until the next pass.
+      expect(await row('r')).toEqual({ language: 'r', tier: 'text', files: 1, grammar: 'cached', reason: 'reindex-pending' });
+
+      await indexProject(root, store, config());
+      expect(await row('r')).toEqual({ language: 'r', tier: 'parsed', files: 1, grammar: 'cached' });
+    });
+
+    it('find_pattern and get_context mark results as text only while the grammar is missing', async () => {
+      configureGrammarStore({ cacheRoot, fetch: serving(R_GRAMMAR), offline: true });
+      await indexProject(root, store, config());
+      const findPattern = captureTool((s) => registerFindPatternTool(s, config()));
+      const getContext = captureTool((s) => registerGetContextTool(s, store, config()));
+      type Found = { matches: Array<{ filePath: string }>; precision?: string };
+      type Context = { language: string; precision?: string; symbolsInRange: unknown[] };
+
+      const asText = await call<Found>(findPattern, { pattern: 'safe_mean <- function', language: 'r' });
+      expect(asText.matches).toHaveLength(1);
+      expect(asText.precision).toBe('text');
+      expect(await call<Context>(getContext, { filePath: file, startLine: 4, endLine: 6, contextLines: 0 })).toMatchObject({ language: 'r', precision: 'text' });
+
+      grammarStore().installFromDirectory(join(REPO, 'tests', 'fixtures', 'grammars'), ['r']);
+      await indexProject(root, store, config());
+      const parsed = await call<Found>(findPattern, { pattern: 'safe_mean <- function', language: 'r' });
+      expect(parsed.matches).toHaveLength(1);
+      expect(parsed).not.toHaveProperty('precision');
+      const context = await call<Context>(getContext, { filePath: file, startLine: 4, endLine: 6, contextLines: 0 });
+      expect(context).toMatchObject({ language: 'r' });
+      expect(context).not.toHaveProperty('precision');
+      expect(context.symbolsInRange).toHaveLength(1);
+    });
   });
 
   describe('against a local HTTP server', () => {
