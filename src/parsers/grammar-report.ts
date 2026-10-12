@@ -1,7 +1,7 @@
 /**
- * What `index_status` says about grammars (M1-05): for every language that
- * has files in the index, whether its files are parsed or on the text tier,
- * and whether its grammar is bundled, cached or missing (and why).
+ * What `index_status` says per language (M1-05, M1-06): for every language
+ * that has files in the index, its support tier (`deep`, `structural` or
+ * `text`) and whether its grammar is bundled, cached or missing (and why).
  */
 import { grammarStore, type GrammarStore } from './grammar-store.js';
 import { languageById } from './languages.js';
@@ -22,10 +22,27 @@ export type GrammarReason =
   | 'no-tags-query'
   | 'not-in-catalog';
 
+/**
+ * What works for the files of a language as they are stored in the index now:
+ * - `deep`: symbols, calls and imports;
+ * - `structural`: symbols only, no call graph;
+ * - `text`: text chunks for search, no symbols.
+ */
+export type SupportTier = 'deep' | 'structural' | 'text';
+
+/**
+ * The tier of a language whose files are parsed. A language id that no
+ * registry knows (an index written by another version) has symbols in the
+ * index and nothing else is known about it, hence `structural`.
+ */
+export function supportTier(language: string): Exclude<SupportTier, 'text'> {
+  return languageById(language)?.tier ?? 'structural';
+}
+
 export interface LanguageGrammarStatus {
   language: string;
-  /** How the language's files are stored in the index now. */
-  tier: 'parsed' | 'text';
+  /** What works for the language's files as they are stored in the index now. */
+  tier: SupportTier;
   files: number;
   grammar: 'bundled' | 'cached' | 'missing';
   reason?: GrammarReason;
@@ -72,7 +89,7 @@ export function grammarReport(
     languages: [
       ...parsed.map(({ language, files }): LanguageGrammarStatus => ({
         language,
-        tier: 'parsed',
+        tier: supportTier(language),
         files,
         grammar: store.entry(language)?.bundled === false ? 'cached' : 'bundled',
       })),

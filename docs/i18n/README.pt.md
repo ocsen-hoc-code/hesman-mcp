@@ -1,29 +1,27 @@
-# Servidor MCP Hesman
+# Hesman MCP Server
 
-[![CI](https://github.com/ocsen-hoc-code/hesman-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/ocsen-hoc-code/hesman-mcp/actions/workflows/ci.yml)
-[![npm version](https://img.shields.io/npm/v/hesman-mcp.svg)](https://www.npmjs.com/package/hesman-mcp)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 
 🌐 **Leia em:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | **Português**
 
-**Hesman** é um servidor MCP (Model Context Protocol) de nova geração que oferece a agentes de IA uma compreensão profunda do seu código-fonte — símbolos, grafos de chamada, dependências e busca semântica — com um pipeline de compressão de 3 camadas que reduz drasticamente o consumo de tokens (até 90% nos melhores cenários). Tudo roda localmente. Sem APIs externas. Sem servidores LSP.
+**Hesman** é um servidor MCP (Model Context Protocol) de nova geração que dá aos agentes de programação com IA uma compreensão profunda da sua base de código — símbolos, grafos de chamadas, dependências e busca semântica — com leituras de código focadas que reduzem o consumo de tokens (`get_context` retorna cerca de 90% menos tokens do que o arquivo inteiro quando você pede a vizinhança de uma única função). Tudo roda localmente. Sem APIs externas. Sem servidores LSP.
 
 ---
 
 ## Sumário
 
 - [Por que Hesman?](#por-que-hesman)
-- [Início Rápido](#início-rápido)
+- [Início rápido](#início-rápido)
 - [Funcionalidades](#funcionalidades)
-- [Como a Redução de Tokens Funciona](#como-a-redução-de-tokens-funciona)
-- [Instalação e Configuração](#instalação-e-configuração)
-- [Referência de Ferramentas](#referência-de-ferramentas)
+- [Como funciona a redução de tokens](#como-funciona-a-redução-de-tokens)
+- [Instalação e configuração](#instalação-e-configuração)
+- [Referência das ferramentas](#referência-das-ferramentas)
 - [Configuração](#configuração)
 - [Referência da CLI](#referência-da-cli)
-- [Linguagens Suportadas](#linguagens-suportadas)
+- [Linguagens suportadas](#linguagens-suportadas)
 - [Arquitetura](#arquitetura)
-- [Configuração de Desenvolvimento](#configuração-de-desenvolvimento)
+- [Ambiente de desenvolvimento](#ambiente-de-desenvolvimento)
 - [Requisitos](#requisitos)
 - [Documentação](#documentação)
 - [Licença](#licença)
@@ -32,79 +30,92 @@
 
 ## Por que Hesman?
 
-Agentes de IA para codificação são poderosos, mas caros. Cada linha de código que leem custa tokens. Enviar um arquivo inteiro quando o agente precisa apenas de uma função desperdiça contexto e dinheiro.
+Agentes de programação com IA são poderosos, mas caros. Cada linha de código que eles leem custa tokens. Enviar um arquivo inteiro quando o agente só precisa de uma função desperdiça contexto e dinheiro.
 
 O Hesman resolve isso:
 
-- **Servindo apenas o que o agente precisa** — uma função específica, seus caller, seus callee, ou os símbolos impactados por uma alteração.
-- **Comprimindo cada resposta** — um pipeline de 3 camadas remove comentários, poda código irrelevante e resume grandes conjuntos de resultados.
-- **Funcionando 100% localmente** — sem chaves de API, sem chamadas de rede, sem latência de serviços externos. Seu código nunca sai da sua máquina.
-- **Economia mensurável** — cada resposta inclui `_meta.reduction` mostrando exatamente quantos tokens foram economizados em relação à saída bruta.
+- **Servindo apenas o que o agente precisa** — uma função específica, seus callers, seus callees ou os símbolos afetados por uma alteração.
+- **Compactando e podando o código** — `get_context` remove comentários e linhas em branco e retorna apenas as linhas ao redor do local de interesse, em vez do arquivo inteiro.
+- **Nunca inflando as respostas** — uma resposta nunca é maior do que o seu payload bruto. Resumos para listas de resultados longas estão planejados, mas ainda não são aplicados (veja [Pipeline de redução de tokens](#pipeline-de-redução-de-tokens)).
+- **Rodando na sua máquina** — sem chaves de API, sem serviço externo e, portanto, sem a latência de um. Seu código nunca sai da sua máquina. Os únicos downloads são o modelo de embedding no primeiro uso e as gramáticas das linguagens sob demanda; ambos podem ser desativados (`--no-semantic`, `HESMAN_GRAMMARS_OFFLINE=1`).
+- **Com economia mensurável** — toda resposta de ferramenta, exceto a de `index_status`, inclui `_meta.reduction`, que mostra exatamente quantos tokens foram economizados em relação à saída bruta.
 
-O resultado: agentes trabalham mais rápido, custam menos e raciocinam com mais precisão porque veem o código certo, não todo o código.
+O resultado: os agentes trabalham mais rápido, custam menos e raciocinam com mais precisão porque veem o código certo, não todo o código.
 
 ---
 
-## Início Rápido
+## Início rápido
+
+O `hesman-mcp` ainda não está no registro do npm; por isso, hoje o Hesman é instalado a partir do código-fonte:
 
 ```bash
-# 1. Instale globalmente
-npm install -g hesman-mcp
+# 1. Obter e compilar o Hesman (Node.js ≥ 20)
+git clone https://github.com/ocsen-hoc-code/hesman-mcp.git
+cd hesman-mcp
+npm install
+npm run download:parsers
+npm run build
 
-# 2. Execute o servidor dentro do seu projeto
-cd my-project
-hesman
-
-# 3. Registre com seu agente de IA (Claude Desktop, Cursor, VS Code)
-hesman install --agent claude
+# 2. Registrá-lo nos seus clientes de IA (detecta Claude Code, Cursor, VS Code, Codex, …)
+node dist/index.js setup
 ```
 
-Pronto. Assim que a indexação inicial terminar (alguns segundos para a maioria dos projetos), seu agente de IA poderá consultar seu código-fonte por meio das 11 ferramentas do Hesman.
+Reinicie o cliente e abra um projeto. O `setup` grava o comando de inicialização adequado à forma como o Hesman está instalado (aqui: caminhos absolutos para `node` e `dist/index.js`, de modo que nada precisa estar no PATH); veja [Comando de inicialização](#comando-de-inicialização).
+
+Depois que o pacote for publicado, todo o início rápido passa a ser uma linha:
+
+```bash
+npx -y hesman-mcp setup   # somente quando o hesman-mcp estiver publicado no npm
+```
+
+O servidor responde ao seu agente imediatamente e indexa em segundo plano (alguns segundos na maioria dos projetos): as 11 ferramentas funcionam de imediato, marcam os resultados com `_meta.indexing` enquanto o índice ainda está incompleto, e `index_status` informa o progresso.
 
 ---
 
 ## Funcionalidades
 
-### Inteligência de Código
+### Inteligência de código
 
 | Capacidade | Descrição |
 |---|---|
-| **Busca de símbolos** | Encontre funções, classes e métodos pelo nome — correspondência exata, aproximada (fuzzy) ou por prefixo (< 1ms) |
-| **Grafo de chamada** | Navegue por caller e callee até 3 níveis de profundidade |
+| **Busca de símbolos** | Encontre funções, classes e métodos pelo nome — correspondência exata, aproximada (fuzzy) ou por prefixo (< 1 ms) |
+| **Navegação no grafo de chamadas** | Percorra callers e callees até 3 níveis de profundidade |
 | **Rastreamento de referências** | Encontre cada uso de um símbolo em toda a base de código |
-| **Análise de impacto** | Veja o que quebra se você renomear, excluir ou alterar a assinatura de um símbolo |
-| **Busca semântica** | Descreva em linguagem natural o que você está procurando e encontre o código correspondente |
+| **Análise de impacto** | Veja o que quebra se você renomear ou excluir um símbolo, ou alterar a assinatura dele |
+| **Busca semântica** | Descreva em linguagem natural o que você procura e encontre o código correspondente |
 | **Busca estrutural** | Encontre padrões de código como `console.$METHOD($$$ARGS)` com capturas nomeadas |
 | **Análise de dependências** | Veja o que um arquivo importa e o que importa dele |
-| **Janelas de contexto** | Obtenha código compactado e focado em torno de qualquer localização em um arquivo |
+| **Janelas de contexto** | Obtenha código focado e compactado ao redor de qualquer local de um arquivo |
 
-### Pipeline de Redução de Tokens
+### Pipeline de redução de tokens
 
-O pipeline de compressão de 3 camadas do Hesman reduz o uso de tokens em cada resposta. A economia real é medida e relatada via `_meta.reduction` em cada resposta.
+O Hesman projeta seu pipeline de compressão em 3 camadas; hoje a economia vem do modo compacto e da poda de contexto em `get_context`. Cada resposta informa sua economia real em `_meta.reduction`, e uma resposta nunca é maior do que o seu payload bruto.
 
-| Camada | Técnica | Economia Típica | Melhor Caso |
+| Camada | Técnica | Economia medida | Status |
 |---|---|---|---|
-| **Modo compacto** | Remove comentários, linhas em branco, espaços à direita; elimina imports não utilizados | 10–30% | ~35% (código densamente comentado) |
-| **Poda de contexto** | Mantém apenas linhas relevantes ao símbolo consultado; substitui código omitido por marcadores de contagem | 30–90% (sobre o modo compacto) | ~95% (arquivos grandes com área focal pequena) |
-| **Sumarização inteligente** | Substitui grandes arrays de resultados por blocos `_summary` agregados; comprime cadeias de chamada em estatísticas agrupadas | 0% (em ferramentas de listagem) | 0% |
+| **Modo compacto** | Remove comentários, linhas em branco e espaços no fim das linhas | ~14–16% de um trecho de código (`get_context`, `mode: "full"` vs. `"compact"`) | Aplicado em `get_context` |
+| **Poda de contexto** | Extração de um intervalo de linhas ao redor do local de interesse + modo compacto | 89,9% com as ±5 linhas padrão, 29,9% com ±40 linhas (arquivo de 195 linhas); 0% quando o arquivo inteiro é solicitado | Aplicado em `get_context` |
+| **Sumarização inteligente** | Blocos `_summary` agregados para listas de resultados longas | 0% — um `_summary` só acrescentava conteúdo à resposta, então é descartado | Ainda não aplicado ([backlog](../../tasks/STATUS.md)) |
 
-### Pronto para Produção
+As ferramentas de listagem e de grafo de chamadas (`get_references`, `get_callers`, `get_callees`, `list_dependencies`, `get_file_structure`) retornam atualmente seu payload bruto com `_meta.reduction: "0.0%"` e `_meta.compressed: false`. Medido no diretório `src/` deste repositório e em `tests/fixtures/polyglot-basic`. O campo `_meta.reduction` de cada resposta informa a economia exata para a sua carga de trabalho.
 
-- **Pool de workers** — indexação paralela entre núcleos da CPU, dimensionado automaticamente por padrão
-- **Monitoramento de arquivos** — reindexação incremental em alterações de arquivos via chokidar
-- **Desligamento gracioso** — drena trabalhos ativos, descarrega armazenamentos, finaliza workers de forma limpa
-- **Indexação por hash de conteúdo** — arquivos são reanalisados apenas quando seu conteúdo realmente muda
-- **Suporte a monorepo** — detecta automaticamente workspaces pnpm, lerna, nx, turbo e npm
-- **Diagnósticos** — `hesman diag` exibe memória, estatísticas de armazenamento, estado do pool e métricas de cache
-- **Testado em CI** — roda em Ubuntu, macOS e Windows com Node 20 e 22
+### Pronto para produção
+
+- **Pool de workers** — indexação paralela entre os núcleos da CPU, dimensionado automaticamente por padrão
+- **Monitoramento de arquivos** — reindexação incremental a cada alteração de arquivo, via chokidar
+- **Encerramento gracioso** — conclui o trabalho ativo, descarrega os armazenamentos em disco e finaliza os workers de forma limpa
+- **Indexação por hash de conteúdo** — os arquivos só são reanalisados quando o conteúdo realmente muda
+- **Suporte a monorepos** — detecta automaticamente workspaces pnpm, lerna, nx, turbo e npm
+- **Diagnósticos** — `hesman diag` exibe memória, estatísticas dos armazenamentos, estado do pool e métricas de cache
+- **Testado localmente** — a suíte de testes completa, incluindo os testes de ponta a ponta pelo servidor real, roda no macOS; Linux e Windows ainda não foram verificados
 
 ---
 
-## Como a Redução de Tokens Funciona
+## Como funciona a redução de tokens
 
-### Camada 1: Modo Compacto
+### Camada 1: modo compacto
 
-Remove comentários, linhas em branco e espaços à direita, preservando comentários mágicos (`// @ts-ignore`, `// eslint-disable-*`). O nível 2 adiciona manipulação de JSDoc com conhecimento de AST e remoção de imports não utilizados.
+Remove comentários, linhas em branco e espaços no fim das linhas, preservando os comentários mágicos (`// @ts-ignore`, `// eslint-disable-*`).
 
 Antes:
 ```typescript
@@ -128,7 +139,7 @@ function calculateTotal(
 }
 ```
 
-Depois (Nível 1):
+Depois:
 ```typescript
 function calculateTotal(
   items: CartItem[],
@@ -143,64 +154,19 @@ function calculateTotal(
 }
 ```
 
-Depois (Nível 2 — com conhecimento de AST, preserva apenas JSDoc):
-```typescript
-/**
- * Calculates the total price including tax.
- * @param items - Shopping cart items
- * @param taxRate - Local tax rate as decimal (e.g., 0.08)
- */
-function calculateTotal(items: CartItem[], taxRate: number): number {
-  let total = 0;
-  for (const item of items) {
-    total += item.price * item.quantity;
-  }
-  total = total * (1 + taxRate);
-  return total;
-}
-```
+### Camada 2: poda de contexto
 
-### Camada 2: Poda de Contexto
+`get_context` não retorna o arquivo inteiro. Ele retorna o intervalo de linhas solicitado mais `contextLines` linhas acima e abaixo (padrão 5, máximo 200) e então aplica o modo compacto a esse trecho. `_meta.reduction` compara o resultado com o arquivo inteiro, e `_meta.layers` lista o que foi aplicado (`compact`, `prune`).
 
-Quando um agente consulta `get_context` para um símbolo específico, o Hesman retorna apenas o código relevante:
+A poda é apenas por intervalo de linhas: ela não segue callers nem callees. Para ler o que uma função chama ou o que a chama, peça os locais a `get_callees` / `get_callers` e depois `get_context` para cada um.
 
-```typescript
-// ... (45 linhas omitidas: imports e funções auxiliares não relacionados)
+### Camada 3: sumarização inteligente (ainda não aplicada)
 
-/**
- * Processes the incoming webhook payload.
- */
-export async function handleWebhook(payload: WebhookPayload): Promise<Result> {
-  // ... (corpo da função)
-}
+O plano é substituir listas de resultados longas por um `_summary` agregado (contagens por tipo e por arquivo) mais as primeiras entradas. A implementação atual apenas *acrescentava* um `_summary` ao lado da lista completa, o que deixava as respostas maiores; por isso o Hesman o descarta e retorna o payload bruto: as ferramentas de listagem e de grafo de chamadas informam hoje `_meta.reduction: "0.0%"`. Fazer com que os resumos realmente economizem tokens está registrado no backlog ([`tasks/STATUS.md`](../../tasks/STATUS.md)). Listas longas já podem ser obtidas em páginas via `topK` e `cursor` (`get_references`).
 
-// ... (120 linhas omitidas: definições de classe não relacionadas)
-```
+### Medindo a economia
 
-A poda mantém: a definição do símbolo focal, seu comentário de documentação, caller e callee diretos dentro do mesmo arquivo e referências no arquivo — todo o resto é substituído por um marcador de contagem.
-
-### Camada 3: Sumarização Inteligente
-
-Em vez de despejar 200 referências em um array JSON:
-
-```json
-{
-  "_summary": {
-    "totalCount": 200,
-    "byKind": { "calls": 145, "imports": 38, "extends": 12, "type_ref": 5 },
-    "byFile": [
-      { "filePath": "src/services/payment.ts", "count": 34 },
-      { "filePath": "src/controllers/checkout.ts", "count": 28 }
-    ]
-  }
-}
-```
-
-O agente pode então solicitar detalhes para arquivos ou tipos específicos — paginados via `cursor`.
-
-### Medindo a Economia
-
-Cada resposta do Hesman inclui um bloco `_meta` com a economia real de tokens:
+Toda resposta do Hesman inclui um bloco `_meta` com a economia real de tokens:
 
 ```json
 {
@@ -214,55 +180,115 @@ Cada resposta do Hesman inclui um bloco `_meta` com a economia real de tokens:
 }
 ```
 
-Isso permite auditar exatamente quanto o Hesman está economizando em suas cargas de trabalho reais.
+Este exemplo é uma chamada real a `get_context` (±5 linhas padrão, modo compacto) em um arquivo de 195 linhas: o trecho já vem compactado pela ferramenta, então apenas a camada `prune` é listada, e `compressed: false` significa que o compressor de respostas não tinha mais nada a remover. O campo `_meta.reduction` é medido em relação à contagem de tokens do arquivo completo original, o que dá a economia real de ponta a ponta. Respostas que não encolheriam são retornadas como estão, com `reduction: "0.0%"`; o valor nunca é negativo. Audite exatamente quanto o Hesman economiza nas suas cargas de trabalho reais conferindo `_meta.reduction` em qualquer resposta de ferramenta.
 
 ---
 
-## Instalação e Configuração
+## Instalação e configuração
 
 ### Pré-requisitos
 
 - **Node.js** ≥ 20.0.0
 - **npm** (ou pnpm / yarn)
 
-### Instalar via npm
+### Instalar a partir do código-fonte
 
-```bash
-npm install -g hesman-mcp
-```
-
-### Instalar a Partir do Código Fonte
+Este é o caminho que funciona hoje.
 
 ```bash
 git clone https://github.com/ocsen-hoc-code/hesman-mcp.git
 cd hesman-mcp
 npm install
-npm run download:parsers   # Baixar parsers WASM do Tree-sitter
-npm run build              # Compilar TypeScript
-npm link                   # Tornar `hesman` disponível globalmente
+npm run download:parsers   # Baixar os parsers WASM do Tree-sitter
+npm run build              # Compilar o TypeScript
+npm link                   # Opcional: deixar `hesman` disponível no PATH
 ```
 
-### Registrar com Agentes de IA
+Sem `npm link`, use `node /path/to/hesman-mcp/dist/index.js` onde quer que este README diga `hesman`.
+
+### Instalar via npm (depois que o pacote for publicado)
+
+O `hesman-mcp` ainda não está no registro do npm. Quando estiver:
 
 ```bash
-# Claude Desktop (detecta automaticamente o caminho do config por plataforma)
-hesman install --agent claude
-
-# Cursor
-hesman install --agent cursor
-
-# VS Code (com Copilot ou Cline)
-hesman install --agent vscode
-
-# Use --global para escrever no config do usuário em vez do config do projeto
-hesman install --agent claude --global
+npx -y hesman-mcp setup     # sem instalar: os clientes iniciam o Hesman pelo npx
+npm install -g hesman-mcp   # ou uma instalação global que coloca `hesman` no PATH
 ```
 
-Após a instalação, reinicie seu agente de IA e o Hesman estará disponível como um servidor MCP.
+### Registrar nos agentes de IA
 
-### Configuração Manual do MCP
+```bash
+hesman setup                         # lista de seleção dos clientes encontrados nesta máquina
+hesman setup --yes                   # sem perguntas: configura todos os clientes detectados
+hesman setup --client cursor vscode  # configura clientes específicos
+hesman setup --dry-run --all         # mostra a alteração exata por cliente, não grava nada
+hesman remove                        # desfazer: retira o Hesman de todos os clientes novamente
+```
 
-Adicione isto ao arquivo de configuração MCP do seu agente:
+| Cliente | `--client` | O que `hesman setup` altera (escopo de usuário) | `--scope project` |
+|---|---|---|---|
+| Claude Code | `claude-code` | executa `claude mcp add --scope user hesman -- <launch command>`; sem a CLI, edita `~/.claude.json` | `.mcp.json` |
+| Claude Desktop | `claude-desktop` | `claude_desktop_config.json` | — |
+| OpenAI Codex CLI | `codex` | executa `codex mcp add hesman -- <launch command>`; sem a CLI, edita `~/.codex/config.toml` | `.codex/config.toml` |
+| Cursor | `cursor` | `~/.cursor/mcp.json` | `.cursor/mcp.json` |
+| Google Antigravity | `antigravity` | `~/.gemini/config/mcp_config.json` | `.agents/mcp_config.json` |
+| VS Code (Copilot) | `vscode` | `mcp.json` no diretório de usuário do VS Code | `.vscode/mcp.json` |
+| Gemini CLI | `gemini-cli` | `~/.gemini/settings.json` | `.gemini/settings.json` |
+| Windsurf | `windsurf` | `~/.config/devin/mcp_config.json` | — |
+
+- Apenas a entrada `hesman` é tocada. Um arquivo alterado é primeiro copiado para `<file>.hesman.bak`, e `hesman remove` o restaura byte a byte quando nada mais mudou nesse intervalo.
+- A entrada não contém nenhum caminho de projeto: o Hesman encontra o projeto sozinho (veja abaixo). Duas exceções: o **Claude Desktop** não tem workspace, então sua entrada fixa um projeto (o diretório atual, ou `--project-root <path>`), e o **Cursor** recebe `--project-root ${workspaceFolder}` apenas no escopo de projeto (no `~/.cursor/mcp.json` global essa variável pode ser o seu diretório home, então a entrada global não nomeia nenhum projeto).
+- Para o **Antigravity** e o **Windsurf**, a forma como o projeto é passado ao servidor não está documentada; `hesman setup` exibe uma nota pedindo que você verifique após a primeira inicialização.
+- Arquivos de configuração com comentários (JSONC) não são editados: `hesman setup` os informa e os deixa intactos.
+- `hesman install --agent <name>` continua funcionando como alias obsoleto de `hesman setup --client <name> --yes`.
+
+Após a configuração, reinicie o cliente e o Hesman estará disponível como servidor MCP.
+
+### Regras de uso para agentes (opt-in)
+
+Um servidor MCP instalado não é automaticamente um servidor usado: os agentes muitas vezes continuam recorrendo ao grep e à leitura de arquivos inteiros. `hesman setup --rules` grava também um bloco curto (14 linhas) no arquivo de instruções que cada cliente selecionado lê no **projeto atual**, dizendo qual ferramenta do Hesman responde a qual pergunta. Ainda não foi medido se isso muda a frequência com que um agente chama as ferramentas.
+
+```bash
+hesman setup --client claude-code codex --rules   # executar dentro do projeto
+hesman setup --all --rules --dry-run              # mostra o bloco e os arquivos, não grava nada
+hesman remove                                     # também apaga o bloco novamente
+```
+
+| Cliente | Arquivo de instruções (relativo ao projeto) |
+|---|---|
+| Claude Code | `CLAUDE.md` |
+| OpenAI Codex CLI, Windsurf | `AGENTS.md` |
+| Gemini CLI, Google Antigravity | `GEMINI.md` |
+| Cursor | `.cursor/rules/hesman.mdc` (seu próprio arquivo de regras, `alwaysApply: true`) |
+| VS Code (Copilot) | `.github/copilot-instructions.md` |
+| Claude Desktop | nenhum: ele não lê nenhum arquivo de projeto, então é ignorado com uma nota |
+
+- **Opt-in.** Nada é gravado sem `--rules`. Em um terminal, sem `--yes`, o setup pergunta uma vez e a resposta padrão é Não.
+- O bloco fica entre `<!-- hesman:rules:start -->` e `<!-- hesman:rules:end -->`. Executar o setup de novo o substitui no mesmo lugar; o texto fora dos marcadores nunca é alterado, e um arquivo compartilhado por dois clientes recebe o bloco uma única vez.
+- `hesman remove` apaga exatamente o bloco e devolve o arquivo byte a byte; um arquivo que o Hesman criou e que não contém mais nada é apagado. Execute-o no mesmo projeto (ou passe `--project-root <path>`, que `setup --rules` também aceita).
+- Esses arquivos normalmente são versionados no git e compartilhados com uma equipe. O setup lista os arquivos que alterou para que você possa revisá-los (`git diff`) e decidir se faz o commit.
+
+### Comando de inicialização
+
+`hesman setup --command auto|npx|global|absolute` decide o que os clientes executam. O setup nunca usa a rede.
+
+| `--command` | Entrada gravada | Requer |
+|---|---|---|
+| `npx` | `npx -y hesman-mcp@<major>` | o pacote no npm (ainda não publicado) e `npx` no PATH do cliente; sobrevive a atualizações do Node |
+| `global` | `hesman` | uma instalação global (ou `npm link`) no PATH do cliente |
+| `absolute` | `/path/to/node /path/to/hesman-mcp/dist/index.js` | nada no PATH; execute `hesman setup` de novo depois de trocar de versão do Node ou de mover o Hesman |
+
+`auto` (o padrão) observa como o Hesman em execução foi iniciado:
+
+1. iniciado pelo `npx` (ele roda a partir de um diretório de cache `_npx`) → `npx`;
+2. o `hesman` no PATH é esta mesma instalação (links simbólicos resolvidos) → `global`;
+3. qualquer outro caso (checkout do código-fonte, `node_modules` local, fora do PATH) → `absolute`.
+
+Aplicativos desktop (Claude Desktop, Cursor, Antigravity, VS Code, Windsurf) abertos pelo Dock ou por um launcher não recebem o PATH do seu shell. No macOS e no Linux, quando `auto` escolhe `npx` ou `hesman` e esse comando ou o `node` não está em um diretório padrão do sistema (`/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`, `/usr/local/bin`, além de `/opt/homebrew/bin` no macOS e `/snap/bin` no Linux) — o caso comum com nvm, fnm, volta ou asdf — esses clientes recebem a entrada `absolute` no lugar, com uma nota para executar `hesman setup` de novo depois de trocar de versão do Node. Clientes de terminal (Claude Code, Codex CLI, Gemini CLI) herdam o shell e mantêm o comando escolhido. Um `--command npx|global` explícito é gravado como pedido para todos os clientes, com um aviso onde um aplicativo desktop pode não encontrá-lo.
+
+### Configuração manual do MCP
+
+Adicione isto ao arquivo de configuração MCP do seu agente (o VS Code usa `"servers"` em vez de `"mcpServers"` e precisa de `"type": "stdio"` na entrada; o Codex usa uma tabela TOML `[mcp_servers.hesman]`):
 
 ```json
 {
@@ -276,22 +302,35 @@ Adicione isto ao arquivo de configuração MCP do seu agente:
 }
 ```
 
+`--project-root` é opcional; veja abaixo. `"command": "hesman"` exige que `hesman` esteja no PATH que o cliente enxerga; caso contrário, use `"command": "/path/to/node"` com `"/path/to/hesman-mcp/dist/index.js"` como primeiro argumento (veja [Comando de inicialização](#comando-de-inicialização)).
+
+### Como o Hesman escolhe o projeto
+
+Um processo do servidor indexa um único projeto. Ele é escolhido nesta ordem:
+
+1. **Raiz explícita** — `--project-root <path>`, `HESMAN_PROJECT_ROOT` ou `projectRoot` em `hesman.config.json`. Sempre prevalece.
+2. **Pastas de workspace do cliente MCP** — quando o cliente oferece a capacidade `roots` do MCP, o Hesman pede a ele suas pastas após o handshake e indexa a primeira (as outras pastas são registradas em log, não indexadas). Quando o cliente informa uma pasta diferente mais tarde, o Hesman muda para ela.
+3. **Diretório de trabalho** — o diretório mais próximo, no diretório de trabalho do servidor ou acima dele, que contenha um diretório de controle de versão (`.git`, `.hg`, `.svn`, `.jj`) ou um manifesto de projeto (`package.json`, `go.mod`, `pyproject.toml`, `Cargo.toml`, …).
+4. **Nenhum projeto** — o servidor ainda inicia e lista suas ferramentas, mas toda ferramenta retorna um erro `NO_PROJECT` que explica como definir uma raiz.
+
+O diretório home e seus diretórios pais nunca são escolhidos automaticamente (etapas 2 e 3), de modo que uma entrada MCP global iniciada a partir de `~` não varre o seu disco. O índice fica armazenado em `.hesman/` dentro do projeto escolhido.
+
 ---
 
-## Referência de Ferramentas
+## Referência das ferramentas
 
-O Hesman expõe **11 ferramentas** via transporte MCP stdio. Cada resposta inclui um bloco `_meta` com economia de tokens e, quando aplicável, um bloco `_summary` agregando resultados.
+O Hesman expõe **11 ferramentas** via transporte MCP stdio. Toda resposta de ferramenta, exceto a de `index_status`, inclui um bloco `_meta` com sua economia de tokens (`impact_analysis` também retorna seu próprio `_summary` dos arquivos afetados).
 
-### Navegação de Código
+### Navegação de código
 
 | Ferramenta | O que faz | Principais entradas |
 |---|---|---|
 | `find_symbol` | Encontra símbolos pelo nome com correspondência exata, aproximada (fuzzy) ou por prefixo | `name`, `kind`, `matchMode`, `topK` |
-| `get_file_structure` | Obtém uma árvore hierárquica de todos os símbolos em um arquivo | `filePath`, `includeNested` |
-| `get_references` | Encontra todos os usos de um símbolo em toda a base de código | `symbolId`, `referenceKind`, `topK`, `cursor` |
-| `get_context` | Obtém código compactado em torno de uma localização específica | `filePath`, `startLine`, `contextLines`, `mode` |
+| `get_file_structure` | Retorna a árvore hierárquica de todos os símbolos de um arquivo | `filePath`, `includeNested` |
+| `get_references` | Encontra todos os usos de um símbolo na base de código | `symbolId`, `referenceKind`, `topK`, `cursor` |
+| `get_context` | Retorna código compactado ao redor de um local específico | `filePath`, `startLine`, `contextLines`, `mode` |
 
-### Grafo de Chamada
+### Grafo de chamadas
 
 | Ferramenta | O que faz | Principais entradas |
 |---|---|---|
@@ -302,18 +341,18 @@ O Hesman expõe **11 ferramentas** via transporte MCP stdio. Cada resposta inclu
 
 | Ferramenta | O que faz | Principais entradas |
 |---|---|---|
-| `impact_analysis` | Categoriza o que quebra se um símbolo mudar (renomear/excluir/alterar assinatura) | `symbolId`, `changeType` |
+| `impact_analysis` | Classifica o que quebra se um símbolo mudar (renomeação/exclusão/alteração de assinatura) | `symbolId`, `changeType` |
 | `list_dependencies` | Mostra o que um arquivo importa, ou o que importa dele | `filePath`, `direction` |
-| `semantic_search` | Busca código por descrição em linguagem natural | `query`, `topK`, `language`, `kind` |
+| `semantic_search` | Busca código a partir de uma descrição em linguagem natural | `query`, `topK`, `language`, `kind` |
 | `find_pattern` | Busca por padrão estrutural com capturas nomeadas (`$NAME`, `$$$ARGS`) | `pattern`, `language`, `topK` |
 
 ### Status
 
 | Ferramenta | O que faz |
 |---|---|
-| `index_status` | Relata a saúde da indexação: contagem de arquivos, contagem de símbolos, status do armazenamento, arquivos pendentes |
+| `index_status` | Informa a saúde da indexação: número de arquivos, número de símbolos, status dos armazenamentos, arquivos pendentes, progresso da indexação inicial em segundo plano |
 
-Para esquemas completos de entrada/saída com exemplos, veja **[docs/TOOLS.md](./docs/TOOLS.md)**.
+Para os esquemas completos de entrada e saída com exemplos, veja **[docs/TOOLS.md](../TOOLS.md)**.
 
 ---
 
@@ -335,40 +374,45 @@ Crie um `hesman.config.json` na raiz do seu projeto (todos os campos são opcion
     "embeddingModel": "Xenova/all-MiniLM-L6-v2"
   },
   "logLevel": "info",
-  "dataDir": ".hesman"
+  "dataDir": ".hesman",
+  "grammars": { "offline": false }
 }
 ```
 
-### Precedência de Configuração
+> **Links simbólicos são ignorados durante a indexação.** O scanner do projeto e o monitor de arquivos nunca seguem links simbólicos (para arquivos ou diretórios). Isso evita loops infinitos (por exemplo, `loop -> .`), mantém fora do índice o código externo ao projeto e evita símbolos duplicados. Para indexar código vinculado, aponte `projectRoot` para o diretório real.
 
-As configurações são resolvidas nesta ordem (a posterior substitui a anterior):
+### Precedência de configuração
+
+As configurações são resolvidas nesta ordem (a posterior prevalece sobre a anterior):
 
 1. **Padrões** — embutidos no Hesman
 2. **`hesman.config.json`** — arquivo de configuração no nível do projeto
-3. **Variáveis de ambiente** — ex.: `HESMAN_WORKERS=4`
-4. **Flags da CLI** — ex.: `--workers 4`
+3. **Variáveis de ambiente** — por exemplo, `HESMAN_WORKERS=4`
+4. **Flags da CLI** — por exemplo, `--workers 4`
 
-### Variáveis de Ambiente
+### Variáveis de ambiente
 
 | Variável | Equivalente | Descrição |
 |---|---|---|
-| `HESMAN_PROJECT_ROOT` | `--project-root` | Caminho para o projeto a ser indexado |
+| `HESMAN_PROJECT_ROOT` | `--project-root` | Caminho do projeto a ser indexado |
 | `HESMAN_WORKERS` | `--workers N` | Número de threads worker (0 = detecção automática) |
 | `HESMAN_LOG_LEVEL` | `--log-level` | Um de: trace, debug, info, warn, error |
-| `HESMAN_DATA_DIR` | `--data-dir` | Diretório para dados de índice (padrão: `.hesman`) |
-| `HESMAN_WATCH_MODE` | `--watch-mode` | Ativar/desativar monitoramento de arquivos (true/false) |
+| `HESMAN_DATA_DIR` | `--data-dir` | Diretório dos dados do índice (padrão: `.hesman`) |
+| `HESMAN_WATCH_MODE` | `--watch-mode` | Ativar/desativar o monitoramento de arquivos (true/false) |
+| `HESMAN_GRAMMARS_OFFLINE` | — | `1` ou `true`: nunca baixar uma gramática (chave de configuração `grammars.offline`) |
+| `HESMAN_CACHE_DIR` | — | Diretório que contém o cache de gramáticas por usuário (`<dir>/hesman/grammars/`) |
 
 ### Flags da CLI
 
 | Flag | Descrição |
 |---|---|
-| `--project-root <caminho>` | Diretório raiz do projeto |
+| `--project-root <path>` | Projeto a ser indexado (padrão: detectado, veja [Como o Hesman escolhe o projeto](#como-o-hesman-escolhe-o-projeto)) |
 | `--workers <N>` | Número de threads worker (0 = automático) |
-| `--log-level <nível>` | Nível de registro |
-| `--data-dir <caminho>` | Caminho do diretório de dados |
-| `--watch-mode` | Ativar monitoramento de arquivos |
-| `--no-watch` | Desativar monitoramento de arquivos |
-| `--no-semantic` | Desativar busca semântica |
+| `--log-level <level>` | Nível de log |
+| `--data-dir <path>` | Caminho do diretório de dados |
+| `--watch-mode` | Ativar o monitoramento de arquivos |
+| `--no-watch` | Desativar o monitoramento de arquivos |
+| `--no-semantic` | Desativar a busca semântica |
 | `--batch-size <N>` | Arquivos por lote de indexação |
 
 ---
@@ -376,31 +420,74 @@ As configurações são resolvidas nesta ordem (a posterior substitui a anterior
 ## Referência da CLI
 
 ```
-hesman                         Executa o servidor MCP via stdio (padrão)
-hesman index [caminho]         Indexa um projeto sem iniciar o servidor
-hesman status [caminho]        Mostra progresso da indexação e estatísticas
-hesman clean [caminho]         Exclui o diretório de dados .hesman/
-hesman clean --force           Pula o prompt de confirmação
-hesman clean --dry-run         Visualiza o que seria excluído sem remover
-hesman diag [caminho]          Exibe diagnósticos: memória, estatísticas de armazenamento, pool, cache
-hesman diag --json             Exibe diagnósticos como JSON
-hesman install --agent <nome>  Escreve configuração MCP para Claude Desktop, Cursor ou VS Code
-hesman install --global        Escreve no config do usuário em vez do config do projeto
-hesman --version, -v           Exibe o número da versão
-hesman --help, -h              Exibe o texto de ajuda
+hesman                         Run the MCP server over stdio (default)
+hesman index [path]            Index a project without starting the server
+hesman status [path]           Show indexing progress and statistics
+hesman clean [path]            Delete the .hesman/ data directory
+hesman clean --force           Skip confirmation prompt
+hesman clean --dry-run         Preview what would be deleted without removing
+hesman diag [path]             Print diagnostics: memory, store stats, pool, cache
+hesman diag --json             Output diagnostics as JSON
+hesman setup                   Add Hesman to your AI clients (--client, --all, --yes, --dry-run, --scope, --project-root, --command, --rules)
+hesman remove                  Remove Hesman from the clients again (--client, --all, --scope, --dry-run)
+hesman doctor                  Check the installation and each client's entry (--client, --json, --timeout)
+hesman ui [path]               Open the local dashboard: logs, metrics, index graph, playground (--port, --no-open)
+hesman grammars list           Bundled, cached and on-demand grammars with sizes (--json)
+hesman grammars install <lang…> Download grammars into the cache (--all, or --from <directory> without network)
+hesman install --agent <name>  Deprecated alias of: hesman setup --client <name> --yes
+hesman --version, -v           Print version number
+hesman --help, -h              Show help text
 ```
 
 ---
 
-## Linguagens Suportadas
+## Linguagens suportadas
 
-| Linguagem | Extensões | Status |
-|---|---|---|
-| TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts` | Suporte completo |
-| Python | `.py`, `.pyw`, `.pyi` | Suporte completo |
-| Go | `.go` | Suporte completo |
+| Linguagem | Extensões | Nível | Gramática | O que funciona |
+|---|---|---|---|---|
+| TypeScript | `.ts`, `.mts`, `.cts` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| TSX | `.tsx` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| JavaScript (e JSX) | `.js`, `.jsx`, `.mjs`, `.cjs` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| Python | `.py`, `.pyw`, `.pyi` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| Go | `.go` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| Java | `.java` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| C | `.c`, `.h` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| C++ | `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.ipp`, `.tpp` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| C# | `.cs`, `.csx` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| Rust | `.rs` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| PHP | `.php`, `.phtml` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| Ruby | `.rb`, `.rake`, `.gemspec`, `.ru`, `.podspec` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| Kotlin | `.kt`, `.kts` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| Swift | `.swift` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| Bash | `.sh`, `.bash` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| Lua | `.lua` | deep | embutida | Símbolos, grafo de chamadas, análise de impacto |
+| Scala | `.scala`, `.sc`, `.sbt` | structural | sob demanda | Apenas símbolos (sem grafo de chamadas) |
+| OCaml | `.ml` | structural | sob demanda | Apenas símbolos (sem grafo de chamadas) |
+| F# | `.fs`, `.fsx` | structural | sob demanda | Apenas símbolos (sem grafo de chamadas) |
+| R | `.r` | structural | sob demanda | Apenas símbolos (sem grafo de chamadas) |
+| CodeQL | `.ql`, `.qll` | structural | sob demanda | Apenas símbolos (sem grafo de chamadas) |
+| Arduino | `.ino` | structural | sob demanda | Apenas símbolos (sem grafo de chamadas) |
+| Todo o resto | qualquer arquivo de texto | text | nenhuma | Trechos de texto para `semantic_search`, `find_pattern` e `get_context` (sem símbolos) |
 
-A arquitetura suporta até **158 linguagens** via Tree-sitter. Adicionar uma nova linguagem requer a implementação de um `LanguageProfile` — veja o [Guia de Contribuição](./docs/CONTRIBUTING.md) para instruções passo a passo.
+A tabela acima é gerada a partir do registro de linguagens (`npx tsx scripts/generate-language-matrix.ts`; um teste falha quando ela está desatualizada). As gramáticas marcadas como *embutida* vêm dentro do pacote e, portanto, funcionam offline.
+
+**Gramáticas sob demanda.** As gramáticas marcadas como *sob demanda* não estão no pacote. Na primeira vez que um projeto contém arquivos de uma dessas linguagens, esses arquivos são indexados imediatamente como texto e o servidor baixa a gramática em segundo plano (0,3–11,4 MB por gramática, da página de releases do repositório da própria gramática no GitHub); quando ela chega, os arquivos são reindexados com símbolos. Cada gramática é fixada por URL, tamanho e sha256 no `grammars.json` distribuído; um download que não confere é descartado e os arquivos continuam como texto. As gramáticas ficam em cache por usuário, fora do projeto: `HESMAN_CACHE_DIR`, senão `XDG_CACHE_HOME`, senão `~/Library/Caches` (macOS), `%LOCALAPPDATA%` (Windows) ou `~/.cache`, em `hesman/grammars/`.
+
+- **Desativar os downloads:** defina `HESMAN_GRAMMARS_OFFLINE=1`, ou `"grammars": { "offline": true }` em `hesman.config.json`. O Hesman então não faz nenhuma requisição de rede para gramáticas; os arquivos de linguagens sob demanda permanecem no nível text, a menos que a gramática já esteja em cache.
+- **Preencher o cache antecipadamente:** `hesman grammars install scala r` ou `hesman grammars install --all` (46,9 MB); em uma máquina sem acesso à rede, copie os arquivos `.wasm` para lá e execute `hesman grammars install --from <directory>`. `hesman grammars list` mostra o que está embutido, em cache e disponível. Veja [docs/CLI.md](../CLI.md#hesman-grammars).
+- **Ver o que está faltando:** `index_status` lista, por linguagem, seu nível (`deep`, `structural` ou `text`), o número de arquivos e se sua gramática está embutida, em cache ou ausente, e por quê.
+
+O `grammars.json` também fixa 18 gramáticas que ainda não têm consulta de símbolos (Haskell, Elixir, Zig, Julia, Perl, Objective-C, Odin, Luau, Starlark, HTML, CSS, JSON, YAML, TOML, XML, Markdown, HCL, Make). Elas podem ser instaladas com `hesman grammars install`, mas o Hesman ainda não as usa: os arquivos dessas linguagens são indexados como texto e a gramática delas nunca é baixada automaticamente.
+
+O que os níveis significam hoje:
+
+- **deep** — definições (funções, classes, métodos, constantes, ...) mais relações `calls`, de modo que `get_callers`, `get_callees`, `get_references` e `impact_analysis` têm um grafo de chamadas. As chamadas são lidas da árvore sintática de cada linguagem (suas expressões de chamada, `new X(...)`, chamadas de Ruby e Bash sem parênteses) e são vinculadas por nome: primeiro o próprio arquivo do caller, depois os arquivos que ele importa, seu diretório e o projeto; um nome que continua ambíguo fica sem vínculo, em vez de ser vinculado a todos os candidatos. Uma chamada é vinculada a uma definição, e não a uma declaração sem corpo (um protótipo C/C++, um método de interface ou abstrato), e `new X(...)` à classe `X`, e não a um de seus construtores. Os tipos não são resolvidos; por isso um método chamado em uma interface com várias implementações fica sem vínculo, e um método Ruby chamado sem argumentos nem parênteses não é visto como chamada. Existem relações de importação para TypeScript/JavaScript, Python, Go, C/C++ (`#include "..."`) e Ruby (`require`, `require_relative`); relações `extends` / `implements` apenas onde uma linguagem escreve `class X extends Y` ou `class X implements Y`.
+- **structural** — apenas definições. Nenhuma linguagem embutida está mais neste nível. As linguagens sob demanda são structural porque apenas a consulta de símbolos upstream delas é usada: não há regra de visibilidade para elas (toda definição conta como exportada) nem extração de chamadas.
+- **text** — sem símbolos; veja "Text tier" em [docs/TOOLS.md](../TOOLS.md).
+
+Um agente não precisa conhecer esta tabela: quando `get_callers`, `get_callees`, `get_references` ou `impact_analysis` é consultado sobre um símbolo de uma linguagem sem grafo de chamadas, a resposta traz uma `note` como `call graph not available for r (symbols only)` ao lado da lista vazia, para que uma resposta vazia não seja confundida com "nada usa isto".
+
+Os tipos de símbolo seguem a consulta de tags própria de cada gramática, então alguns são mais grosseiros do que a linguagem: métodos de PHP e Kotlin são `function`, enums de Rust e Swift e interfaces de Kotlin são `class`, aliases de tipo de Rust são `class`. Adicionar uma linguagem requer uma gramática, uma consulta de tags, um pequeno perfil e uma entrada no registro de linguagens (`src/parsers/languages.ts`) — veja o [Guia de Contribuição](../CONTRIBUTING.md) para instruções passo a passo.
 
 ---
 
@@ -416,98 +503,95 @@ A arquitetura suporta até **158 linguagens** via Tree-sitter. Adicionar uma nov
                          │       Hesman MCP Server                │
                          │              │                          │
                          │   ┌──────────┴──────────────────────┐  │
-                         │   │  Pipeline de Compressão de 3    │  │
-                         │   │  Camadas                        │  │
+                         │   │     3-Layer Compression Pipeline │  │
                          │   │  ┌────────────────────────────┐  │  │
-                         │   │  │ 1. Modo Compacto           │  │  │
-                         │   │  │    Remove comentários/     │  │  │
-                         │   │  │    linhas em branco        │  │  │
-                         │   │  │ 2. Poda de Contexto        │  │  │
-                         │   │  │    Mantém apenas linhas    │  │  │
-                         │   │  │    relevantes              │  │  │
-                         │   │  │ 3. Sumarização Inteligente │  │  │
-                         │   │  │    Agrega e comprime       │  │  │
+                         │   │  │ 1. Compact Mode            │  │  │
+                         │   │  │    Strip comments/blanks    │  │  │
+                         │   │  │ 2. Context Pruning         │  │  │
+                         │   │  │    Keep only relevant lines │  │  │
+                         │   │  │ 3. Smart Summarization     │  │  │
+                         │   │  │    planned, not applied     │  │  │
                          │   │  └────────────────────────────┘  │  │
                          │   └───────────────────────────────────┘  │
                          │                                          │
                          │   ┌──────────┐ ┌──────────┐ ┌─────────┐ │
-                         │   │  SQLite  │ │   ZVec   │ │ Pool de │ │
-                         │   │  Store   │ │  Vector  │ │ Workers │ │
-                         │   │ (símbolos)│ │ (busca)  │ │(índice) │ │
+                         │   │  SQLite  │ │   ZVec   │ │ Worker  │ │
+                         │   │  Store   │ │  Vector  │ │  Pool   │ │
+                         │   │ (symbols)│ │ (search) │ │ (index) │ │
                          │   └────┬─────┘ └────┬─────┘ └────┬────┘ │
                          │        │            │            │       │
                          │   ┌────┴────────────┴────────────┴────┐  │
-                         │   │  Monitor de Arquivos (chokidar)   │  │
+                         │   │     File Watcher (chokidar)       │  │
                          │   └───────────────────────────────────┘  │
                          └──────────────────────────────────────────┘
 ```
 
-**Pipeline de dados principal:** Alterações em arquivos (chokidar) → Parsing Tree-sitter (AST + símbolos) → Índice SQLite + embeddings ZVec → Respostas MCP comprimidas
+**Pipeline de dados principal:** alterações em arquivos (chokidar) → parsing com Tree-sitter (AST + símbolos) → índice SQLite + embeddings ZVec → respostas MCP comprimidas
 
 **Principais decisões de design:**
-- **Sem dependência de LSP** — Tree-sitter fornece parsing agnóstico a linguagens sem executar servidores de linguagem
-- **Indexação incremental por hash de conteúdo** — arquivos são reanalisados apenas quando o SHA-256 muda
-- **Compressão no nível da resposta** — os dados originais permanecem intactos; a compressão é aplicada no limite da resposta
-- **Banco SQLite único por projeto** — mesmo em monorepos, todos os pacotes compartilham um armazenamento com isolamento por `file_path`
+- **Sem dependência de LSP** — o Tree-sitter fornece parsing independente de linguagem sem executar servidores de linguagem
+- **Indexação incremental por hash de conteúdo** — os arquivos só são reanalisados quando o SHA-256 muda
+- **Compressão no nível da resposta** — os dados originais permanecem intactos; a compressão é aplicada na fronteira da resposta
+- **Um único banco de dados SQLite por projeto** — mesmo em monorepos, todos os pacotes compartilham um armazenamento, com isolamento por `file_path`
 
-Para o documento completo de arquitetura, incluindo dependências de módulos, esquemas de armazenamento e design do pool de workers, veja **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)**.
+Para o documento completo de arquitetura, incluindo dependências entre módulos, esquemas dos armazenamentos e design do pool de workers, veja **[docs/ARCHITECTURE.md](../ARCHITECTURE.md)**.
 
 ---
 
-## Configuração de Desenvolvimento
+## Ambiente de desenvolvimento
 
 ### Pré-requisitos
 
 - **Node.js** ≥ 20.0.0
 - **npm** ≥ 10
 
-### Primeiros Passos
+### Primeiros passos
 
 ```bash
-# Clone e instale
+# Clonar e instalar
 git clone https://github.com/ocsen-hoc-code/hesman-mcp.git
 cd hesman-mcp
 npm install
 
-# Baixe os parsers WASM do Tree-sitter
+# Baixar os parsers WASM do Tree-sitter
 npm run download:parsers
 
-# Execute em modo de desenvolvimento (hot reload)
+# Executar em modo de desenvolvimento (hot reload)
 npm run dev
 
-# Compile para produção
+# Compilar para produção
 npm run build
 ```
 
-### Qualidade de Código
+### Qualidade de código
 
 ```bash
-npm run typecheck    # Verificação de tipos TypeScript
+npm run typecheck    # Verificação de tipos do TypeScript
 npm run lint         # ESLint
-npm run format       # Formatação Prettier
+npm run format       # Formatação com Prettier
 ```
 
-### Executando Testes
+### Executando os testes
 
 ```bash
-npm test                  # Executa todos os testes (unitários + integração)
-npm run test:watch        # Modo de observação para desenvolvimento
-npm run test:e2e          # Testes ponta a ponta (inicia servidor completo)
+npm test                  # Executar todos os testes (unitários + integração)
+npm run test:watch        # Modo watch para desenvolvimento
+npm run test:e2e          # Testes de ponta a ponta (inicia o servidor completo)
 npm run test:perf         # Benchmarks de desempenho
 ```
 
-### Metas de Desempenho
+### Metas de desempenho
 
 | Benchmark | Meta |
 |---|---|
 | Taxa de indexação | ≥ 500 arquivos/s |
-| `find_symbol` (exato) | < 1ms |
-| `find_symbol` (aproximado) | < 5ms |
-| `semantic_search` | < 10ms |
-| `get_references` | < 5ms |
-| Memória (após indexação) | < 350MB |
+| `find_symbol` (exata) | < 1 ms |
+| `find_symbol` (aproximada) | < 5 ms |
+| `semantic_search` | < 10 ms |
+| `get_references` | < 5 ms |
+| Memória (após a indexação) | < 350 MB |
 
-Para o guia completo de contribuição, incluindo como adicionar novas linguagens, veja **[docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md)**.
+Para o guia completo de contribuição, incluindo como adicionar novas linguagens, veja **[docs/CONTRIBUTING.md](../CONTRIBUTING.md)**.
 
 ---
 
@@ -518,10 +602,10 @@ Para o guia completo de contribuição, incluindo como adicionar novas linguagen
 | **Node.js** | ≥ 20.0.0 |
 | **Memória (ocioso)** | ~100 MB |
 | **Memória (sob carga)** | ~350 MB |
-| **Disco** | ~80 MB (download único do modelo de embedding) |
-| **Rede** | Apenas para o `npm install` inicial; zero chamadas de rede em tempo de execução |
+| **Disco** | ~30 MB para o pacote (gramáticas embutidas), ~80 MB para o modelo de embedding (download único), até 47 MB para as gramáticas sob demanda se todas forem instaladas, mais o índice em `.hesman/` |
+| **Rede** | Para a instalação, para o modelo de embedding no primeiro uso e para a gramática de uma linguagem sob demanda na primeira vez que um projeto a contém. Fora isso, nenhuma; nenhum código ou consulta jamais é enviado a lugar algum |
 
-O modelo de embedding (`all-MiniLM-L6-v2`) é baixado no primeiro uso e armazenado em cache indefinidamente no diretório de cache do Transformers.js.
+O modelo de embedding (`all-MiniLM-L6-v2`) é baixado no primeiro uso e mantido em cache indefinidamente no diretório de cache do Transformers.js.
 
 ---
 
@@ -529,14 +613,22 @@ O modelo de embedding (`all-MiniLM-L6-v2`) é baixado no primeiro uso e armazena
 
 | Documento | Conteúdo |
 |---|---|
-| [README.md](../../README.md) | Visão geral do projeto, configuração e definições (este arquivo) |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Arquitetura completa: fluxo de dados, mapa de módulos, esquemas de armazenamento, design do pool de workers |
-| [docs/TOOLS.md](./docs/TOOLS.md) | Esquemas completos de entrada/saída para todas as 11 ferramentas com exemplos |
-| [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | Configuração de desenvolvimento, guia de teste, criação de perfis de linguagem, checklist de PR |
-| [CHANGELOG.md](./CHANGELOG.md) | Histórico de versões e alterações |
+| [README.md](../../README.md) | Visão geral do projeto, instalação e configuração (este arquivo) |
+| [docs/ARCHITECTURE.md](../ARCHITECTURE.md) | Arquitetura completa: fluxo de dados, mapa de módulos, esquemas dos armazenamentos, design do pool de workers |
+| [docs/CLI.md](../CLI.md) | Todos os subcomandos: `setup`, `remove`, `doctor`, `ui`, `grammars`, com opções e saída |
+| [docs/TOOLS.md](../TOOLS.md) | Esquemas completos de entrada e saída de todas as 11 ferramentas, com exemplos |
+| [docs/CONTRIBUTING.md](../CONTRIBUTING.md) | Ambiente de desenvolvimento, guia de testes, criação de perfis de linguagem, checklist de PR |
+| [docs/SECURITY.md](../SECURITY.md) | Modelo de ameaças, proteções sobre a entrada das ferramentas, como relatar uma vulnerabilidade |
+| [CHANGELOG.md](../../CHANGELOG.md) | Histórico de versões e alterações |
 
 ---
 
 ## Licença
 
-[MIT](./LICENSE) — Copyright (c) 2026 Minh Do
+[MIT](../../LICENSE) — Copyright (c) 2026 Minh Do
+
+A licença MIT cobre o código escrito para o Hesman. Software de terceiros mantém sua própria licença:
+
+- **Dentro do pacote:** as gramáticas Tree-sitter e os arquivos de consulta, todos MIT; cada um está listado com seu repositório, revisão e copyright em [NOTICE](../../NOTICE).
+- **Instalados pelo npm como dependências:** todos sob licenças permissivas (MIT, ISC, BSD, Apache-2.0); a lista completa está em [THIRD-PARTY-LICENSES.md](../../THIRD-PARTY-LICENSES.md). A biblioteca de embedding `@xenova/transformers` e o armazenamento vetorial `@zvec/zvec` são Apache-2.0.
+- **Baixados em tempo de execução:** o modelo de embedding `Xenova/all-MiniLM-L6-v2` (Apache-2.0) e as gramáticas sob demanda (MIT, exceto Elixir e HCL: Apache-2.0); veja [NOTICE](../../NOTICE). A dependência `sharp` da biblioteca de embedding instala uma libvips pré-compilada (LGPL-3.0-or-later) como uma biblioteca compartilhada separada.

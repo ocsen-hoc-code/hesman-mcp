@@ -42,7 +42,7 @@ async function call<T>(handler: ToolHandler, args: Record<string, unknown>): Pro
 
 interface GrammarRow {
   language: string;
-  tier: 'parsed' | 'text';
+  tier: 'deep' | 'structural' | 'text';
   files: number;
   grammar: 'bundled' | 'cached' | 'missing';
   reason?: string;
@@ -227,7 +227,7 @@ describe('indexing a project with an on-demand language', () => {
       expect(before.grammars.offline).toBe(false);
       expect(before.grammars.cacheDir).toBe(grammarStore().cacheDir);
       expect(before.grammars.languages).toEqual([
-        { language: 'typescript', tier: 'parsed', files: 1, grammar: 'bundled' },
+        { language: 'typescript', tier: 'deep', files: 1, grammar: 'bundled' },
         { language: 'markdown', tier: 'text', files: 1, grammar: 'missing', reason: 'no-tags-query' },
         { language: 'r', tier: 'text', files: 1, grammar: 'missing', reason: 'downloading' },
       ]);
@@ -265,7 +265,7 @@ describe('indexing a project with an on-demand language', () => {
       expect(await row('r')).toEqual({ language: 'r', tier: 'text', files: 1, grammar: 'cached', reason: 'reindex-pending' });
 
       await indexProject(root, store, config());
-      expect(await row('r')).toEqual({ language: 'r', tier: 'parsed', files: 1, grammar: 'cached' });
+      expect(await row('r')).toEqual({ language: 'r', tier: 'structural', files: 1, grammar: 'cached' });
     });
 
     it('find_pattern and get_context mark results as text only while the grammar is missing', async () => {

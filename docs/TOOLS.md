@@ -105,6 +105,8 @@ get_references({ symbolId: "a1b2c3d4e5f6g7h8", referenceKind: "calls", topK: 10 
 
 **Calls outside a function:** a call made at the top level of a file, in the initializer of a module-level constant or in a callback that has no name (a test body) is listed with its file and line and `callerName: null`: no symbol makes that call. `get_callers` lists symbols only, so it does not show these call sites.
 
+**Languages without a call graph:** when the symbol's language is `structural`, or `symbolId` is the id of a text chunk, the response also has a top-level `note` — see [Support tiers and the `note` field](#support-tiers-and-the-note-field).
+
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
 
@@ -138,6 +140,8 @@ get_callers({ symbolId: "a1b2c3d4e5f6g7h8", maxDepth: 2 })
 
 **Which calls are linked:** a caller is a function, a method, a class (member initializers) or a variable whose value is a function, never a plain variable. A call is linked to a symbol the calling file can reach: a name it imports is linked through that import only (a name imported from a package or a built-in is not linked to a project symbol of the same name), a declaration that is not exported is not a target for another file, and a member call (`a.b()`) is linked to a method or a property function, not to a free function or a variable named `b`. The type of a receiver is not resolved: a member call is linked when exactly one such member is in reach, so a method named like a built-in one (`has`, `get`, `close`) can still collect calls made on other objects.
 
+**Languages without a call graph:** when the symbol's language is `structural`, or `symbolId` is the id of a text chunk, the response also has a top-level `note` — see [Support tiers and the `note` field](#support-tiers-and-the-note-field).
+
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
 
@@ -167,7 +171,7 @@ Traverse the call graph downward — find what a symbol calls.
 get_callees({ symbolId: "a1b2c3d4e5f6g7h8", maxDepth: 2, topK: 100 })
 ```
 
-**Output:** `callees` array (same structure as `get_callers`).
+**Output:** `callees` array (same structure as `get_callers`), and the same `note` for a language without a call graph.
 
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
@@ -350,8 +354,10 @@ impact_analysis({
 | `should_review` | references | May need updating |
 | `info` | imports | FYI only |
 
+**Languages without a call graph:** for a `structural` language the response has a top-level `note` and `impactedFiles` is empty — see [Support tiers and the `note` field](#support-tiers-and-the-note-field). An empty result there does not mean the change is safe.
+
 **Error Codes:**
-- `SYMBOL_NOT_FOUND` — symbol ID not in index
+- `SYMBOL_NOT_FOUND` — symbol ID not in index. When the id belongs to a text chunk, the message says so: `Symbol not found: <id> (call graph not available for markdown (text only, no symbols))`.
 
 ---
 
@@ -434,7 +440,8 @@ Check the indexing status of the project.
   },
   "languages": [
     { "language": "typescript", "files": 30, "symbols": 240 },
-    { "language": "go", "files": 12, "symbols": 75 }
+    { "language": "go", "files": 12, "symbols": 75 },
+    { "language": "r", "files": 2, "symbols": 9 }
   ],
   "textTier": {
     "files": 9,
@@ -448,8 +455,9 @@ Check the indexing status of the project.
     "offline": false,
     "cacheDir": "/Users/me/Library/Caches/hesman/grammars/abi-15",
     "languages": [
-      { "language": "typescript", "tier": "parsed", "files": 30, "grammar": "bundled" },
-      { "language": "go", "tier": "parsed", "files": 12, "grammar": "bundled" },
+      { "language": "typescript", "tier": "deep", "files": 30, "grammar": "bundled" },
+      { "language": "go", "tier": "deep", "files": 12, "grammar": "bundled" },
+      { "language": "r", "tier": "structural", "files": 2, "grammar": "cached" },
       { "language": "markdown", "tier": "text", "files": 6, "grammar": "missing", "reason": "no-tags-query" },
       { "language": "sql", "tier": "text", "files": 3, "grammar": "missing", "reason": "not-in-catalog" }
     ]
@@ -457,7 +465,17 @@ Check the indexing status of the project.
 }
 ```
 
-`grammars` says, for every language in `languages` and `textTier.languages` (in that order), how its files are stored now (`tier`: `parsed` or `text`) and where its grammar stands: `bundled` (shipped in the package), `cached` (an on-demand grammar that was downloaded and verified) or `missing`. A text-tier language also has a `reason`:
+`grammars.languages` is the per-language list: one entry for every language in `languages` and `textTier.languages` (in that order) with the number of `files`, the support `tier` its files have in the index now, and where its grammar stands: `bundled` (shipped in the package), `cached` (an on-demand grammar that was downloaded and verified) or `missing`.
+
+| `tier` | What works for the language's files |
+|--------|--------------------------------------|
+| `deep` | Symbols, calls and imports: every tool, including the call graph (`get_callers`, `get_callees`, `get_references`, `impact_analysis`). |
+| `structural` | Symbols only (`find_symbol`, `get_file_structure`, `get_context`, `semantic_search`, `find_pattern`). No calls are extracted, so the graph tools return empty lists with a `note` (see [Support tiers and the `note` field](#support-tiers-and-the-note-field)). Today these are the on-demand languages. |
+| `text` | Text chunks for `semantic_search`, `find_pattern` and `get_context`; no symbols (see [Text tier](#text-tier-files-without-a-grammar)). |
+
+Until M1-06 the value for a parsed language was `parsed`; it is now `deep` or `structural`. `text` is unchanged. The index does not record parse errors per file or per language, so no error count is reported; `indexing.error` holds the error of a failed indexing run.
+
+A text-tier language also has a `reason`:
 
 | `reason` | Meaning |
 |----------|---------|
@@ -486,6 +504,30 @@ Check the indexing status of the project.
 `health.embeddingModelError` holds the reason the embedding model failed to load (`null` otherwise). Until the model is loaded, `semantic_search` returns `INDEX_NOT_READY` — "still loading" during `loading-model`, or the load failure — and every other tool keeps working.
 
 While the index is being built, `totalFiles`, `totalSymbols`, `totalRelations` and `languages` count what is stored so far.
+
+---
+
+## Support tiers and the `note` field
+
+Not every language has a call graph. `get_callers`, `get_callees`, `get_references` and `impact_analysis` therefore add a top-level `note` string when the answer cannot contain relations, so that an empty list is not read as "nothing uses this symbol":
+
+| Asked about | `note` |
+|-------------|--------|
+| a symbol of a `structural` language (e.g. R) | `call graph not available for r (symbols only)` — `get_references` says `references not available for r (symbols only)` |
+| the id of a text chunk (a `semantic_search` result with `precision: "text"`) | `call graph not available for markdown (text only, no symbols)` — `get_references` says `references not available for ...` |
+| a symbol of a `deep` language | no `note` field, whether or not the list is empty |
+| an id that is neither a symbol nor a text chunk | no `note` field (`impact_analysis` returns `SYMBOL_NOT_FOUND`) |
+
+```json
+{
+  "callers": [],
+  "tookMs": 0.11,
+  "note": "call graph not available for r (symbols only)",
+  "_meta": { "originalTokens": 21, "compressedTokens": 21, "reduction": "0.0%", "compressed": false, "layers": [] }
+}
+```
+
+The note is part of the payload, next to the result list, and is kept by response compression. The language in it is the one stored for the symbol; the tier of every indexed language is in `grammars.languages` of [`index_status`](#index_status). When a note is present, use `find_pattern` or grep to look for usages.
 
 ---
 

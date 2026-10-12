@@ -951,4 +951,11 @@ export class SqliteStore {
       count: importedSymbols.length,
     }));
   }
+
+  /** Every text-tier file with its label and chunk count (M1-06: to recognise the id of a text chunk). */
+  getTextFiles(): Array<Pick<TextFileRow, 'file_path' | 'language' | 'chunk_count'>> {
+    return this.db.prepare('SELECT file_path, language, chunk_count FROM text_files').all() as Array<
+      Pick<TextFileRow, 'file_path' | 'language' | 'chunk_count'>
+    >;
+  }
 }

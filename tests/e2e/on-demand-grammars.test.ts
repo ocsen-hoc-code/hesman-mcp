@@ -81,7 +81,7 @@ describe('E2E — a language whose grammar is delivered on demand', () => {
   it('with the grammar cached the server parses the file in its worker threads: find_symbol finds an R function', async () => {
     server = await startServer({ fixture: 'on-demand', env: env() });
     const status = await server.callToolJson<Status>('index_status');
-    expect(status.grammars.languages).toEqual([{ language: 'r', tier: 'parsed', files: 1, grammar: 'cached' }]);
+    expect(status.grammars.languages).toEqual([{ language: 'r', tier: 'structural', files: 1, grammar: 'cached' }]);
     expect(status.textTier.files).toBe(0);
     const found = await server.callToolJson<Found>('find_symbol', { name: 'safe_mean', matchMode: 'exact' });
     expect(found.symbols).toHaveLength(1);

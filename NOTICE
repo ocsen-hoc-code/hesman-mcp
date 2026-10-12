@@ -1,10 +1,21 @@
 Hesman MCP
 Copyright (c) 2026 Minh Do
 
-This product is licensed under the MIT License (see LICENSE). It bundles the
-third-party components listed below. This file is maintained by hand until
-`scripts/update-grammars.ts` generates it (ADR 0001, section 4.4); the
-machine-readable source for the query files is queries/SOURCES.json.
+This product is licensed under the MIT License (see LICENSE). That license
+covers the code written for Hesman. Third-party software reaches a user in three
+ways, and each keeps its own license:
+
+1. Inside this package: Tree-sitter grammars (parsers/*.wasm) and query files
+   (queries/). They are listed one by one below.
+2. Installed next to this package by npm: the dependencies. They are not part
+   of this package; see "Software installed with this package" below and
+   THIRD-PARTY-LICENSES.md for the full list.
+3. Downloaded at run time: the embedding model, on-demand grammars and the
+   prebuilt image library of a dependency. See "Downloaded at run time" below.
+
+This file is maintained by hand until `scripts/update-grammars.ts` generates it
+(ADR 0001, section 4.4); the machine-readable source for the query files is
+queries/SOURCES.json.
 
 ================================================================================
 Bundled Tree-sitter grammars (parsers/*.wasm)
@@ -291,7 +302,58 @@ queries/fsharp/hesman-overrides.scm
   Written for Hesman. License: MIT, Copyright (c) 2026 Minh Do (see LICENSE).
 
 ================================================================================
-MIT License (applies to every third-party component above, each under its own
+Software installed with this package (npm dependencies)
+================================================================================
+
+npm installs these packages next to Hesman; none of their code is copied into
+this package. Each is used under its own license and ships its own license text
+in its package directory. THIRD-PARTY-LICENSES.md lists every production
+dependency, direct and transitive, with its license (generated from
+package-lock.json). All of them are under permissive licenses: MIT, ISC,
+BSD-2-Clause, BSD-3-Clause or Apache-2.0.
+
+Direct dependencies that are not under the MIT License:
+
+@xenova/transformers
+  Repository: https://github.com/xenova/transformers.js
+  License:    Apache-2.0
+
+@zvec/zvec (and its platform package @zvec/bindings-<platform>)
+  Repository: https://github.com/zvec-ai/zvec-node
+  License:    Apache-2.0
+
+================================================================================
+Downloaded at run time (not part of this package)
+================================================================================
+
+Embedding model Xenova/all-MiniLM-L6-v2
+  Source:  https://huggingface.co/Xenova/all-MiniLM-L6-v2
+  License: Apache-2.0
+  Fetched by @xenova/transformers the first time semantic search is used and
+  kept in that library's cache. Not fetched when semantic search is disabled.
+
+On-demand Tree-sitter grammars
+  Hesman downloads a grammar the first time a project contains files of that
+  language, unless downloads are turned off (HESMAN_GRAMMARS_OFFLINE=1). Every
+  grammar is the `.wasm` asset of the grammar's own upstream release, pinned by
+  URL and sha256 in grammars.json, which also records its repository, revision
+  and license. Hesman writes a NOTICE.txt with that information next to the
+  downloaded files in the grammar cache. The pinned grammars are under the MIT
+  License, except:
+
+  https://github.com/elixir-lang/tree-sitter-elixir (Apache-2.0)
+  https://github.com/tree-sitter-grammars/tree-sitter-hcl (Apache-2.0)
+
+libvips (through the `sharp` dependency of @xenova/transformers)
+  `sharp` (Apache-2.0) downloads a prebuilt copy of the libvips image library
+  when it is installed. libvips is under LGPL-3.0-or-later and is loaded as a
+  separate shared library; its own third-party notices are installed with it
+  (node_modules/sharp/vendor/<version>/<platform>/THIRD-PARTY-NOTICES.md).
+  Hesman does not call it: it is present only because the embedding library
+  depends on `sharp`.
+
+================================================================================
+MIT License (applies to every bundled grammar and query file above, each under its own
 copyright line)
 ================================================================================
 

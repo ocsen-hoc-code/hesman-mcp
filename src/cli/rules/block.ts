@@ -24,7 +24,7 @@ export const RULES_BLOCK = [
   '- What breaks if X is renamed, deleted or gets a new signature? `impact_analysis`.',
   '- Code by meaning, when the name is unknown: `semantic_search`. Code by pattern, such as `console.$METHOD($$$ARGS)`: `find_pattern`. Imports of a file: `list_dependencies`.',
   '- A result marked `precision: "text"` is a line range of a file without a parser, not a symbol: read it with `get_context` and do not pass its `symbolId` to other tools.',
-  '- If results look incomplete or a response carries `_meta.indexing`, call `index_status`: the index may still be building, or the language may not be parsed.',
+  '- If results look incomplete or a response carries `_meta.indexing`, call `index_status`: the index may still be building, or the language may not be parsed. A `note` on an empty call or reference list means that language has no call graph (symbols only), not that X is unused.',
   '- Relations are pattern-matched, not compiler-checked: confirm with `get_context` before a risky change, and use grep for exact strings.',
   RULES_END,
 ].join('\n');
