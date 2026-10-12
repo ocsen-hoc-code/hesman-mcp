@@ -15,16 +15,18 @@ import {
 import { join, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const TEST_DIR = join(tmpdir(), 'hesman-fw-test');
-const DATA_DIR = join(TEST_DIR, '.hesman');
+// A fresh directory per test: a fixed path is shared by every checkout that
+// runs this suite at the same time on one machine.
+let TEST_DIR: string;
+let DATA_DIR: string;
 
 describe('FileWatcher', () => {
   let store: SqliteStore;
   let pool: WorkerPool;
 
   beforeEach(() => {
-    if (existsSync(TEST_DIR)) rmSync(TEST_DIR, { recursive: true });
-    mkdirSync(TEST_DIR, { recursive: true });
+    TEST_DIR = realpathSync(mkdtempSync(join(tmpdir(), 'hesman-fw-test-')));
+    DATA_DIR = join(TEST_DIR, '.hesman');
     mkdirSync(DATA_DIR, { recursive: true });
     // Create a .ts file to watch
     writeFileSync(join(TEST_DIR, 'test.ts'), 'export function hello() { return "world"; }');

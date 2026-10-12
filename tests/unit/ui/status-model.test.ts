@@ -20,7 +20,7 @@ describe('language tiers shown on the overview', () => {
     });
     expect(rows).toEqual([
       { language: 'go', tier: 'deep', files: 2, symbols: 9, chunks: null },
-      { language: 'ruby', tier: 'structural', files: 1, symbols: 3, chunks: null },
+      { language: 'ruby', tier: 'deep', files: 1, symbols: 3, chunks: null },
       { language: 'zig', tier: 'unknown', files: 1, symbols: 1, chunks: null },
       { language: 'c', tier: 'deep', files: 1, symbols: 1, chunks: null },
       { language: 'markdown', tier: 'text', files: 3, symbols: null, chunks: 7 },
