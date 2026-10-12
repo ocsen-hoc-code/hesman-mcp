@@ -91,6 +91,7 @@ Usage:
   hesman remove             Remove Hesman from the clients again
                             (--client <name…>, --all, --scope, --dry-run)
   hesman doctor             Check each client's Hesman entry end to end (--client <name…>, --json, --timeout <ms>)
+  hesman ui [path]          Local dashboard on 127.0.0.1: logs, metrics, graph, tool playground (--port <n>, --no-open)
   hesman install --agent X  Deprecated alias of: hesman setup --client X --yes
   hesman --version, -v      Print version
   hesman --help, -h         Show this help
@@ -154,6 +155,25 @@ export async function runDoctor(args: string[]): Promise<void> {
   const { realEnvironment } = await import('./clients/environment.js');
   const code = await doctor(args, { env: realEnvironment(), out: (line) => console.log(line) }, realDoctorEnvironment());
   if (code !== 0) process.exitCode = code;
+}
+
+/** `hesman ui`: the local dashboard server (`ui/server/cli.ts`); runs until SIGINT/SIGTERM. */
+export async function runUi(args: string[]): Promise<void> {
+  const { runUiCommand, openInBrowser } = await import('../ui/server/cli.js');
+  const server = await runUiCommand(args, loadConfig(), {
+    out: (line) => console.log(line),
+    err: (line) => console.error(line),
+    openBrowser: (url) => openInBrowser(url),
+  });
+  if (!server) {
+    process.exitCode = 1;
+    return;
+  }
+  const stop = (): void => {
+    void server.close().then(() => process.exit(0));
+  };
+  process.once('SIGINT', stop);
+  process.once('SIGTERM', stop);
 }
 
 function getDirSize(dir: string): number {
