@@ -1,0 +1,28 @@
+{
+  "files": {
+    "Inventory.cs": {
+      "symbolCount": { "min": 14, "max": 14 },
+      "symbols": [
+        { "name": "Fixtures.Inventory", "kind": "namespace", "line": 4, "isExported": true },
+        { "name": "IStocker", "kind": "interface", "line": 7, "isExported": true, "doc": "Anything that can be restocked." },
+        { "name": "Restock", "kind": "method", "line": 10, "isExported": true, "doc": "Adds stock and returns the new count." },
+        { "name": "Status", "kind": "enum", "line": 14, "isExported": true, "doc": "Status of an item." },
+        { "name": "Item", "kind": "class", "line": 17, "isExported": true, "doc": "One stock item." },
+        { "name": "MaxItems", "kind": "variable", "line": 20, "isExported": true, "doc": "Largest count an item may have." },
+        { "name": "_log", "kind": "variable", "line": 21, "isExported": false },
+        { "name": "Name", "kind": "variable", "line": 24, "isExported": true, "doc": "Name of the item." },
+        { "name": "Count", "kind": "variable", "line": 25, "isExported": true },
+        { "name": "Item", "kind": "method", "line": 28, "isExported": true, "doc": "Creates an item with a name." },
+        { "name": "Restock", "kind": "method", "line": 34, "isExported": true, "doc": "Adds stock, capped at MaxItems." },
+        { "name": "Record", "kind": "method", "line": 41, "isExported": false },
+        { "name": "Clamp", "kind": "method", "line": 46, "isExported": false },
+        { "name": "Normalize", "kind": "method", "line": 51, "isExported": false }
+      ],
+      "calls": [
+        { "from": "Item", "to": "Normalize" },
+        { "from": "Restock", "to": "Clamp" },
+        { "from": "Restock", "to": "Record" }
+      ]
+    }
+  }
+}

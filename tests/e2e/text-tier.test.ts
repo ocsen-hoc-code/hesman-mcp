@@ -71,7 +71,7 @@ describe('E2E — text tier', () => {
 
   it('get_context returns the lines of a file without a grammar', async () => {
     const data = await server.callToolJson<Record<string, unknown>>('get_context', {
-      filePath: 'scripts/deploy.sh',
+      filePath: 'scripts/deploy.zsh',
       startLine: 5,
       endLine: 7,
       contextLines: 0,

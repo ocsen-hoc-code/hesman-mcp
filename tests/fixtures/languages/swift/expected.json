@@ -1,0 +1,30 @@
+{
+  "files": {
+    "Inventory.swift": {
+      "symbolCount": { "min": 16, "max": 16 },
+      "symbols": [
+        { "name": "maxItems", "kind": "variable", "line": 4, "isExported": true, "doc": "Largest count an item may have." },
+        { "name": "Status", "kind": "class", "line": 7, "isExported": true, "doc": "Status of an item." },
+        { "name": "Stocker", "kind": "interface", "line": 13, "isExported": true, "doc": "Anything that can be restocked." },
+        { "name": "restock", "kind": "method", "line": 15, "isExported": true, "doc": "Adds stock and returns the new count." },
+        { "name": "Item", "kind": "class", "line": 19, "isExported": true, "doc": "One stock item." },
+        { "name": "name", "kind": "variable", "line": 20, "isExported": true },
+        { "name": "count", "kind": "variable", "line": 21, "isExported": false },
+        { "name": "log", "kind": "variable", "line": 22, "isExported": false },
+        { "name": "init", "kind": "method", "line": 25, "isExported": true, "doc": "Creates an item with a normalized name." },
+        { "name": "restock", "kind": "method", "line": 30, "isExported": true, "doc": "Adds stock, capped at maxItems." },
+        { "name": "record", "kind": "method", "line": 36, "isExported": false },
+        { "name": "normalize", "kind": "function", "line": 42, "isExported": true, "doc": "Trims and lower-cases a name." },
+        { "name": "clamp", "kind": "function", "line": 47, "isExported": false, "doc": "Keeps a count inside the allowed range." },
+        { "name": "Slot", "kind": "class", "line": 52, "isExported": true, "doc": "A slot in a warehouse." },
+        { "name": "row", "kind": "variable", "line": 53, "isExported": true },
+        { "name": "column", "kind": "variable", "line": 54, "isExported": true }
+      ],
+      "calls": [
+        { "from": "init", "to": "normalize" },
+        { "from": "restock", "to": "clamp" },
+        { "from": "restock", "to": "record" }
+      ]
+    }
+  }
+}

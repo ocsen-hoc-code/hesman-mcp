@@ -10,9 +10,23 @@
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { LanguageProfile, RelationQueries } from './language-profile.js';
-import { tsProfile } from './profiles/typescript.js';
+import { tsProfile, tsxProfile } from './profiles/typescript.js';
 import { pythonProfile } from './profiles/python.js';
 import { goProfile } from './profiles/go.js';
+import {
+  bashProfile,
+  cProfile,
+  cppProfile,
+  csharpProfile,
+  javaProfile,
+  javascriptProfile,
+  kotlinProfile,
+  luaProfile,
+  phpProfile,
+  rubyProfile,
+  rustProfile,
+  swiftProfile,
+} from './profiles/generic.js';
 
 /**
  * Directory of the vendored Tree-sitter queries (`queries/` at the package
@@ -45,11 +59,14 @@ export interface LanguageDefinition {
   readonly grammar: string;
   /**
    * Tags query files (`tags.scm` convention) that drive symbol extraction,
-   * as paths relative to the `queries/` directory. A list is layered in order:
-   * list the grammar's upstream queries first and Hesman's gap fillers
-   * (`hesman-tags.scm`) last; when two layers tag the same name the earlier
-   * one wins. Every file must be recorded in `queries/SOURCES.json` and
-   * `NOTICE`. A language without a tags query is parsed but yields no symbols.
+   * as paths relative to the `queries/` directory. A list is layered in order
+   * and when two layers tag the same name the earlier one wins: list the
+   * grammar's upstream queries first and Hesman's gap fillers
+   * (`hesman-tags.scm`) last, so they only add definitions. A
+   * `hesman-overrides.scm` layer is listed *before* upstream, for the rare
+   * pattern whose upstream definition node is wrong (the file states why).
+   * Every file must be recorded in `queries/SOURCES.json` and `NOTICE`. A
+   * language without a tags query is parsed but yields no symbols.
    */
   readonly tagsQuery?: string | readonly string[];
   /**
@@ -64,17 +81,45 @@ export interface LanguageDefinition {
   readonly profile: LanguageProfile;
 }
 
-/** All registered languages. M0 ships TypeScript/JavaScript, Python and Go. */
+/** Layers shared by TypeScript and TSX: both grammars extend the JavaScript grammar. */
+const TS_TAGS = ['javascript/tags.scm', 'typescript/tags.scm', 'typescript/hesman-tags.scm'] as const;
+
+/**
+ * All registered languages: the bundled core set of ADR 0001 (section 10).
+ * Their grammars ship in `parsers/`; every other file is indexed by the text
+ * tier (`text-languages.ts`).
+ *
+ * `tier` is `deep` only where the regex call extractor finds every call
+ * between the definitions of the language's conformance fixture and reports no
+ * false self-call; the reason for each `structural` entry is next to it.
+ */
 export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
   {
     id: 'typescript',
     tier: 'deep',
-    extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'],
+    extensions: ['.ts', '.mts', '.cts'],
     grammar: 'tree-sitter-typescript.wasm',
-    // The TypeScript grammar extends the JavaScript grammar, and its upstream
-    // tags query only adds the TypeScript-specific constructs.
-    tagsQuery: ['javascript/tags.scm', 'typescript/tags.scm', 'typescript/hesman-tags.scm'],
+    // The upstream TypeScript tags query only adds the TypeScript-specific constructs.
+    tagsQuery: TS_TAGS,
     profile: tsProfile,
+  },
+  {
+    // Same repository and tag as the TypeScript grammar, plus the JSX rules.
+    id: 'tsx',
+    tier: 'deep',
+    extensions: ['.tsx'],
+    grammar: 'tree-sitter-tsx.wasm',
+    tagsQuery: TS_TAGS,
+    profile: tsxProfile,
+  },
+  {
+    // Also parses JSX.
+    id: 'javascript',
+    tier: 'deep',
+    extensions: ['.js', '.jsx', '.mjs', '.cjs'],
+    grammar: 'tree-sitter-javascript.wasm',
+    tagsQuery: ['javascript/tags.scm', 'javascript/hesman-tags.scm'],
+    profile: javascriptProfile,
   },
   {
     id: 'python',
@@ -91,6 +136,96 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
     grammar: 'tree-sitter-go.wasm',
     tagsQuery: ['go/tags.scm', 'go/hesman-tags.scm'],
     profile: goProfile,
+  },
+  {
+    id: 'java',
+    tier: 'deep',
+    extensions: ['.java'],
+    grammar: 'tree-sitter-java.wasm',
+    tagsQuery: ['java/tags.scm', 'java/hesman-tags.scm'],
+    profile: javaProfile,
+  },
+  {
+    id: 'c',
+    tier: 'structural',
+    extensions: ['.c', '.h'],
+    grammar: 'tree-sitter-c.wasm',
+    tagsQuery: ['c/hesman-overrides.scm', 'c/tags.scm', 'c/hesman-tags.scm'],
+    profile: cProfile,
+  },
+  {
+    id: 'cpp',
+    tier: 'structural',
+    extensions: ['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx', '.ipp', '.tpp'],
+    grammar: 'tree-sitter-cpp.wasm',
+    tagsQuery: ['cpp/hesman-overrides.scm', 'cpp/tags.scm', 'cpp/hesman-tags.scm'],
+    profile: cppProfile,
+  },
+  {
+    id: 'csharp',
+    tier: 'deep',
+    extensions: ['.cs', '.csx'],
+    grammar: 'tree-sitter-c_sharp.wasm',
+    tagsQuery: ['csharp/tags.scm', 'csharp/hesman-tags.scm'],
+    profile: csharpProfile,
+  },
+  {
+    id: 'rust',
+    tier: 'deep',
+    extensions: ['.rs'],
+    grammar: 'tree-sitter-rust.wasm',
+    tagsQuery: ['rust/tags.scm', 'rust/hesman-tags.scm'],
+    profile: rustProfile,
+  },
+  {
+    id: 'php',
+    tier: 'deep',
+    extensions: ['.php', '.phtml'],
+    grammar: 'tree-sitter-php.wasm',
+    tagsQuery: ['php/tags.scm', 'php/hesman-tags.scm'],
+    profile: phpProfile,
+  },
+  {
+    id: 'ruby',
+    tier: 'structural',
+    extensions: ['.rb', '.rake', '.gemspec', '.ru', '.podspec'],
+    grammar: 'tree-sitter-ruby.wasm',
+    tagsQuery: ['ruby/tags.scm', 'ruby/hesman-tags.scm'],
+    profile: rubyProfile,
+  },
+  {
+    // fwcd/tree-sitter-kotlin (ADR 0001, section 10); the other Kotlin grammar needs another query.
+    id: 'kotlin',
+    tier: 'deep',
+    extensions: ['.kt', '.kts'],
+    grammar: 'tree-sitter-kotlin.wasm',
+    tagsQuery: 'kotlin/tags.scm',
+    profile: kotlinProfile,
+  },
+  {
+    id: 'swift',
+    tier: 'deep',
+    extensions: ['.swift'],
+    grammar: 'tree-sitter-swift.wasm',
+    tagsQuery: ['swift/hesman-overrides.scm', 'swift/tags.scm'],
+    profile: swiftProfile,
+  },
+  {
+    // No tags query upstream: the query is written for Hesman.
+    id: 'bash',
+    tier: 'structural',
+    extensions: ['.sh', '.bash'],
+    grammar: 'tree-sitter-bash.wasm',
+    tagsQuery: 'bash/hesman-tags.scm',
+    profile: bashProfile,
+  },
+  {
+    id: 'lua',
+    tier: 'deep',
+    extensions: ['.lua'],
+    grammar: 'tree-sitter-lua.wasm',
+    tagsQuery: 'lua/tags.scm',
+    profile: luaProfile,
   },
 ]);
 

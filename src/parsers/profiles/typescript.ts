@@ -1,4 +1,4 @@
-import type { LanguageProfile } from '../language-profile.js';
+import type { LanguageProfile, RelationQueries } from '../language-profile.js';
 import type { TagDefinition } from '../tags-engine.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -22,43 +22,47 @@ export function isTsImplementation(definition: TagDefinition): boolean {
   return !BODYLESS_SIGNATURES.has(definition.node.type);
 }
 
-export const tsProfile: LanguageProfile = {
-  language: 'typescript',
-  extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'],
-
-  // Path relative to the parsers/ directory in project root
-  get parserWasmPath(): string {
-    return join(__dirname, '..', '..', '..', 'parsers', 'tree-sitter-typescript.wasm');
-  },
-
-  relationQueries: {
-    calls: `
-      (call_expression
-        function: (identifier) @callee) @call_site
-    `,
-    extends: `
-      (class_declaration
-        name: (type_identifier) @class
-        heritage_clause: (extends_clause
-          value: (type_identifier) @parent))
-    `,
-    implements: `
-      (class_declaration
-        name: (type_identifier) @class
-        heritage_clause: (implements_clause
-          value: (type_identifier) @iface))
-    `,
-    imports: `
-      (import_statement
-        source: (string (string_fragment) @module_path)
-        import_clause: (import_clause
-          (named_imports (import_specifier name: (identifier) @imported_name))?)?)
-    `,
-    references: `
-      (type_annotation
-        (type_identifier) @ref_type)
-    `,
-  },
-
-  includeDefinition: isTsImplementation,
+const TS_RELATION_QUERIES: RelationQueries = {
+  calls: `
+    (call_expression
+      function: (identifier) @callee) @call_site
+  `,
+  extends: `
+    (class_declaration
+      name: (type_identifier) @class
+      heritage_clause: (extends_clause
+        value: (type_identifier) @parent))
+  `,
+  implements: `
+    (class_declaration
+      name: (type_identifier) @class
+      heritage_clause: (implements_clause
+        value: (type_identifier) @iface))
+  `,
+  imports: `
+    (import_statement
+      source: (string (string_fragment) @module_path)
+      import_clause: (import_clause
+        (named_imports (import_specifier name: (identifier) @imported_name))?)?)
+  `,
+  references: `
+    (type_annotation
+      (type_identifier) @ref_type)
+  `,
 };
+
+/** TypeScript and TSX share everything but the grammar (`.tsx` needs the JSX rules). */
+function tsFlavor(language: string, extensions: string[], grammar: string): LanguageProfile {
+  return {
+    language,
+    extensions,
+    // Path relative to the parsers/ directory in project root
+    parserWasmPath: join(__dirname, '..', '..', '..', 'parsers', grammar),
+    relationQueries: TS_RELATION_QUERIES,
+    includeDefinition: isTsImplementation,
+  };
+}
+
+export const tsProfile = tsFlavor('typescript', ['.ts', '.mts', '.cts'], 'tree-sitter-typescript.wasm');
+
+export const tsxProfile = tsFlavor('tsx', ['.tsx'], 'tree-sitter-tsx.wasm');

@@ -31,7 +31,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const FIXTURE_DIR = resolve(__dirname, '..', 'fixtures', 'text-tier');
 
 /** Text-tier files of the fixture (everything indexable except `src/app.ts`). */
-const TEXT_FILES = ['Dockerfile', 'Makefile', 'build.zig', 'db/schema.sql', 'legacy/payroll.cobol', 'notes.xyzzy', 'scripts/deploy.sh'];
+const TEXT_FILES = ['Dockerfile', 'Makefile', 'build.zig', 'db/schema.sql', 'legacy/payroll.cobol', 'notes.xyzzy', 'scripts/deploy.zsh'];
 const INDEXABLE_FILES = TEXT_FILES.length + 1;
 
 type ToolResult = { content: Array<{ text?: string }>; isError?: boolean };
@@ -215,7 +215,7 @@ describe('text tier without semantic search', () => {
     expect(body.precision).toBe('text');
 
     const shell = await call<{ matches: Array<{ filePath: string }> }>(findPattern, { pattern: 'upload_release', language: 'shell' });
-    expect(new Set(shell.matches.map((m) => m.filePath))).toEqual(new Set([project.path('scripts/deploy.sh')]));
+    expect(new Set(shell.matches.map((m) => m.filePath))).toEqual(new Set([project.path('scripts/deploy.zsh')]));
 
     const unknown = await call<{ matches: Array<{ filePath: string }> }>(findPattern, { pattern: 'Grue $WORD', language: 'text' });
     expect(unknown.matches.map((m) => m.filePath)).toEqual([project.path('notes.xyzzy')]);
@@ -347,7 +347,7 @@ describe.skipIf(modelError !== null)('text tier with semantic search', () => {
     const textOnly = await search({ query: 'restart the web service after a deployment', kind: 'text', topK: 20 });
     expect(textOnly.length).toBeGreaterThan(0);
     expect(textOnly.every((r) => r.kind === 'text')).toBe(true);
-    expect(textOnly[0].filePath).toBe(project.path('scripts/deploy.sh'));
+    expect(textOnly[0].filePath).toBe(project.path('scripts/deploy.zsh'));
 
     const cobol = await search({ query: 'compute gross pay', language: 'cobol', topK: 20 });
     expect(cobol.map((r) => r.filePath)).toEqual([project.path('legacy/payroll.cobol')]);

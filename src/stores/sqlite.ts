@@ -116,8 +116,11 @@ export interface DependencyResult {
  *       text chunks in the vector store); older indexes never saw them (M1-04).
  *   4 — symbols come from tags queries: some kinds, and therefore ids, differ
  *       and more definitions are indexed (M1-02).
+ *   5 — `.tsx` and `.js`/`.jsx`/`.mjs`/`.cjs` files are parsed by their own
+ *       grammars and stored as `tsx` / `javascript`, not `typescript`; files of
+ *       the other bundled languages move from the text tier to symbols (M1-05).
  */
-export const INDEX_SCHEMA_VERSION = 4;
+export const INDEX_SCHEMA_VERSION = 5;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
 /**

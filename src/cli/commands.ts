@@ -108,7 +108,8 @@ MCP tools (available when server is running):
   find_pattern           Search for code patterns using AST queries
   index_status           Report indexing health and statistics
 
-Supported languages: TypeScript, JavaScript, Python, Go
+Supported languages: TypeScript, TSX, JavaScript, Python, Go, Java, C, C++, C#, Rust, PHP, Ruby,
+Kotlin, Swift, Bash, Lua (symbols); every other text file is indexed as text
 `);
 }
 
