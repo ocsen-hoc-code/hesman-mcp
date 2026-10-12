@@ -32,8 +32,8 @@ export interface OnDemandGrammarSpec {
   abi: number;
   /** Extensions parsed with this grammar (only with `tags`). */
   extensions?: readonly string[];
-  /** The vendored upstream tags query, as a path under `queries/`. */
-  tags?: string;
+  /** The tags query layers, as paths under `queries/`, in the order of `LanguageDefinition.tagsQuery`. */
+  tags?: string | readonly string[];
 }
 
 /** The URL of a release asset: the only form of URL the manifest may contain. */
@@ -79,7 +79,8 @@ export const ON_DEMAND_GRAMMARS: readonly OnDemandGrammarSpec[] = [
     bytes: 11430318,
     abi: 15,
     extensions: ['.fs', '.fsx'],
-    tags: 'fsharp/tags.scm',
+    // The override layer comes first: upstream tags functions on their enclosing module.
+    tags: ['fsharp/hesman-overrides.scm', 'fsharp/tags.scm'],
   },
   {
     id: 'r',

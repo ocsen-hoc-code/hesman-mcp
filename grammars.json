@@ -461,6 +461,7 @@
       ],
       "queries": {
         "tags": [
+          "queries/fsharp/hesman-overrides.scm",
           "queries/fsharp/tags.scm"
         ]
       }

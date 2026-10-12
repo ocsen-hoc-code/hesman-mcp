@@ -288,6 +288,12 @@
       "origin": "hesman",
       "license": "MIT",
       "note": "tree-sitter-bash v0.25.1 ships no tags query; this is the whole query of the language."
+    },
+    {
+      "path": "fsharp/hesman-overrides.scm",
+      "origin": "hesman",
+      "license": "MIT",
+      "note": "Listed before fsharp/tags.scm: tags each top-level function and value where upstream puts the definition capture on the enclosing module. Query of an on-demand grammar; checked against it by scripts/verify-grammar-catalog.ts."
     }
   ]
 }

@@ -276,6 +276,7 @@ queries/php/hesman-tags.scm
 queries/ruby/hesman-tags.scm
 queries/swift/hesman-overrides.scm
 queries/bash/hesman-tags.scm
+queries/fsharp/hesman-overrides.scm
   Written for Hesman. License: MIT, Copyright (c) 2026 Minh Do (see LICENSE).
 
 ================================================================================
