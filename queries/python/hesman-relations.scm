@@ -16,3 +16,23 @@
 
 (import_from_statement
   module_name: (relative_import) @name) @reference.import
+
+; The names an import binds (see queries/javascript/hesman-relations.scm).
+; `from pkg.mod import f`, `from pkg.mod import f as g`
+(import_from_statement
+  module_name: (_) @name
+  name: (dotted_name) @import.name) @reference.import
+
+(import_from_statement
+  module_name: (_) @name
+  name: (aliased_import
+    alias: (identifier) @import.name)) @reference.import
+
+; `import pkg.mod` is used as `pkg.mod.f()`, `import pkg.mod as m` as `m.f()`
+(import_statement
+  name: (dotted_name (identifier) @import.module .) @name) @reference.import
+
+(import_statement
+  name: (aliased_import
+    name: (dotted_name) @name
+    alias: (identifier) @import.module)) @reference.import

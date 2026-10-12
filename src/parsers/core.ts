@@ -131,7 +131,7 @@ export async function parseFile(
     const { definitions, references } = !tags
       ? { definitions: [], references: none }
       : profile.relationQueries
-        ? tags.analyze(tree.rootNode)
+        ? tags.analyze(tree.rootNode, source)
         : { definitions: tags.definitions(tree.rootNode), references: none };
     const symbols = extractSymbols(definitions, source, filePath, profile);
     const errors: Array<{ line: number; message: string }> = [];

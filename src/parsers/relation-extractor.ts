@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
-import type { ExtractedSymbol } from './core.js';
+import { makeSymbolId, type ExtractedSymbol } from './core.js';
 import type { LanguageProfile } from './language-profile.js';
-import type { ParsedReferences } from './tags-engine.js';
+import type { ImportedName, ParsedReferences } from './tags-engine.js';
 
 export interface RelationRow {
   from_id: string;
@@ -12,6 +12,33 @@ export interface RelationRow {
   col: number;
   /** Callee name of a `calls` relation; `resolveCallRelations` turns it into `to_id`. */
   to_name?: string | null;
+  /**
+   * Receiver of a `calls` relation, as recorded by `CallSite.receiver`: absent
+   * for `f()`, the receiver's last name for `a.f()`, `*` when it has none.
+   */
+  receiver?: string | null;
+  /** Names bound by an `imports` relation (see `encodeImportedNames`). */
+  names?: string | null;
+}
+
+/** Marks a name that stands for the imported module itself in `RelationRow.names`. */
+export const MODULE_NAME_MARK = '*';
+
+/**
+ * The names an import binds, as stored: separated by spaces, in source order,
+ * a module name prefixed with `*` (`join abs`, `*os`). Null when it binds none.
+ */
+export function encodeImportedNames(names: readonly ImportedName[] | undefined): string | null {
+  if (!names || names.length === 0) return null;
+  return names.map((n) => (n.module ? `${MODULE_NAME_MARK}${n.name}` : n.name)).join(' ');
+}
+
+/** The inverse of `encodeImportedNames`. */
+export function decodeImportedNames(names: string | null | undefined): ImportedName[] {
+  if (!names) return [];
+  return names.split(' ').filter((n) => n.length > 0).map((n) =>
+    n.startsWith(MODULE_NAME_MARK) ? { name: n.slice(MODULE_NAME_MARK.length), module: true as const } : { name: n },
+  );
 }
 
 /** Prefix of the placeholder `to_id` of a call that is not linked to a symbol. */
@@ -22,30 +49,16 @@ export function unresolvedCallId(name: string): string {
   return `${UNRESOLVED_CALL_PREFIX}${name}`;
 }
 
-/** Kinds that own a call in preference to an enclosing non-callable symbol. */
-const CALLABLE_KINDS = new Set(['function', 'method']);
+/** Prefix of the `from_id` of a call made outside every function, method and class. */
+export const MODULE_CALLER_PREFIX = 'module:';
 
 /**
- * The symbol a call on `line` belongs to: the innermost function/method whose
- * range contains the line, otherwise the innermost symbol of any kind.
+ * Source of a call made at the top level of `filePath` (or inside a callback
+ * that has no name there). It is not a symbol: the call site is kept, so
+ * references and impact analysis still see it, without a made-up caller.
  */
-function innermostSymbolAt(symbols: ExtractedSymbol[], line: number): ExtractedSymbol | undefined {
-  const span = (s: ExtractedSymbol): number => s.end_line - s.start_line;
-  let best: ExtractedSymbol | undefined;
-  for (const s of symbols) {
-    if (s.start_line > line || s.end_line < line) continue;
-    if (!best) {
-      best = s;
-      continue;
-    }
-    const callable = CALLABLE_KINDS.has(s.kind);
-    if (callable !== CALLABLE_KINDS.has(best.kind)) {
-      if (callable) best = s;
-      continue;
-    }
-    if (span(s) < span(best) || (span(s) === span(best) && s.start_line > best.start_line)) best = s;
-  }
-  return best;
+export function moduleCallerId(filePath: string): string {
+  return `${MODULE_CALLER_PREFIX}${filePath}`;
 }
 
 function findSymbolByName(
@@ -69,7 +82,11 @@ function findSymbolByName(
  * `TagsQuery.relations`). Without it no call and no import is reported.
  * `extends` / `implements` are still matched in the source text.
  *
- * A call belongs to the innermost function or method that contains its line.
+ * A call belongs to the innermost enclosing function, method, class or
+ * function-valued variable (`CallSite.caller`). A call that none of them
+ * encloses is kept with the module as its source (`moduleCallerId`): the
+ * initializer of a module-level constant, a script's top-level statements, a
+ * test callback. It is never attributed to a plain variable.
  * The callee is recorded by name (`to_name` + placeholder `to_id`);
  * `resolveCallRelations` links it to a symbol once all files are indexed, so
  * calls into other files resolve and survive re-indexing of the callee's file.
@@ -96,17 +113,20 @@ export function extractRelations(
     nameMap.set(sym.name, existing);
   }
 
+  const symbolIds = new Set(symbols.map((s) => s.id));
+  const moduleId = moduleCallerId(filePath);
   for (const call of references?.calls ?? []) {
-    const caller = innermostSymbolAt(symbols, call.line);
-    if (!caller) continue;
+    const callerId = call.caller ? makeSymbolId(filePath, call.caller.name, call.caller.kind, call.caller.line) : moduleId;
     results.push({
-      from_id: caller.id,
+      // A caller that is not a stored symbol (dropped by a profile hook) leaves the call to the module.
+      from_id: symbolIds.has(callerId) ? callerId : moduleId,
       to_id: unresolvedCallId(call.name),
       to_name: call.name,
       kind: 'calls',
       file_path: filePath,
       line: call.line,
       col: call.col,
+      receiver: call.receiver ?? null,
     });
   }
 
@@ -122,6 +142,7 @@ export function extractRelations(
       file_path: filePath,
       line: site.line,
       col: site.col,
+      names: encodeImportedNames(site.names),
     });
   }
 

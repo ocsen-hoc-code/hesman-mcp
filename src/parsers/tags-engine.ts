@@ -22,6 +22,15 @@ const NAME_CAPTURE = 'name';
 const CALL_SUFFIXES: ReadonlySet<string> = new Set(['call', 'send']);
 /** Reference suffix of an import; its `@name` is the module specifier. */
 const IMPORT_SUFFIX = 'import';
+/**
+ * Optional captures of an import pattern, for the names the import binds:
+ * `@import.name` (a named or default import; `@import.alias` replaces it when
+ * the pattern captures both) and `@import.module` (a name bound to the module
+ * itself: `import * as m`).
+ */
+const IMPORT_NAME_CAPTURE = 'import.name';
+const IMPORT_ALIAS_CAPTURE = 'import.alias';
+const IMPORT_MODULE_CAPTURE = 'import.module';
 /** The relation suffixes, as they appear in query text. */
 const RELATION_CAPTURES = [...CALL_SUFFIXES, IMPORT_SUFFIX].map((suffix) => `@${REFERENCE_PREFIX}${suffix}`);
 
@@ -70,6 +79,28 @@ export interface CallSite {
   line: number;
   /** 0-based column of the name. */
   col: number;
+  /**
+   * Set when the call has a receiver (`a.b()`, `a?.b()`, `a::b()`, `a->b()`):
+   * the last name of the receiver expression (`a`, `this`, `store` for
+   * `this.store.get()`, `super` for `super().m()`), or `*` when the receiver
+   * does not end in a name (`make().b()`, `list[0].b()`).
+   */
+  receiver?: string;
+  /**
+   * The innermost enclosing definition that can make a call: a function, a
+   * method, a class (member initializers) or a variable whose value is a
+   * function. Absent for a call at the top level of the file or inside a
+   * callback that is not bound to a name there.
+   */
+  caller?: { name: string; kind: string; line: number };
+}
+
+/** A name an import binds in the importing file. */
+export interface ImportedName {
+  /** The local name: the alias when there is one. */
+  name: string;
+  /** True when the name stands for the module itself (`import * as m`, `import pkg.mod`, a Go import alias). */
+  module?: true;
 }
 
 /** An import found in the syntax tree. */
@@ -80,6 +111,8 @@ export interface ImportSite {
   line: number;
   /** 0-based column of the specifier. */
   col: number;
+  /** The names the import binds, in source order; absent when the query captures none. */
+  names?: ImportedName[];
 }
 
 /** What the relation extractor needs from the syntax tree of one file. */
@@ -305,18 +338,25 @@ export class TagsQuery {
    *
    * @param definitions - the result of `definitions(root)`, when already computed
    */
-  relations(root: Node, definitions: readonly TagDefinition[] = this.definitions(root)): ParsedReferences {
+  relations(
+    root: Node,
+    definitions: readonly TagDefinition[] = this.definitions(root),
+    source: string = root.text,
+  ): ParsedReferences {
     if (!this.definitionQuery) throw new Error('TagsQuery used after delete()');
     if (this.relationPatterns.length === 0) return { calls: [], imports: [] };
     this.relationQuery ??= this.compile(this.relationPatterns);
-    return this.relationsFrom(this.relationQuery.query.matches(root), 0, this.unevaluatedIn(this.relationQuery.query, 0), definitions);
+    const skipped = this.unevaluatedIn(this.relationQuery.query, 0);
+    return this.relationsFrom(this.relationQuery.query.matches(root), 0, skipped, definitions, source);
   }
 
   /**
    * `definitions(root)` and `relations(root)` in one walk of the tree: what
    * the parser needs for every file of a language with a call graph.
+   *
+   * @param source - the text the tree was parsed from, when the caller has it
    */
-  analyze(root: Node): { definitions: TagDefinition[]; references: ParsedReferences } {
+  analyze(root: Node, source: string = root.text): { definitions: TagDefinition[]; references: ParsedReferences } {
     if (!this.definitionQuery) throw new Error('TagsQuery used after delete()');
     if (this.relationPatterns.length === 0) return { definitions: this.definitions(root), references: { calls: [], imports: [] } };
     this.combinedQuery ??= this.compile([...this.definitionPatterns, ...this.relationPatterns]);
@@ -324,7 +364,7 @@ export class TagsQuery {
     const matches = this.combinedQuery.query.matches(root);
     const definitions = this.definitionsFrom(matches);
     const skipped = this.unevaluatedIn(this.combinedQuery.query, offset);
-    return { definitions, references: this.relationsFrom(matches, offset, skipped, definitions) };
+    return { definitions, references: this.relationsFrom(matches, offset, skipped, definitions, source) };
   }
 
   /** The relation patterns of `query` (which start at pattern `offset`) that have a property predicate. */
@@ -344,39 +384,79 @@ export class TagsQuery {
     offset: number,
     skipped: ReadonlySet<number>,
     definitions: readonly TagDefinition[],
+    source: string,
   ): ParsedReferences {
     const definitionNames = new Set(definitions.map((d) => d.nameNode.id));
-    const seen = new Set<number>();
+    const seenCalls = new Set<number>();
     const calls: Array<CallSite & { index: number }> = [];
-    const imports: Array<ImportSite & { index: number }> = [];
+    /** Imports by the node of their specifier: several patterns may describe one import. */
+    const imports = new Map<number, ImportSite & { index: number; bound: Map<number, ImportedName & { index: number }> }>();
     for (const match of matches) {
       const pattern = match.patternIndex - offset;
       if (pattern < 0 || skipped.has(pattern)) continue;
       let nameNode: Node | undefined;
       let node: Node | undefined;
       let suffix = '';
+      let importName: Node | undefined;
+      let importAlias: Node | undefined;
+      let importModule: Node | undefined;
       for (const capture of match.captures) {
         if (capture.name === NAME_CAPTURE) nameNode ??= capture.node;
+        else if (capture.name === IMPORT_NAME_CAPTURE) importName ??= capture.node;
+        else if (capture.name === IMPORT_ALIAS_CAPTURE) importAlias ??= capture.node;
+        else if (capture.name === IMPORT_MODULE_CAPTURE) importModule ??= capture.node;
         else if (!node && capture.name.startsWith(REFERENCE_PREFIX)) {
           node = capture.node;
           suffix = capture.name.slice(REFERENCE_PREFIX.length);
         }
       }
-      if (!nameNode || !node || seen.has(nameNode.id) || definitionNames.has(nameNode.id)) continue;
-      const isImport = suffix === IMPORT_SUFFIX;
-      if (!isImport && !CALL_SUFFIXES.has(suffix)) continue;
-      seen.add(nameNode.id);
+      if (!nameNode || !node || definitionNames.has(nameNode.id)) continue;
       const name = nameNode.text;
       if (name.length === 0) continue;
-      if (isImport) {
-        imports.push({ specifier: name, line: node.startPosition.row + 1, col: nameNode.startPosition.column, index: nameNode.startIndex });
-      } else {
-        calls.push({ name, line: nameNode.startPosition.row + 1, col: nameNode.startPosition.column, index: nameNode.startIndex });
+
+      if (suffix === IMPORT_SUFFIX) {
+        let site = imports.get(nameNode.id);
+        if (!site) {
+          site = {
+            specifier: name,
+            line: node.startPosition.row + 1,
+            col: nameNode.startPosition.column,
+            index: nameNode.startIndex,
+            bound: new Map(),
+          };
+          imports.set(nameNode.id, site);
+        }
+        const local = importModule ?? importAlias ?? importName;
+        if (local && !site.bound.has(local.id)) {
+          site.bound.set(local.id, { name: local.text, index: local.startIndex, ...(importModule ? { module: true as const } : {}) });
+        }
+        continue;
       }
+
+      if (!CALL_SUFFIXES.has(suffix) || seenCalls.has(nameNode.id)) continue;
+      seenCalls.add(nameNode.id);
+      const receiver = receiverOf(nameNode, node, source);
+      calls.push({
+        name,
+        line: nameNode.startPosition.row + 1,
+        col: nameNode.startPosition.column,
+        index: nameNode.startIndex,
+        ...(receiver !== undefined ? { receiver } : {}),
+      });
     }
-    const inOrder = <T extends { index: number }>(items: T[]): Array<Omit<T, 'index'>> =>
-      items.sort((a, b) => a.index - b.index).map(({ index: _index, ...rest }) => rest);
-    return { calls: inOrder(calls), imports: inOrder(imports) };
+
+    calls.sort((a, b) => a.index - b.index);
+    assignCallers(calls, definitions);
+    return {
+      calls: calls.map(({ index: _index, ...call }) => call),
+      imports: [...imports.values()]
+        .sort((a, b) => a.index - b.index)
+        .map(({ index: _index, bound, ...site }) => {
+          if (bound.size === 0) return site;
+          const names = [...bound.values()].sort((a, b) => a.index - b.index).map(({ index: _i, ...boundName }) => boundName);
+          return { ...site, names };
+        }),
+    };
   }
 
   /** Releases the compiled queries. The instance must not be used afterwards. */
@@ -389,6 +469,93 @@ export class TagsQuery {
     this.definitionQuery = null;
     this.referenceQuery = null;
     this.relationQuery = null;
+  }
+}
+
+/** What separates a receiver from the member that is called on it. */
+const MEMBER_OPERATOR = /^\s*(?:\?\.|\.|::|->|\?->|&\.|!!?\.|:)/;
+/** The name a receiver expression ends in. */
+const TRAILING_NAME = /[A-Za-z_$@][\w$]*$/;
+/** `super().method()` (Python): the receiver is the parent class. */
+const SUPER_CALL = /^super\s*\(\s*\)$/;
+/** Receivers longer than this are not read (`*`): only their last name matters. */
+const MAX_RECEIVER_LENGTH = 200;
+
+function isCommentNode(node: Node): boolean {
+  return node.type.includes('comment');
+}
+
+/** The name a receiver is recorded by: its last name, `super` for `super()`, otherwise `*`. */
+function receiverName(node: Node, source: string): string {
+  if (node.endIndex - node.startIndex > MAX_RECEIVER_LENGTH) return '*';
+  const text = source.slice(node.startIndex, node.endIndex).trim();
+  if (SUPER_CALL.test(text)) return 'super';
+  return TRAILING_NAME.exec(text)?.[0] ?? '*';
+}
+
+/**
+ * The receiver of the call whose callee name is `nameNode`, for any grammar,
+ * or `undefined` when it has none.
+ *
+ * A callee with a receiver is a member, field, scoped or navigation node that
+ * holds the receiver before the name: `a.b`, `a?.b`, `a::b`, `a->b`, `a:b`.
+ * So the receiver is the closest named node before the name, anywhere between
+ * the name and the call node, that is joined to the name by a member operator.
+ * The operator check keeps unrelated siblings out (`MODE=fast cmd` in a shell
+ * command, the type arguments of `obj.<T>m()`).
+ *
+ * @param referenceNode - the node captured as `@reference.call`: the call, or
+ *   its argument list (upstream JavaScript and Java)
+ */
+function receiverOf(nameNode: Node, referenceNode: Node, source: string): string | undefined {
+  const contains = referenceNode.startIndex <= nameNode.startIndex && referenceNode.endIndex >= nameNode.endIndex;
+  const call = contains ? referenceNode : referenceNode.parent;
+  for (let current: Node | null = nameNode; current && current.id !== call?.id; current = current.parent) {
+    for (let before = current.previousNamedSibling; before; before = before.previousNamedSibling) {
+      if (isCommentNode(before)) continue;
+      if (MEMBER_OPERATOR.test(source.slice(before.endIndex, nameNode.startIndex))) return receiverName(before, source);
+    }
+  }
+  return undefined;
+}
+
+/** Kinds that make calls: a class owns the calls of its member initializers. */
+const CALLER_KINDS: ReadonlySet<string> = new Set(['function', 'method', 'class']);
+/** Kinds that make calls only when their value is a function (`double = lambda n: ...`). */
+const VALUE_KINDS: ReadonlySet<string> = new Set(['variable', 'constant']);
+
+/** True if the calls directly inside `definition` are made by it. */
+function makesCalls(definition: TagDefinition): boolean {
+  if (CALLER_KINDS.has(definition.kind)) return true;
+  if (!VALUE_KINDS.has(definition.kind)) return false;
+  const value = definition.node.childForFieldName('value') ?? definition.node.childForFieldName('right');
+  return value !== null && value.childForFieldName('body') !== null;
+}
+
+/**
+ * Sets `caller` on each call: the innermost definition around it that makes
+ * calls (see `makesCalls`). A call in the initializer of a plain variable
+ * belongs to whatever encloses the variable, and a call that nothing encloses
+ * gets no caller. Both lists are in document order, so one pass is enough.
+ */
+function assignCallers(calls: Array<CallSite & { index: number }>, definitions: readonly TagDefinition[]): void {
+  const open: Array<{ definition: TagDefinition; makesCalls?: boolean }> = [];
+  let next = 0;
+  for (const call of calls) {
+    for (; next < definitions.length && definitions[next].node.startIndex <= call.index; next++) {
+      open.push({ definition: definitions[next] });
+    }
+    while (open.length > 0 && open[open.length - 1].definition.node.endIndex <= call.index) open.pop();
+    for (let i = open.length - 1; i >= 0; i--) {
+      const entry = open[i];
+      // A definition that ended before this call may still sit below a later one.
+      if (entry.definition.node.endIndex <= call.index) continue;
+      entry.makesCalls ??= makesCalls(entry.definition);
+      if (!entry.makesCalls) continue;
+      const { name, kind, node } = entry.definition;
+      call.caller = { name, kind, line: node.startPosition.row + 1 };
+      break;
+    }
   }
 }
 
