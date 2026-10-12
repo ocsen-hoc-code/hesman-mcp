@@ -131,12 +131,12 @@ export function extractRelations(
   }
 
   // File-level imports have no containing symbol: they are recorded on the
-  // first symbol of the file so the relation is still stored.
+  // first symbol of the file, or on the module when the file defines nothing
+  // (a file that only re-exports), so the relation is still stored.
   for (const site of references?.imports ?? []) {
     const importer = symbols.find((s) => s.start_line <= site.line && s.end_line >= site.line) ?? symbols[0];
-    if (!importer) continue;
     results.push({
-      from_id: importer.id,
+      from_id: importer?.id ?? moduleId,
       to_id: `unresolved:${site.specifier}`,
       kind: 'imports',
       file_path: filePath,

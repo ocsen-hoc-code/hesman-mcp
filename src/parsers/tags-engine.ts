@@ -519,6 +519,15 @@ function receiverOf(nameNode: Node, referenceNode: Node, source: string): string
   return undefined;
 }
 
+/**
+ * True if the name of a definition is written as a member of something:
+ * `function M.clamp()` (Lua), `fun String.shout()` (Kotlin). Such a function
+ * is reached through a receiver, like a function assigned to a property.
+ */
+export function isMemberName(nameNode: Node, definitionNode: Node, source: string): boolean {
+  return receiverOf(nameNode, definitionNode, source) !== undefined;
+}
+
 /** Kinds that make calls: a class owns the calls of its member initializers. */
 const CALLER_KINDS: ReadonlySet<string> = new Set(['function', 'method', 'class']);
 /** Kinds that make calls only when their value is a function (`double = lambda n: ...`). */

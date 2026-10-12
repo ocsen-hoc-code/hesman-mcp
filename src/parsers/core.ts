@@ -7,6 +7,7 @@ import { grammarSourceFor } from './grammar-store.js';
 import {
   TagsQuery,
   hasBody,
+  isMemberName,
   signatureOf,
   docCommentAbove,
   type ParsedReferences,
@@ -32,8 +33,10 @@ export interface ExtractedSymbol {
   language: string;
   is_exported: number;
   /**
-   * 1 for a function that is the value of an object key or is assigned to a
-   * property; the call resolver links such a function in its own file only.
+   * 1 for a function that is the value of an object key, is assigned to a
+   * property or is declared as a member (`function M.f()`): it is what a call
+   * with a receiver can target, and when it is not exported the call resolver
+   * links it in its own file only.
    */
   is_property?: number;
   /**
@@ -175,7 +178,7 @@ function extractSymbols(
 
   for (const definition of definitions) {
     if (profile.includeDefinition && !profile.includeDefinition(definition)) continue;
-    const { name, kind, node } = definition;
+    const { name, kind, node, nameNode } = definition;
 
     while (containers.length > 0 && containers[containers.length - 1].endIndex <= node.startIndex) {
       containers.pop();
@@ -199,7 +202,7 @@ function extractSymbols(
       parent_id: containers.length > 0 ? containers[containers.length - 1].id : null,
       language: profile.language,
       is_exported: (profile.isExported ? profile.isExported(name, node) : isEcmaScriptExported(name, node)) ? 1 : 0,
-      is_property: kind === 'function' && isPropertyAssigned(node) ? 1 : 0,
+      is_property: kind === 'function' && (isPropertyAssigned(node) || isMemberName(nameNode, node, source)) ? 1 : 0,
       is_declaration: CALLABLE_KINDS.has(kind) && !hasBody(node) ? 1 : 0,
     });
 

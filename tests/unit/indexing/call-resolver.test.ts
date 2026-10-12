@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { importedFiles, pickCallTarget } from '../../../src/indexing/call-resolver';
+import { FileImports, importedFiles, pickCallTarget, resolveCall } from '../../../src/indexing/call-resolver';
+import type { CallTargetCandidate } from '../../../src/stores/sqlite';
 
 const c = (id: string, file_path: string) => ({ id, file_path });
 
@@ -50,7 +51,7 @@ describe('pickCallTarget', () => {
 });
 
 describe('pickCallTarget: property-assigned functions (M1-08)', () => {
-  const local = (id: string, file_path: string) => ({ id, file_path, same_file_only: true });
+  const local = (id: string, file_path: string) => ({ id, file_path, reach: 'file' as const });
 
   it('links a same-file-only candidate from its own file', () => {
     expect(pickCallTarget('/p/a.ts', [local('handler', '/p/a.ts')], new Set())).toBe('handler');
@@ -73,6 +74,177 @@ describe('pickCallTarget: property-assigned functions (M1-08)', () => {
   it('still counts a same-file-only candidate in the caller file as a same-file candidate', () => {
     const target = pickCallTarget('/p/a.ts', [local('handler', '/p/a.ts'), c('declared', '/p/a.ts')], new Set());
     expect(target).toBeNull();
+  });
+});
+
+describe('pickCallTarget: visibility (M1-09)', () => {
+  const none = new Set<string>();
+
+  it('`include` reach: linked from a file that imports the candidate, not through the directory or project tier', () => {
+    const helper = [{ id: 'static', file_path: '/p/include/clamp.h', reach: 'include' as const }];
+    expect(pickCallTarget('/p/src/item.c', helper, new Set(['/p/include/clamp.h']))).toBe('static');
+    expect(pickCallTarget('/p/src/item.c', helper, none)).toBeNull();
+    expect(pickCallTarget('/p/include/other.c', helper, none)).toBeNull();
+  });
+
+  it('`directory` reach: linked from the same directory, also when another file imports it from elsewhere', () => {
+    const helper = [{ id: 'lower', file_path: '/p/stock/clamp.go', reach: 'directory' as const }];
+    expect(pickCallTarget('/p/stock/item.go', helper, none)).toBe('lower');
+    expect(pickCallTarget('/p/report/report.go', helper, none)).toBeNull();
+    expect(pickCallTarget('/p/report/report.go', helper, new Set(['/p/stock/clamp.go']))).toBeNull();
+  });
+
+  it('a candidate out of reach does not make a reachable one ambiguous', () => {
+    const candidates = [
+      { id: 'private', file_path: '/p/lib/x.ts', reach: 'file' as const },
+      { id: 'exported', file_path: '/p/lib/y.ts' },
+    ];
+    expect(pickCallTarget('/p/a.ts', candidates, none)).toBe('exported');
+  });
+});
+
+describe('pickCallTarget: member calls (M1-09)', () => {
+  const none = new Set<string>();
+  const free: CallTargetCandidate = { id: 'free', file_path: '/p/lib/util.ts' };
+  const method: CallTargetCandidate = { id: 'method', file_path: '/p/lib/store.ts', member: true, parent_id: 'Store', container: 'Store' };
+
+  it('a call with a receiver is not linked to a free function or a variable, in any tier', () => {
+    expect(pickCallTarget('/p/a.ts', [free], none, { receiver: 'items' })).toBeNull();
+    expect(pickCallTarget('/p/lib/other.ts', [free], none, { receiver: 'items' })).toBeNull();
+    expect(pickCallTarget('/p/lib/util.ts', [free], none, { receiver: 'items' })).toBeNull();
+    expect(pickCallTarget('/p/a.ts', [free], new Set(['/p/lib/util.ts']), { receiver: '*' })).toBeNull();
+  });
+
+  it('the same call without a receiver is linked', () => {
+    expect(pickCallTarget('/p/a.ts', [free], none)).toBe('free');
+    expect(pickCallTarget('/p/a.ts', [free], none, { receiver: null })).toBe('free');
+  });
+
+  it('a call with a receiver is linked to a method, a property function or a class', () => {
+    expect(pickCallTarget('/p/a.ts', [method], none, { receiver: 'store' })).toBe('method');
+    expect(pickCallTarget('/p/a.ts', [free, method], none, { receiver: 'store' })).toBe('method');
+    expect(pickCallTarget('/p/a.ts', [{ id: 'class', file_path: '/p/lib/item.py', type: true }], none, { receiver: 'models' })).toBe('class');
+  });
+
+  it('a receiver that names the module, class or namespace of a free function reaches it', () => {
+    expect(pickCallTarget('/p/src/main.rs', [{ id: 'f', file_path: '/p/src/util.rs' }], none, { receiver: 'util' })).toBe('f');
+    expect(pickCallTarget('/p/src/main.rs', [{ id: 'f', file_path: '/p/src/util/mod.rs' }], none, { receiver: 'util' })).toBe('f');
+    expect(pickCallTarget('/p/main.cpp', [{ id: 'f', file_path: '/p/math.cpp', container: 'util' }], none, { receiver: 'util' })).toBe('f');
+    expect(pickCallTarget('/p/src/main.rs', [{ id: 'f', file_path: '/p/src/util.rs' }], none, { receiver: 'items' })).toBeNull();
+  });
+
+  it('`this.x()` is the member of the caller\'s own class, even when other classes have one', () => {
+    const other: CallTargetCandidate = { id: 'other', file_path: '/p/lib/cache.ts', member: true, parent_id: 'Cache' };
+    expect(pickCallTarget('/p/lib/store.ts', [method, other], none, { receiver: 'this', callerParent: 'Store' })).toBe('method');
+    expect(pickCallTarget('/p/lib/store.ts', [method, other], none, { receiver: 'self', callerParent: 'Cache' })).toBe('other');
+    // Not a member of the own class (inherited): an ordinary member call.
+    expect(pickCallTarget('/p/lib/sub.ts', [method], none, { receiver: 'this', callerParent: 'Sub' })).toBe('method');
+    expect(pickCallTarget('/p/lib/sub.ts', [method, other], none, { receiver: 'this', callerParent: 'Sub' })).toBeNull();
+  });
+
+  it('`super.x()` is never the member of the caller\'s own class', () => {
+    const own: CallTargetCandidate = { id: 'own', file_path: '/p/lib/sub.py', member: true, parent_id: 'Sub' };
+    const base: CallTargetCandidate = { id: 'base', file_path: '/p/lib/base.py', member: true, parent_id: 'Base' };
+    expect(pickCallTarget('/p/lib/sub.py', [own, base], none, { receiver: 'super', callerParent: 'Sub' })).toBe('base');
+    expect(pickCallTarget('/p/lib/sub.py', [own], none, { receiver: 'super', callerParent: 'Sub' })).toBeNull();
+  });
+});
+
+describe('resolveCall: imports win (M1-09)', () => {
+  const imports = (file: string, list: Array<[specifier: string, names: string | null]>): FileImports =>
+    new FileImports(file, list.map(([specifier, names]) => ({ specifier, names })));
+  const exported = (id: string, file_path: string): CallTargetCandidate => ({ id, file_path });
+
+  it('a name imported from a package or a built-in is external, whatever the project defines', () => {
+    const fromNode = imports('/p/src/paths.ts', [['node:path', 'join']]);
+    expect(resolveCall('join', [exported('project', '/p/src/lib/join.ts')], fromNode)).toBeNull();
+    expect(resolveCall('join', [exported('sibling', '/p/src/join.ts')], fromNode)).toBeNull();
+    // Without the import the unique project-wide definition is the target.
+    expect(resolveCall('join', [exported('project', '/p/src/lib/join.ts')], imports('/p/src/paths.ts', []))).toBe('project');
+  });
+
+  it('a name imported from a project file is linked to that file only', () => {
+    const fromFmt = imports('/p/src/a.ts', [['./fmt.js', 'format']]);
+    const candidates = [exported('fmt', '/p/src/fmt.ts'), exported('other', '/p/src/other.ts')];
+    expect(resolveCall('format', candidates, fromFmt)).toBe('fmt');
+    expect(resolveCall('format', [exported('other', '/p/src/other.ts')], fromFmt)).toBeNull();
+  });
+
+  it('a definition in the calling file wins over an import of the same name', () => {
+    const fromNode = imports('/p/src/a.ts', [['node:path', 'join']]);
+    expect(resolveCall('join', [exported('own', '/p/src/a.ts')], fromNode)).toBe('own');
+  });
+
+  it('a name is followed through a file that re-exports it', () => {
+    const fromIndex = imports('/p/src/a.ts', [['./lib/index.js', 'format']]);
+    const lookup = (file: string): FileImports =>
+      imports(file, file === '/p/src/lib/index.ts' ? [['./fmt.js', null]] : []);
+    expect(resolveCall('format', [exported('fmt', '/p/src/lib/fmt.ts')], fromIndex, {}, lookup)).toBe('fmt');
+    expect(resolveCall('format', [exported('elsewhere', '/p/src/other/fmt.ts')], fromIndex, {}, lookup)).toBeNull();
+  });
+
+  it('`ns.f()` on a namespace import is a function of that module, or external', () => {
+    const local = imports('/p/src/a.ts', [['./fmt.js', '*fmt']]);
+    expect(resolveCall('format', [exported('fmt', '/p/src/fmt.ts')], local, { receiver: 'fmt' })).toBe('fmt');
+    const external = imports('/p/src/a.ts', [['node:util', '*util']]);
+    const method: CallTargetCandidate = { id: 'method', file_path: '/p/src/printer.ts', member: true };
+    expect(resolveCall('format', [method], external, { receiver: 'util' })).toBeNull();
+    // The same member call on a value that is not an imported module is linked to the method.
+    expect(resolveCall('format', [method], external, { receiver: 'printer' })).toBe('method');
+  });
+
+  it('an imported value keeps ordinary member calls when its file does not define the member', () => {
+    const fromStore = imports('/p/src/a.ts', [['./store.js', 'store']]);
+    const inStore: CallTargetCandidate = { id: 'here', file_path: '/p/src/store.ts', member: true };
+    const elsewhere: CallTargetCandidate = { id: 'base', file_path: '/p/src/base.ts', member: true };
+    expect(resolveCall('get', [inStore, elsewhere], fromStore, { receiver: 'store' })).toBe('here');
+    expect(resolveCall('get', [elsewhere], fromStore, { receiver: 'store' })).toBe('base');
+  });
+
+  it('Go: a package is used by its alias or by the last element of its path', () => {
+    const go = imports('/p/cmd/main.go', [['strings', null], ['example.com/shop/util/v2', null], ['example.com/shop/model', '*m']]);
+    expect(go.binding('strings')).toEqual({ specifier: 'strings', module: true });
+    expect(go.binding('util')).toEqual({ specifier: 'example.com/shop/util/v2', module: true });
+    expect(go.binding('m')).toEqual({ specifier: 'example.com/shop/model', module: true });
+    expect(go.binding('model')).toBeUndefined();
+    expect(resolveCall('Join', [exported('project', '/p/cmd/join.go')], go, { receiver: 'strings' })).toBeNull();
+  });
+
+  it('Python: `from . import util` binds a submodule', () => {
+    const py = imports('/p/app/main.py', [['.', 'util']]);
+    expect(resolveCall('join', [exported('util', '/p/app/util.py')], py, { receiver: 'util' })).toBe('util');
+    expect(resolveCall('join', [exported('other', '/p/app/other.py')], py, { receiver: 'util' })).toBeNull();
+  });
+});
+
+describe('importedFiles: specifiers that are not relative (M1-09)', () => {
+  let dir: string;
+
+  beforeAll(() => {
+    dir = realpathSync(mkdtempSync(join(tmpdir(), 'hesman-packages-')));
+    mkdirSync(join(dir, 'packages', 'utils', 'src'), { recursive: true });
+    writeFileSync(join(dir, 'packages', 'utils', 'package.json'), '{ "name": "@acme/utils" }');
+    writeFileSync(join(dir, 'package.json'), '{ "name": "root", "private": true }');
+  });
+
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('a package specifier maps to the files of the workspace package of that name', () => {
+    const files = importedFiles(join(dir, 'packages', 'app', 'src', 'main.ts'), ['@acme/utils', '@acme/utils/deep', 'lodash']);
+    expect(files.has(join(dir, 'packages', 'utils', 'src', 'clamp.ts'))).toBe(true);
+    expect(files.has(join(dir, 'packages', 'other', 'src', 'clamp.ts'))).toBe(false);
+    expect(importedFiles(join(dir, 'a.ts'), ['lodash']).has(join(dir, 'packages', 'utils', 'src', 'clamp.ts'))).toBe(false);
+  });
+
+  it('a path alias fixes the end of the file path; a built-in maps to nothing', () => {
+    const files = importedFiles('/p/src/app/main.ts', ['@/lib/format', '~/lib/clamp.js', 'node:path', 'path']);
+    expect(files.has('/p/src/lib/format.ts')).toBe(true);
+    expect(files.has('/p/src/lib/format/index.tsx')).toBe(true);
+    expect(files.has('/p/src/lib/clamp.ts')).toBe(true);
+    expect(files.has('/p/src/other/format.ts')).toBe(false);
+    expect(files.has('/p/src/path.ts')).toBe(false);
   });
 });
 
