@@ -79,6 +79,12 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (args[0] === 'grammars') {
+    const { runGrammarsCommand } = await import('./cli/commands.js');
+    await runGrammarsCommand(args.slice(1));
+    return;
+  }
+
   if (args[0] === 'install') {
     const { runInstall } = await import('./cli/commands.js');
     await runInstall(args.slice(1));
