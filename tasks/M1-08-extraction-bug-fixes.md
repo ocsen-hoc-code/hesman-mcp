@@ -45,6 +45,7 @@ npm test && npm run test:conformance
 
 ## Progress notes
 
+- 2026-10-12: merged into `rebuild/m1-m2` (merge of `271b2ed`); `npm test` passes 103 files / 1583 tests + 1 skipped in the main checkout; `INDEX_SCHEMA_VERSION` is 6.
 - 2026-10-12: done on branch `worktree-agent-ab2c4eb4a46a7d967` (commit `18ced69`, merge of `rebuild/m1-m2` with M1-05a in `df41544`, and the commit that adds this note). Not merged into `rebuild/m1-m2` yet.
   - **1. `isExported`:** `isEcmaScriptExported` in the new `src/parsers/ecmascript.ts` replaces `isNodeExported` and is the default of `parseFile` for a profile without an `isExported` hook, so `typescript`, `tsx` and `javascript` share it. It looks at the parent of the definition instead of any ancestor: exported are a top-level declaration that is exported (on the declaration, in an export list, by `export default name`, by CommonJS), an `export` inside an exported namespace, and a public member of an exported class. `private`, `protected` and `#private` members are not exported (the spec says "public members"), and neither is a function that is only a key of an exported object.
   - **2. CommonJS:** the same helper collects, once per syntax tree, the names a file exports by reference: `module.exports = name`, `module.exports = { a, key: b }`, `module.exports.x = name`, `exports.x = name`, plus `export { a, b as c }` and `export default name` (not `export { a } from`). `exports.x = function ...` and a function-valued key of `module.exports = { ... }` are exported definitions themselves. Only top-level statements count.
