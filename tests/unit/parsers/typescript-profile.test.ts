@@ -21,6 +21,7 @@ describe('tsProfile', () => {
       'javascript/tags.scm',
       'typescript/tags.scm',
       'typescript/hesman-tags.scm',
+      'javascript/hesman-relations.scm',
     ]);
   });
 

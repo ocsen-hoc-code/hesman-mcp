@@ -219,6 +219,7 @@ export const cProfile = defineProfile({
   language: 'c',
   extensions: ['.c', '.h'],
   grammar: 'tree-sitter-c.wasm',
+  relations: true,
   isExported: isCExported,
 });
 
@@ -226,6 +227,7 @@ export const cppProfile = defineProfile({
   language: 'cpp',
   extensions: ['.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx', '.ipp', '.tpp'],
   grammar: 'tree-sitter-cpp.wasm',
+  relations: true,
   isExported: isCppExported,
 });
 
@@ -257,6 +259,7 @@ export const rubyProfile = defineProfile({
   language: 'ruby',
   extensions: ['.rb', '.rake', '.gemspec', '.ru', '.podspec'],
   grammar: 'tree-sitter-ruby.wasm',
+  relations: true,
   isExported: isRubyExported,
 });
 
@@ -280,6 +283,7 @@ export const bashProfile = defineProfile({
   language: 'bash',
   extensions: ['.sh', '.bash'],
   grammar: 'tree-sitter-bash.wasm',
+  relations: true,
   isExported: isBashExported,
 });
 

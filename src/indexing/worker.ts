@@ -27,6 +27,7 @@ interface WorkerResult {
     language: string;
     is_exported: number;
     is_property?: number;
+    is_declaration?: number;
   }>;
   relations: Array<{
     from_id: string;
@@ -71,7 +72,7 @@ parentPort.on('message', async (task: WorkerTask) => {
 
     let relations: WorkerResult['relations'] = [];
     if (profile.relationQueries) {
-      const rawRelations = extractRelations(result.symbols, content, task.filePath, profile, result.ignoredRanges);
+      const rawRelations = extractRelations(result.symbols, content, task.filePath, profile, result.references);
       relations = rawRelations.map(r => ({
         from_id: r.from_id,
         to_id: r.to_id,

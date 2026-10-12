@@ -228,6 +228,17 @@ queries/php/hesman-tags.scm
 queries/ruby/hesman-tags.scm
 queries/swift/hesman-overrides.scm
 queries/bash/hesman-tags.scm
+queries/javascript/hesman-relations.scm
+queries/python/hesman-relations.scm
+queries/go/hesman-relations.scm
+queries/java/hesman-relations.scm
+queries/c/hesman-relations.scm
+queries/cpp/hesman-relations.scm
+queries/csharp/hesman-relations.scm
+queries/rust/hesman-relations.scm
+queries/php/hesman-relations.scm
+queries/ruby/hesman-relations.scm
+queries/swift/hesman-relations.scm
   Written for Hesman. License: MIT, Copyright (c) 2026 Minh Do (see LICENSE).
 
 ================================================================================

@@ -14,6 +14,11 @@
         { "name": "normalize", "kind": "method", "line": 41, "isExported": false },
         { "name": "Perishable", "kind": "class", "line": 47, "isExported": true, "doc": "An item that expires." },
         { "name": "expired?", "kind": "method", "line": 48, "isExported": true }
+      ],
+      "calls": [
+        { "from": "initialize", "to": "normalize" },
+        { "from": "restock", "to": "clamp" },
+        { "from": "restock", "to": "record" }
       ]
     }
   }

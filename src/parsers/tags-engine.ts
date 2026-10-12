@@ -17,6 +17,12 @@ import { kindForTagSuffix } from './symbol-kinds.js';
 const DEFINITION_PREFIX = 'definition.';
 const REFERENCE_PREFIX = 'reference.';
 const NAME_CAPTURE = 'name';
+/** Reference suffixes that are calls: `@reference.call`, and `@reference.send` (upstream C# member calls). */
+const CALL_SUFFIXES: ReadonlySet<string> = new Set(['call', 'send']);
+/** Reference suffix of an import; its `@name` is the module specifier. */
+const IMPORT_SUFFIX = 'import';
+/** The relation suffixes, as they appear in query text. */
+const RELATION_CAPTURES = [...CALL_SUFFIXES, IMPORT_SUFFIX].map((suffix) => `@${REFERENCE_PREFIX}${suffix}`);
 
 /** Signatures longer than this are cut (one very long line would bloat every response). */
 export const MAX_SIGNATURE_LENGTH = 200;
@@ -53,6 +59,34 @@ export interface TagReference {
   line: number;
   /** 0-based column of the name. */
   col: number;
+}
+
+/** A call found in the syntax tree, positioned at the callee name. */
+export interface CallSite {
+  /** The callee as written: the last name of `a.b.c()`, `A::b()`, `new ns.C()`. */
+  name: string;
+  /** 1-based line of the name. */
+  line: number;
+  /** 0-based column of the name. */
+  col: number;
+}
+
+/** An import found in the syntax tree. */
+export interface ImportSite {
+  /** The module as written, without quotes: `./greet.js`, `.pkg.mod`, `example.com/m/util`. */
+  specifier: string;
+  /** 1-based line the import statement starts on. */
+  line: number;
+  /** 0-based column of the specifier. */
+  col: number;
+}
+
+/** What the relation extractor needs from the syntax tree of one file. */
+export interface ParsedReferences {
+  /** In document order. */
+  calls: CallSite[];
+  /** In document order. */
+  imports: ImportSite[];
 }
 
 /**
@@ -109,8 +143,13 @@ export class TagsQuery {
   private readonly language: Language;
   private readonly definitionPatterns: Array<{ layer: string; text: string }> = [];
   private readonly referencePatterns: Array<{ layer: string; text: string }> = [];
+  /** The reference patterns that tag a call or an import. */
+  private readonly relationPatterns: Array<{ layer: string; text: string }> = [];
   private definitionQuery: CompiledPatterns | null = null;
   private referenceQuery: CompiledPatterns | null = null;
+  private relationQuery: CompiledPatterns | null = null;
+  /** Indexes of the relation patterns that cannot be evaluated (see `relations`). */
+  private unevaluated: ReadonlySet<number> = new Set();
 
   constructor(language: Language, layers: readonly TagsQueryLayer[]) {
     this.language = language;
@@ -121,6 +160,7 @@ export class TagsQuery {
         // A pattern with only `@name` (upstream Go has some) tags nothing and is dropped.
         if (text.includes(`@${DEFINITION_PREFIX}`)) this.definitionPatterns.push({ layer: layer.name, text });
         if (text.includes(`@${REFERENCE_PREFIX}`)) this.referencePatterns.push({ layer: layer.name, text });
+        if (RELATION_CAPTURES.some((capture) => text.includes(capture))) this.relationPatterns.push({ layer: layer.name, text });
       }
     }
     // Definitions are needed for every file; references are compiled on first use.
@@ -208,11 +248,11 @@ export class TagsQuery {
    * not a reference to itself, even when a broad pattern such as
    * `(type_identifier) @name @reference.type` also matches it.
    */
-  references(root: Node): TagReference[] {
+  references(root: Node, definitions: readonly TagDefinition[] = this.definitions(root)): TagReference[] {
     if (!this.definitionQuery) throw new Error('TagsQuery used after delete()');
     this.referenceQuery ??= this.compile(this.referencePatterns);
 
-    const definitionNames = new Set(this.definitions(root).map((d) => d.nameNode.id));
+    const definitionNames = new Set(definitions.map((d) => d.nameNode.id));
     const seen = new Set<string>();
     const found: Array<{ index: number; reference: TagReference }> = [];
     for (const match of this.referenceQuery.query.matches(root)) {
@@ -241,13 +281,81 @@ export class TagsQuery {
     return found.sort((a, b) => a.index - b.index).map((f) => f.reference);
   }
 
+  /**
+   * Calls (`@reference.call`, `@reference.send`) and imports
+   * (`@reference.import`) under `root`, each positioned by its `@name`. This is
+   * where the call graph comes from: a call is a node the grammar parsed as a
+   * call, so text in strings and comments, keywords followed by `(` and
+   * declarations never match.
+   *
+   * Only the patterns that tag a call or an import are run, not the (much
+   * broader) type references. The name of a definition is never a call. A
+   * pattern with a property predicate (`#is?`, `#is-not?`, e.g. upstream
+   * Ruby's `(identifier) @name @reference.call (#is-not? local)`) is skipped:
+   * the runtime does not evaluate those, and without the predicate the
+   * pattern would report every identifier as a call.
+   *
+   * @param definitions - the result of `definitions(root)`, when already computed
+   */
+  relations(root: Node, definitions: readonly TagDefinition[] = this.definitions(root)): ParsedReferences {
+    if (!this.definitionQuery) throw new Error('TagsQuery used after delete()');
+    if (this.relationPatterns.length === 0) return { calls: [], imports: [] };
+    if (!this.relationQuery) {
+      this.relationQuery = this.compile(this.relationPatterns);
+      const { assertedProperties, refutedProperties } = this.relationQuery.query;
+      const skipped = new Set<number>();
+      for (let i = 0; i < this.relationPatterns.length; i++) {
+        if (hasProperties(assertedProperties[i]) || hasProperties(refutedProperties[i])) skipped.add(i);
+      }
+      this.unevaluated = skipped;
+    }
+
+    const definitionNames = new Set(definitions.map((d) => d.nameNode.id));
+    const seen = new Set<number>();
+    const calls: Array<CallSite & { index: number }> = [];
+    const imports: Array<ImportSite & { index: number }> = [];
+    for (const match of this.relationQuery.query.matches(root)) {
+      if (this.unevaluated.has(match.patternIndex)) continue;
+      let nameNode: Node | undefined;
+      let node: Node | undefined;
+      let suffix = '';
+      for (const capture of match.captures) {
+        if (capture.name === NAME_CAPTURE) nameNode ??= capture.node;
+        else if (!node && capture.name.startsWith(REFERENCE_PREFIX)) {
+          node = capture.node;
+          suffix = capture.name.slice(REFERENCE_PREFIX.length);
+        }
+      }
+      if (!nameNode || !node || seen.has(nameNode.id) || definitionNames.has(nameNode.id)) continue;
+      const isImport = suffix === IMPORT_SUFFIX;
+      if (!isImport && !CALL_SUFFIXES.has(suffix)) continue;
+      seen.add(nameNode.id);
+      const name = nameNode.text;
+      if (name.length === 0) continue;
+      if (isImport) {
+        imports.push({ specifier: name, line: node.startPosition.row + 1, col: nameNode.startPosition.column, index: nameNode.startIndex });
+      } else {
+        calls.push({ name, line: nameNode.startPosition.row + 1, col: nameNode.startPosition.column, index: nameNode.startIndex });
+      }
+    }
+    const inOrder = <T extends { index: number }>(items: T[]): Array<Omit<T, 'index'>> =>
+      items.sort((a, b) => a.index - b.index).map(({ index: _index, ...rest }) => rest);
+    return { calls: inOrder(calls), imports: inOrder(imports) };
+  }
+
   /** Releases the compiled queries. The instance must not be used afterwards. */
   delete(): void {
     this.definitionQuery?.query.delete();
     this.referenceQuery?.query.delete();
+    this.relationQuery?.query.delete();
     this.definitionQuery = null;
     this.referenceQuery = null;
+    this.relationQuery = null;
   }
+}
+
+function hasProperties(properties: Record<string, string | null> | undefined): boolean {
+  return properties !== undefined && properties !== null && Object.keys(properties).length > 0;
 }
 
 /** A half-open range of source offsets: `[start, end)`. */
@@ -307,6 +415,30 @@ export function ignoredRangesAt(root: Node, offsets: readonly number[]): OffsetR
     covered = ignored.endIndex;
   }
   return ranges;
+}
+
+/** Node types that are the body of a function in some grammar (`block`, `function_body`, `compound_statement`, ...). */
+const BODY_NODE_TYPE = /(^|_)(body|block)$|^compound_statement$|^statement_block$/;
+
+/**
+ * True if a function or method definition has a body, for any language. A
+ * definition without one only declares the callable: a C/C++ prototype, an
+ * interface, abstract or trait method.
+ *
+ * The body is the grammar's `body` field of the node or of the function it
+ * binds (`const f = () => 1`, `{ key: function () {} }`), or a child whose
+ * type names a body. Grammars that drop an empty body from the tree
+ * (`def f; end`, `function f() end`) still close the definition with `end`.
+ */
+export function hasBody(node: Node): boolean {
+  if (node.childForFieldName('body')) return true;
+  const value = node.childForFieldName('value') ?? node.childForFieldName('right');
+  if (value?.childForFieldName('body')) return true;
+  if (node.lastChild?.type === 'end') return true;
+  for (const child of node.namedChildren) {
+    if (child && BODY_NODE_TYPE.test(child.type)) return true;
+  }
+  return false;
 }
 
 /** The parameter list of a definition, or of the function it binds (`const f = (a) => a`, `{ key: function (a) {} }`). */

@@ -53,7 +53,7 @@ describe('vendored tags queries', () => {
     tagsQueryFiles(LANGUAGES.find((l) => l.id === id)!).map((f) => relative(QUERIES_DIR, f).split(sep).join('/'));
 
   it('layers the TypeScript and TSX queries on the JavaScript query, Hesman gap fillers last', () => {
-    const layers = ['javascript/tags.scm', 'typescript/tags.scm', 'typescript/hesman-tags.scm'];
+    const layers = ['javascript/tags.scm', 'typescript/tags.scm', 'typescript/hesman-tags.scm', 'javascript/hesman-relations.scm'];
     expect(layersOf('typescript')).toEqual(layers);
     // The TSX grammar is the TypeScript grammar plus JSX, built from the same repository and tag.
     expect(layersOf('tsx')).toEqual(layers);
