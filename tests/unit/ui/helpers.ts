@@ -66,7 +66,8 @@ export interface RawResponse {
   status: number;
   headers: Record<string, string | string[] | undefined>;
   text: string;
-  /** The parsed body, or `undefined` when it is not JSON. */
+  /** The parsed body, or `undefined` when it is not JSON. Untyped on purpose: tests assert on its shape. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   json: any;
 }
 

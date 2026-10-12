@@ -10,6 +10,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DIST_ENTRY, startServer, type HesmanTestServer } from './helpers/server';
 
+/** A parsed API response. Untyped on purpose: the tests assert on its shape. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Json = any;
+
 interface UiProcess {
   child: ChildProcess;
   origin: string;
@@ -58,7 +62,7 @@ describe('hesman ui (e2e)', () => {
   let ui: UiProcess;
   let home: string;
 
-  const get = async (path: string, token: string | null = ui.token): Promise<{ status: number; json: any }> => {
+  const get = async (path: string, token: string | null = ui.token): Promise<{ status: number; json: Json }> => {
     const res = await fetch(`${ui.origin}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
     return { status: res.status, json: await res.json() };
   };
@@ -135,7 +139,7 @@ describe('hesman ui (e2e)', () => {
       headers: { Authorization: `Bearer ${ui.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ args: { name: 'GoGreet' } }),
     });
-    const json = (await res.json()) as any;
+    const json = (await res.json()) as Json;
     expect(res.status).toBe(200);
     expect(json.data.isError).toBe(false);
     expect(json.data.result.symbols[0]).toMatchObject({ name: 'GoGreet', filePath: 'go/greet.go' });

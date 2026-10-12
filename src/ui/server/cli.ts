@@ -28,8 +28,11 @@ export interface ParsedUiArgs {
 export function parseUiArgs(args: readonly string[]): ParsedUiArgs {
   const { positionals, flags, values } = splitArgs(args, [...CONFIG_VALUE_FLAGS, '--port']);
   let port = 0;
-  if (flags.has('--port')) throw new Error('--port needs a value: a port number between 0 and 65535');
   const rawPort = values.get('--port');
+  // `splitArgs` drops a value flag that has no value.
+  if (rawPort === undefined && args.includes('--port')) {
+    throw new Error('--port needs a value: a port number between 0 and 65535');
+  }
   if (rawPort !== undefined) {
     if (!/^\d{1,5}$/.test(rawPort) || Number(rawPort) > 65535) {
       throw new Error(`Invalid --port "${rawPort}": expected a number between 0 and 65535`);
