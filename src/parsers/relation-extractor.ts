@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { ExtractedSymbol } from './core.js';
 import type { LanguageProfile } from './language-profile.js';
+import type { OffsetRange } from './tags-engine.js';
 
 export interface RelationRow {
   from_id: string;
@@ -24,6 +25,25 @@ export function unresolvedCallId(name: string): string {
 const CALL_KEYWORDS = new Set([
   'if', 'for', 'while', 'switch', 'catch', 'return', 'throw', 'new', 'typeof', 'instanceof',
 ]);
+
+/** What a call looks like in source text: a name directly followed by `(`. */
+const CALL_SITE_PATTERN = /\b([a-zA-Z_$][\w$]*)\s*\(/.source;
+
+/**
+ * Offsets (ascending) of every name that textually looks like a callee. The
+ * parser checks these against the syntax tree (`ignoredRangesAt`) while the
+ * tree is alive, so that `extractRelations` can skip the ones that are text
+ * or declarations.
+ */
+export function callSiteOffsets(source: string): number[] {
+  const offsets: number[] = [];
+  const pattern = new RegExp(CALL_SITE_PATTERN, 'g');
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(source)) !== null) {
+    if (!CALL_KEYWORDS.has(match[1])) offsets.push(match.index);
+  }
+  return offsets;
+}
 
 /** Kinds that own a call in preference to an enclosing non-callable symbol. */
 const CALLABLE_KINDS = new Set(['function', 'method']);
@@ -107,11 +127,30 @@ function findSymbolByName(
   });
 }
 
+/** True if `offset` lies inside one of the sorted, non-overlapping `ranges`. */
+function isInRanges(ranges: readonly OffsetRange[], offset: number): boolean {
+  let lo = 0;
+  let hi = ranges.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (offset < ranges[mid][0]) hi = mid - 1;
+    else if (offset >= ranges[mid][1]) lo = mid + 1;
+    else return true;
+  }
+  return false;
+}
+
+/**
+ * @param ignoredRanges - `ParseResult.ignoredRanges` of the same source: string
+ *   and comment text and signature-only declarations, found in the syntax tree.
+ *   A `name(` inside them is not a call. Without them every textual match counts.
+ */
 export function extractRelations(
   symbols: ExtractedSymbol[],
   source: string,
   filePath: string,
   profile: LanguageProfile,
+  ignoredRanges: readonly OffsetRange[] = [],
 ): RelationRow[] {
   if (!profile.relationQueries) return [];
 
@@ -134,13 +173,15 @@ export function extractRelations(
   // and survive re-indexing of the callee's file.
   const lineStarts = lineStartOffsets(sourceCode);
   const declarations = declarationOffsets(symbols, sourceCode, lineStarts);
-  const callRegex = /\b([a-zA-Z_$][\w$]*)\s*\(/g;
+  const callRegex = new RegExp(CALL_SITE_PATTERN, 'g');
   let match: RegExpExecArray | null;
   while ((match = callRegex.exec(sourceCode)) !== null) {
     const calleeName = match[1];
     if (CALL_KEYWORDS.has(calleeName)) continue;
     // The symbol's own name in its declaration (`func GoGreet(`) is not a call.
     if (declarations.has(match.index)) continue;
+    // Text of a string or comment, or a declaration without a body (`area(): number;`).
+    if (isInRanges(ignoredRanges, match.index)) continue;
 
     const line = lineOf(lineStarts, match.index); // 1-based
     const col = match.index - lineStarts[line - 1];

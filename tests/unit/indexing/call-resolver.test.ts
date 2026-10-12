@@ -46,6 +46,33 @@ describe('pickCallTarget', () => {
   });
 });
 
+describe('pickCallTarget: property-assigned functions (M1-08)', () => {
+  const local = (id: string, file_path: string) => ({ id, file_path, same_file_only: true });
+
+  it('links a same-file-only candidate from its own file', () => {
+    expect(pickCallTarget('/p/a.ts', [local('handler', '/p/a.ts')], new Set())).toBe('handler');
+  });
+
+  it('never picks a same-file-only candidate in the whole-project tier, even when the name is unique', () => {
+    expect(pickCallTarget('/p/a.ts', [local('handler', '/p/lib/x.ts')], new Set())).toBeNull();
+  });
+
+  it('never picks a same-file-only candidate from an imported file or the same directory', () => {
+    expect(pickCallTarget('/p/a.ts', [local('handler', '/p/b.ts')], new Set(['/p/b.ts']))).toBeNull();
+    expect(pickCallTarget('/p/a.ts', [local('handler', '/p/b.ts')], new Set())).toBeNull();
+  });
+
+  it('does not let a same-file-only candidate elsewhere make a real target ambiguous', () => {
+    const target = pickCallTarget('/p/a.ts', [local('handler', '/p/lib/x.ts'), c('real', '/p/lib/y.ts')], new Set());
+    expect(target).toBe('real');
+  });
+
+  it('still counts a same-file-only candidate in the caller file as a same-file candidate', () => {
+    const target = pickCallTarget('/p/a.ts', [local('handler', '/p/a.ts'), c('declared', '/p/a.ts')], new Set());
+    expect(target).toBeNull();
+  });
+});
+
 describe('importedFiles', () => {
   it('maps relative specifiers to candidate source files', () => {
     const files = importedFiles('/p/src/main.ts', ['./greet.js', '../lib/util', 'node:fs', 'react']);

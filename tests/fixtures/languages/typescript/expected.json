@@ -25,21 +25,5 @@
         { "from": "makeCircle", "to": "clampRadius" }
       ]
     }
-  },
-  "knownGaps": [
-    {
-      "file": "shapes.ts",
-      "check": "symbols",
-      "subject": "addArea@53",
-      "reason": "a declaration local to an exported function is reported as exported: the default export rule (isNodeExported in src/parsers/core.ts) accepts any ancestor export_statement",
-      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
-    },
-    {
-      "file": "shapes.ts",
-      "check": "symbols",
-      "subject": "describe@45",
-      "reason": "a `private` member of an exported class is reported as exported: the default export rule ignores accessibility modifiers",
-      "fixedBy": "unassigned (TypeScript/JavaScript export rule)"
-    }
-  ]
+  }
 }

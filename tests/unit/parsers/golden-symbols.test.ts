@@ -22,7 +22,19 @@ type Row = [string, string, string, number, number, number];
  * `EXPECTED_DIFFERENCES` with its reason and in the task's progress notes.
  */
 const EXPECTED_DIFFERENCES: Record<string, { added: Row[]; removed: Row[] }> = {
-  'ts-basic': { added: [], removed: [] },
+  // M1-08: `result` and `calc` are local variables of the exported function
+  // `main` (src/index.ts lines 9-10). They were reported as exported because
+  // any enclosing `export` counted; a declaration inside a function is local.
+  'ts-basic': {
+    added: [
+      ['src/index.ts', 'result', 'variable', 9, 9, 0],
+      ['src/index.ts', 'calc', 'variable', 10, 10, 0],
+    ],
+    removed: [
+      ['src/index.ts', 'result', 'variable', 9, 9, 1],
+      ['src/index.ts', 'calc', 'variable', 10, 10, 1],
+    ],
+  },
   'py-basic': { added: [], removed: [] },
   'go-basic': { added: [], removed: [] },
   'polyglot-basic': { added: [], removed: [] },
