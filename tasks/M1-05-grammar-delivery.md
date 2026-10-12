@@ -39,6 +39,7 @@ npm pack --dry-run   # check package size
 
 ## Progress notes
 
+- 2026-10-12: second half ("M1-05b": manifest, cache, on-demand download, `hesman grammars`, offline switch, text-tier fallback) started.
 - 2026-10-12: first half ("M1-05a", scope item 1) merged into `rebuild/m1-m2` (commit `ef8a8ff`): 16 bundled grammars, `parsers/` 27.3 MB (budget 30 MB), tarball about +2.2 MB gzipped (budget +3 MB); `npm test` 101 files / 1541 tests + 1 skipped. Status stays `pending` until the second half (manifest, cache, on-demand download, `hesman grammars`, offline switch, fallback to the text tier) is done.
 - 2026-10-12: **first half done (scope item 1, the bundled core set); items 2-5 are still open, status stays `pending`.**
   - **Registry:** 3 -> 16 languages (`typescript`, `tsx`, `javascript`, `python`, `go`, `java`, `c`, `cpp`, `csharp`, `rust`, `php`, `ruby`, `kotlin`, `swift`, `bash`, `lua`). `.tsx` -> `tsx`; `.js/.jsx/.mjs/.cjs` -> `javascript`; `.ts/.mts/.cts` -> `typescript`. `INDEX_SCHEMA_VERSION` 4 -> 5.
