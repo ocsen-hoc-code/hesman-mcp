@@ -5,8 +5,9 @@ import { formatCount } from './format.js';
 
 /**
  * Support tier per language id: `deep` = symbols and calls, `structural` = symbols only.
- * `index_status` does not send the tier, so the table of src/parsers/languages.ts is repeated
- * here; a unit test fails when the two differ. A `tier` sent by the server wins.
+ * `GET /api/status` sends the tier per language and that value wins. The table of
+ * src/parsers/languages.ts is repeated here for a payload without it (mock data, an older
+ * server); a unit test fails when the two differ.
  */
 export const LANGUAGE_TIERS = {
   typescript: 'deep',
