@@ -1,5 +1,6 @@
+import { closeSync, fstatSync, openSync, readSync } from 'node:fs';
 import { join } from 'node:path';
-import { RotatingFile, readRotatedLines } from './rotating-file.js';
+import { RotatingFile, readRotatedLines, rotatedPath } from './rotating-file.js';
 
 /**
  * The tool-call log: one JSON line per MCP tool call, written by the server
@@ -134,16 +135,60 @@ export interface ToolCallLogOptions {
   now?: () => number;
 }
 
+/** Bytes read from the end of a file to find its last record; a record is far shorter. */
+const TAIL_BYTES = 8192;
+
+/** The id of the last complete record in the file at `path`, or 0. Never throws. */
+function lastIdIn(path: string): number {
+  let fd: number | undefined;
+  try {
+    fd = openSync(path, 'r');
+    const size = fstatSync(fd).size;
+    const length = Math.min(size, TAIL_BYTES);
+    const buffer = Buffer.alloc(length);
+    readSync(fd, buffer, 0, length, size - length);
+    const lines = buffer.toString('utf-8').split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const id = (JSON.parse(lines[i]) as { id?: unknown } | null)?.id;
+        if (typeof id === 'number' && Number.isFinite(id)) return id;
+      } catch {
+        // an empty, cut or unfinished line
+      }
+    }
+  } catch {
+    // no file yet
+  } finally {
+    if (fd !== undefined) {
+      try {
+        closeSync(fd);
+      } catch {
+        // nothing useful to do
+      }
+    }
+  }
+  return 0;
+}
+
 export class ToolCallLog implements ToolCallRecorder {
   private readonly file: RotatingFile;
+  private readonly path: string;
   private readonly now: () => number;
-  private lastId = 0;
+  /** Microseconds since the epoch; the base of new ids. */
+  private readonly nowMicros: () => number;
+  /** `undefined` until the first record: the ids already in the file are read then. */
+  private lastId: number | undefined;
 
   constructor(dataDir: string, options: ToolCallLogOptions = {}) {
-    this.file = new RotatingFile(join(dataDir, TOOL_CALL_LOG_FILE), {
+    this.path = join(dataDir, TOOL_CALL_LOG_FILE);
+    this.file = new RotatingFile(this.path, {
       maxBytes: options.maxBytes ?? TOOL_CALL_LOG_MAX_BYTES,
     });
-    this.now = options.now ?? Date.now;
+    const injected = options.now;
+    this.now = injected ?? Date.now;
+    this.nowMicros = injected
+      ? () => injected() * 1000
+      : () => Math.floor((performance.timeOrigin + performance.now()) * 1000);
   }
 
   /**
@@ -153,8 +198,11 @@ export class ToolCallLog implements ToolCallRecorder {
   record(call: ToolCallInput): void {
     try {
       const now = this.now();
-      // Microsecond-scale ids keep calls of the same millisecond apart and in order.
-      this.lastId = Math.max(this.lastId + 1, now * 1000);
+      // Ids are microsecond timestamps, so calls of one millisecond stay apart and in order,
+      // also across writers. A new writer (a restarted server) continues after the last
+      // id in the file: the reader identifies a call by its id.
+      this.lastId ??= Math.max(lastIdIn(this.path), lastIdIn(rotatedPath(this.path)));
+      this.lastId = Math.max(this.lastId + 1, this.nowMicros());
       const isError = call.result?.isError === true;
       const text = call.result?.content?.[0]?.text ?? '';
       const record: ToolCallRecord = {

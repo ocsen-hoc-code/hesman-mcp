@@ -216,6 +216,31 @@ describe('readToolCalls', () => {
     expect(readToolCalls(join(dir, 'missing'))).toEqual({ calls: [], nextBefore: null });
   });
 
+  it('a new writer continues after the ids already in the file, even within the same millisecond', () => {
+    const fresh = mkdtempSync(join(tmpdir(), 'hesman-calls-ids-'));
+    try {
+      const clock = { now: () => 1_800_000_000_000 };
+      for (const tool of ['first_writer', 'second_writer']) {
+        const writer = new ToolCallLog(fresh, clock);
+        for (let i = 0; i < 3; i++) writer.record({ tool, args: {}, durationMs: 1, result: okResult({}) });
+        writer.close();
+      }
+
+      const { calls } = readToolCalls(fresh);
+      expect(calls.map((c) => c.tool)).toEqual([
+        'second_writer',
+        'second_writer',
+        'second_writer',
+        'first_writer',
+        'first_writer',
+        'first_writer',
+      ]);
+      expect(new Set(calls.map((c) => c.id)).size).toBe(6);
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
+    }
+  });
+
   it('is readable from a second process while the writer is still open', () => {
     const writer = new ToolCallLog(dir);
     writer.record({
