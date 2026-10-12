@@ -36,3 +36,33 @@ describe('loadConfig', () => {
     expect(config.dataDir).toBe('.hesman');
   });
 });
+
+describe('grammars.offline', () => {
+  const withEnv = <T>(value: string | undefined, run: () => T): T => {
+    const previous = process.env.HESMAN_GRAMMARS_OFFLINE;
+    if (value === undefined) delete process.env.HESMAN_GRAMMARS_OFFLINE;
+    else process.env.HESMAN_GRAMMARS_OFFLINE = value;
+    try {
+      return run();
+    } finally {
+      if (previous === undefined) delete process.env.HESMAN_GRAMMARS_OFFLINE;
+      else process.env.HESMAN_GRAMMARS_OFFLINE = previous;
+    }
+  };
+
+  it('is off by default: grammars are downloaded automatically (ADR 0001, section 10)', () => {
+    expect(defaultConfig.grammars).toEqual({ offline: false });
+    expect(HesmanConfigSchema.parse({}).grammars).toEqual({ offline: false });
+    expect(withEnv(undefined, () => loadConfig()).grammars.offline).toBe(false);
+  });
+
+  it('is turned on by HESMAN_GRAMMARS_OFFLINE=1 or true, and off by 0', () => {
+    expect(withEnv('1', () => loadConfig()).grammars.offline).toBe(true);
+    expect(withEnv('true', () => loadConfig()).grammars.offline).toBe(true);
+    expect(withEnv('0', () => loadConfig()).grammars.offline).toBe(false);
+  });
+
+  it('can be set in the config', () => {
+    expect(HesmanConfigSchema.parse({ grammars: { offline: true } }).grammars.offline).toBe(true);
+  });
+});

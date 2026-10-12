@@ -14,6 +14,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { indexProject, waitForRequestedGrammars } from '../../src/indexing/index-coordinator';
 import { WorkerPool } from '../../src/indexing/worker-pool';
+import { FileWatcher } from '../../src/indexing/file-watcher';
 import { SqliteStore } from '../../src/stores/sqlite';
 import { defaultConfig } from '../../src/config/defaults';
 import { configureGrammarStore, grammarStore, loadGrammarManifest, type GrammarFetch } from '../../src/parsers/grammar-store';
@@ -193,6 +194,24 @@ describe('indexing a project with an on-demand language', () => {
     } finally {
       await pool.terminate(true);
     }
+  });
+
+  it('lets the file watcher move a changed file to the parsed tier once the grammar is cached', async () => {
+    configureGrammarStore({ cacheRoot, offline: true });
+    await indexProject(root, store, config());
+    expect(store.getTextFile(file)).toBeDefined();
+
+    grammarStore().installFromDirectory(join(REPO, 'tests', 'fixtures', 'grammars'), ['r']);
+    writeFileSync(file, `${readFileSync(file, 'utf-8')}\nextra <- function() 1\n`);
+    const pool = new WorkerPool(1);
+    try {
+      const watcher = new FileWatcher({ projectRoot: root, ignore: [], store, pool });
+      await (watcher as unknown as { handleChange(path: string): Promise<void> }).handleChange(file);
+    } finally {
+      await pool.terminate(true);
+    }
+    expect(symbolNames()).toEqual(['extra', 'report', 'safe_mean', 'spread']);
+    expect(store.getTextFile(file)).toBeUndefined();
   });
 
   describe('tools', () => {
