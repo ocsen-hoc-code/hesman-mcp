@@ -12,9 +12,19 @@ import { parseFile, type ExtractedSymbol } from '../../../src/parsers/core';
 import { extractRelations } from '../../../src/parsers/relation-extractor';
 import { MAX_SIGNATURE_LENGTH } from '../../../src/parsers/tags-engine';
 import type { LanguageProfile } from '../../../src/parsers/language-profile';
-import { tsProfile } from '../../../src/parsers/profiles/typescript';
+import { tsProfile, tsxProfile } from '../../../src/parsers/profiles/typescript';
 import { pythonProfile } from '../../../src/parsers/profiles/python';
 import { goProfile } from '../../../src/parsers/profiles/go';
+import {
+  csharpProfile,
+  javaProfile,
+  javascriptProfile,
+  kotlinProfile,
+  luaProfile,
+  phpProfile,
+  rustProfile,
+  swiftProfile,
+} from '../../../src/parsers/profiles/generic';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LANGUAGE_FIXTURES = resolve(__dirname, '..', '..', 'fixtures', 'languages');
@@ -203,7 +213,7 @@ describe('M1-08 item 1: isExported in TypeScript/JavaScript', () => {
 
 describe('M1-08 item 2: CommonJS exports', () => {
   it('exports the names listed in `module.exports = { ... }`', async () => {
-    const { symbols } = await extract('.js', tsProfile, [
+    const { symbols } = await extract('.js', javascriptProfile, [
       'function listed() {}',
       'function aliasedLocal() {}',
       'function notListed() {}',
@@ -224,7 +234,7 @@ describe('M1-08 item 2: CommonJS exports', () => {
   });
 
   it('exports `module.exports.a = ...` and `exports.a = ...`', async () => {
-    const { symbols } = await extract('.js', tsProfile, [
+    const { symbols } = await extract('.js', javascriptProfile, [
       'function byName() {}',
       'function untouched() {}',
       'module.exports.first = function () {};',
@@ -245,7 +255,7 @@ describe('M1-08 item 2: CommonJS exports', () => {
   });
 
   it('exports the single value of `module.exports = name`', async () => {
-    const { symbols } = await extract('.js', tsProfile, [
+    const { symbols } = await extract('.js', javascriptProfile, [
       'function main() {}',
       'function helper() {}',
       'module.exports = main;',
@@ -256,7 +266,7 @@ describe('M1-08 item 2: CommonJS exports', () => {
   });
 
   it('ignores a `module.exports` assignment that is not at the top level, and locals with a listed name', async () => {
-    const { symbols } = await extract('.js', tsProfile, [
+    const { symbols } = await extract('.js', javascriptProfile, [
       'function setup() {',
       '  function shadow() {}',
       '  module.exports = { conditional };',
@@ -399,6 +409,44 @@ describe('M1-08 item 4: no calls from strings, comments or signature-only declar
       '}',
     ]);
     expect(calls.sort()).toEqual(['Start->Run', 'Start->len']);
+  });
+
+  // Every grammar names its string and comment nodes differently; the filter must not depend on one grammar.
+  it.each([
+    ['.js', javascriptProfile, ['function run(x) {', '  // fake(1)', "  const s = 'fake(2)';", '  return real(x);', '}']],
+    ['.tsx', tsxProfile, ['export function Run(x: number) {', '  // fake(1)', "  const s = 'fake(2)';", '  return <b>{real(x)} fake(3)</b>;', '}']],
+    ['.java', javaProfile, ['class A {', '  int run(int x) {', '    // fake(1)', '    String s = "fake(2)";', '    return real(x);', '  }', '}']],
+    ['.cs', csharpProfile, ['class A {', '  int Run(int x) {', '    // fake(1)', '    string s = "fake(2)";', '    return real(x);', '  }', '}']],
+    ['.rs', rustProfile, ['fn run(x: i32) -> i32 {', '    // fake(1)', '    let s = "fake(2)";', '    real(x)', '}']],
+    ['.php', phpProfile, ['<?php', 'function run($x) {', '    // fake(1)', '    $s = "fake(2)";', '    return real($x);', '}']],
+    ['.kt', kotlinProfile, ['fun run(x: Int): Int {', '    // fake(1)', '    val s = "fake(2)"', '    return real(x)', '}']],
+    ['.swift', swiftProfile, ['func run(x: Int) -> Int {', '    // fake(1)', '    let s = "fake(2)"', '    return real(x)', '}']],
+    ['.lua', luaProfile, ['function run(x)', '  -- fake(1)', '  local s = "fake(2)"', '  return real(x)', 'end']],
+  ] as const)('%s: text in comments and strings is not a call, a real call on the next line is', async (ext, profile, lines) => {
+    const path = join(dir, `text${counter++}${ext}`);
+    const source = lines.join('\n') + '\n';
+    writeFileSync(path, source);
+    const result = await parseFile(path, profile);
+    const callees = (ranges?: typeof result.ignoredRanges): string[] =>
+      extractRelations(result.symbols, source, path, profile, ranges)
+        .filter((r) => r.kind === 'calls')
+        .map((r) => r.to_name ?? '');
+    // Without the syntax tree the text matches; with it only the real call is left.
+    expect(callees()).toContain('fake');
+    expect(callees(result.ignoredRanges)).not.toContain('fake');
+    expect(callees(result.ignoredRanges)).toContain('real');
+  });
+
+  it('Rust: a trait method without a body is not a call', async () => {
+    const { calls } = await extract('.rs', rustProfile, [
+      'pub trait Shape {',
+      '    fn area(&self) -> f64;',
+      '}',
+      'pub fn total(s: &dyn Shape) -> f64 {',
+      '    s.area()',
+      '}',
+    ]);
+    expect(calls).toEqual(['total->area']);
   });
 
   it('keeps offsets right after non-ASCII text', async () => {
@@ -548,7 +596,7 @@ describe('M1-08 item 5: multi-line signatures', () => {
 
 describe('M1-08 item 6: property-assigned functions are flagged', () => {
   it('flags functions assigned to object keys and to properties, and nothing else', async () => {
-    const { symbols } = await extract('.js', tsProfile, [
+    const { symbols } = await extract('.js', javascriptProfile, [
       'function declared() {}',
       'const arrow = () => 1;',
       'const handlers = { onClick: () => 1, onKey: function () {} };',

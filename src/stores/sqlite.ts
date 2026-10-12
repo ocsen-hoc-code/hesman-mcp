@@ -130,11 +130,14 @@ export interface DependencyResult {
  *       text chunks in the vector store); older indexes never saw them (M1-04).
  *   4 — symbols come from tags queries: some kinds, and therefore ids, differ
  *       and more definitions are indexed (M1-02).
- *   5 — extraction fixes (M1-08): `is_exported` follows the module's real
+ *   5 — `.tsx` and `.js`/`.jsx`/`.mjs`/`.cjs` files are parsed by their own
+ *       grammars and stored as `tsx` / `javascript`, not `typescript`; files of
+ *       the other bundled languages move from the text tier to symbols (M1-05).
+ *   6 — extraction fixes (M1-08): `is_exported` follows the module's real
  *       exports, multi-line signatures, Python tuple assignments, no calls
  *       from strings/comments/signatures, `is_property` on symbols.
  */
-export const INDEX_SCHEMA_VERSION = 5;
+export const INDEX_SCHEMA_VERSION = 6;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
 /**
@@ -257,7 +260,7 @@ export class SqliteStore {
       this.db.exec('ALTER TABLE relations ADD COLUMN to_name TEXT');
     }
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_relations_to_name ON relations(to_name)');
-    // `is_property` was added in index schema 5; older databases lack the column.
+    // `is_property` was added in index schema 6; older databases lack the column.
     const symbolColumns = this.db.prepare('PRAGMA table_info(symbols)').all() as Array<{ name: string }>;
     if (!symbolColumns.some((c) => c.name === 'is_property')) {
       this.db.exec('ALTER TABLE symbols ADD COLUMN is_property INTEGER NOT NULL DEFAULT 0');

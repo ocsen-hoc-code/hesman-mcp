@@ -468,13 +468,33 @@ hesman --help, -h              Show help text
 
 ## Supported Languages
 
-| Language | Extensions | Status |
-|---|---|---|
-| TypeScript / JavaScript | `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts` | Full support |
-| Python | `.py`, `.pyw`, `.pyi` | Full support |
-| Go | `.go` | Full support |
+| Language | Extensions | Tier | What you get |
+|---|---|---|---|
+| TypeScript | `.ts`, `.mts`, `.cts` | deep | Symbols + call graph |
+| TSX | `.tsx` | deep | Symbols + call graph |
+| JavaScript (and JSX) | `.js`, `.jsx`, `.mjs`, `.cjs` | deep | Symbols + call graph |
+| Python | `.py`, `.pyw`, `.pyi` | deep | Symbols + call graph |
+| Go | `.go` | deep | Symbols + call graph |
+| Java | `.java` | deep | Symbols + call graph |
+| C# | `.cs`, `.csx` | deep | Symbols + call graph |
+| Rust | `.rs` | deep | Symbols + call graph |
+| PHP | `.php`, `.phtml` | deep | Symbols + call graph |
+| Kotlin | `.kt`, `.kts` | deep | Symbols + call graph |
+| Swift | `.swift` | deep | Symbols + call graph |
+| Lua | `.lua` | deep | Symbols + call graph |
+| C | `.c`, `.h` | structural | Symbols only |
+| C++ | `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.ipp`, `.tpp` | structural | Symbols only |
+| Ruby | `.rb`, `.rake`, `.gemspec`, `.ru`, `.podspec` | structural | Symbols only |
+| Bash | `.sh`, `.bash` | structural | Symbols only |
+| Everything else | any text file | text | Text chunks for `semantic_search`, `find_pattern` and `get_context` |
 
-The architecture supports up to **158 languages** via Tree-sitter. Adding a new language requires a `LanguageProfile` plus one entry in the language registry (`src/parsers/languages.ts`) — see the [Contributing Guide](./docs/CONTRIBUTING.md) for step-by-step instructions.
+These 16 grammars ship inside the package, so they work offline. What the tiers mean today:
+
+- **deep** — definitions (functions, classes, methods, constants, ...) plus `calls` relations, so `get_references`, `get_symbol_context` and `impact_analysis` have a call graph. Calls are still found by a language-agnostic text match on `name(`, not by a per-language analysis: calls without parentheses are missed, and in Java and C# a `new X(...)` is recorded but not linked, because the class and its constructor share one name. Import relations exist only for ES `import ... from '...'` statements, and `extends` / `implements` relations only where a language writes `class X extends Y` or `class X implements Y`.
+- **structural** — definitions only. C and C++ declare most functions twice (prototype and definition), which the call resolver cannot tell apart yet; Ruby and Bash call functions without parentheses.
+- **text** — no symbols; see "Text tier" in [docs/TOOLS.md](./docs/TOOLS.md).
+
+Symbol kinds follow each grammar's own tags query, so some are coarser than the language: PHP and Kotlin methods are `function`, Rust and Swift enums and Kotlin interfaces are `class`, Rust type aliases are `class`. Adding a language requires a grammar, a tags query, a small profile and one entry in the language registry (`src/parsers/languages.ts`) — see the [Contributing Guide](./docs/CONTRIBUTING.md) for step-by-step instructions.
 
 ---
 

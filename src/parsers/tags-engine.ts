@@ -254,37 +254,23 @@ export class TagsQuery {
 export type OffsetRange = readonly [start: number, end: number];
 
 /**
- * Node types that are text, not code: `name(` inside them is never a call.
- * They are the innermost nodes of string and comment text, so code inside an
- * interpolation (`${f()}`, `f"{f()}"`) is not covered and stays visible.
+ * True for a node that is text, not code: `name(` inside it is never a call.
+ * Grammars name these nodes differently (`string_fragment`, `string_content`,
+ * `interpreted_string_literal_content`, `line_str_text`, `heredoc_body`, ...),
+ * so the type is matched by what every grammar's name has in common instead of
+ * by a per-language list. Only the innermost node at an offset is tested, so
+ * code inside an interpolation (`${f()}`, `f"{f()}"`) is an identifier there
+ * and stays visible. A grammar with other names is simply not filtered.
  */
-const TEXT_NODE_TYPES = new Set([
-  'comment',
-  'line_comment',
-  'block_comment',
-  'string_fragment',
-  'string_content',
-  'escape_sequence',
-  'interpreted_string_literal',
-  'interpreted_string_literal_content',
-  'raw_string_literal',
-  'raw_string_literal_content',
-  'regex_pattern',
-  'jsx_text',
-]);
+const TEXT_NODE_TYPE = /comment|string|str_text|heredoc|regex|jsx_text|escape_sequence/;
 
 /**
- * Declarations that name a callable and its parameters but are not calls and
- * have no body: interface and abstract members, overloads, ambient functions,
- * Go interface method specifications.
+ * True for a declaration that names a callable and its parameters but is not
+ * a call and has no body: interface and abstract members, overloads, ambient
+ * functions (`method_signature`, `function_signature_item`, ...), Go interface
+ * method specifications (`method_elem`, `method_spec`).
  */
-const SIGNATURE_NODE_TYPES = new Set([
-  'method_signature',
-  'function_signature',
-  'abstract_method_signature',
-  'method_elem',
-  'method_spec',
-]);
+const SIGNATURE_NODE_TYPE = /signature|^method_elem$|^method_spec$/;
 
 /**
  * The source ranges, among those that contain one of `offsets`, in which
@@ -294,8 +280,8 @@ const SIGNATURE_NODE_TYPES = new Set([
  * returned ranges.
  *
  * Only the given offsets are looked up in the tree (one node each), which is
- * far cheaper than collecting every string and comment of a file. The node
- * types are language-neutral lists; nothing here knows a specific language.
+ * far cheaper than collecting every string and comment of a file. Nothing
+ * here knows a specific language.
  *
  * @param offsets - ascending source offsets, each at the start of an identifier
  * @returns ranges sorted by start, non-overlapping
@@ -308,12 +294,12 @@ export function ignoredRangesAt(root: Node, offsets: readonly number[]): OffsetR
     const node = root.descendantForIndex(offset, offset + 1);
     if (!node) continue;
     let ignored: Node | null = null;
-    if (TEXT_NODE_TYPES.has(node.type)) {
+    if (node.isNamed && TEXT_NODE_TYPE.test(node.type)) {
       ignored = node;
     } else {
       // The name of a signature is a direct child of the signature node.
       const parent = node.parent;
-      if (parent && SIGNATURE_NODE_TYPES.has(parent.type)) ignored = parent;
+      if (parent && SIGNATURE_NODE_TYPE.test(parent.type)) ignored = parent;
     }
     if (!ignored) continue;
     // Everything before `offset` is already decided, so a range never reaches back over an earlier one.

@@ -1,0 +1,27 @@
+{
+  "files": {
+    "Inventory.java": {
+      "symbolCount": { "min": 13, "max": 13 },
+      "symbols": [
+        { "name": "Stocker", "kind": "interface", "line": 7, "isExported": false, "doc": "Anything that can be restocked." },
+        { "name": "restock", "kind": "method", "line": 9, "isExported": true, "doc": "Adds stock and returns the new count." },
+        { "name": "Inventory", "kind": "class", "line": 13, "isExported": true, "doc": "One stock item." },
+        { "name": "MAX_ITEMS", "kind": "variable", "line": 15, "isExported": true, "doc": "Largest count an item may have." },
+        { "name": "log", "kind": "variable", "line": 16, "isExported": false },
+        { "name": "count", "kind": "variable", "line": 17, "isExported": false },
+        { "name": "Inventory", "kind": "method", "line": 20, "isExported": true, "doc": "Creates an inventory with a starting count." },
+        { "name": "restock", "kind": "method", "line": 25, "isExported": true, "doc": "Adds stock, capped at MAX_ITEMS." },
+        { "name": "record", "kind": "method", "line": 32, "isExported": false },
+        { "name": "clamp", "kind": "method", "line": 37, "isExported": false, "doc": "Keeps a count inside the allowed range." },
+        { "name": "Status", "kind": "enum", "line": 45, "isExported": true, "doc": "Status of an item." },
+        { "name": "ACTIVE", "kind": "constant", "line": 45, "isExported": true },
+        { "name": "RETIRED", "kind": "constant", "line": 45, "isExported": true }
+      ],
+      "calls": [
+        { "from": "Inventory", "to": "clamp" },
+        { "from": "restock", "to": "clamp" },
+        { "from": "restock", "to": "record" }
+      ]
+    }
+  }
+}

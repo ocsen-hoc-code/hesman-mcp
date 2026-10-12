@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { Parser } from 'web-tree-sitter';
 import { LANGUAGES, QUERIES_DIR, tagsQueryFiles } from '../../../src/parsers/languages';
 import { compileTagsQueries, loadGrammar, queryLayersOf } from '../../conformance/helpers';
+import { PARSERS } from '../../../scripts/download-parsers';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '..', '..', '..');
@@ -18,6 +19,7 @@ interface QuerySource {
   commit?: string;
   license: string;
   sha256?: string;
+  note?: string;
 }
 
 const SOURCES = (JSON.parse(readFileSync(join(REPO, 'queries', 'SOURCES.json'), 'utf-8')) as { queries: QuerySource[] })
@@ -47,13 +49,15 @@ describe('vendored tags queries', () => {
     for (const file of files) expect(existsSync(file)).toBe(true);
   });
 
-  it('layers the TypeScript queries on the JavaScript query, Hesman gap fillers last', () => {
-    const def = LANGUAGES.find((l) => l.id === 'typescript')!;
-    expect(tagsQueryFiles(def).map((f) => relative(QUERIES_DIR, f).split(sep).join('/'))).toEqual([
-      'javascript/tags.scm',
-      'typescript/tags.scm',
-      'typescript/hesman-tags.scm',
-    ]);
+  const layersOf = (id: string): string[] =>
+    tagsQueryFiles(LANGUAGES.find((l) => l.id === id)!).map((f) => relative(QUERIES_DIR, f).split(sep).join('/'));
+
+  it('layers the TypeScript and TSX queries on the JavaScript query, Hesman gap fillers last', () => {
+    const layers = ['javascript/tags.scm', 'typescript/tags.scm', 'typescript/hesman-tags.scm'];
+    expect(layersOf('typescript')).toEqual(layers);
+    // The TSX grammar is the TypeScript grammar plus JSX, built from the same repository and tag.
+    expect(layersOf('tsx')).toEqual(layers);
+    expect(layersOf('javascript')[0]).toBe('javascript/tags.scm');
   });
 
   // The conformance suite (tests/conformance/) repeats this per layer, next to the
@@ -78,17 +82,26 @@ describe('vendored tags queries', () => {
     expect(SOURCES.map((s) => s.path).sort()).toEqual(queryFilesOnDisk(QUERIES_DIR));
   });
 
-  it('uses only queries the owner allowed: upstream grammar repositories and Hesman, all MIT', () => {
+  it('uses only queries the owner allowed: the grammar\'s own upstream repository or Hesman, all MIT', () => {
+    // ADR 0001, section 10: no Helix (MPL-2.0) or Aider (Apache-2.0) queries.
+    const grammarRepos = new Set(PARSERS.map((p) => /^(https:\/\/github\.com\/[^/]+\/[^/]+)\//.exec(p.url)![1]));
     for (const source of SOURCES) {
       expect(source.license).toBe('MIT');
       if (source.origin === 'upstream') {
-        expect(source.repo).toMatch(/^https:\/\/github\.com\/tree-sitter\/tree-sitter-[a-z-]+$/);
-        expect(source.rev).toMatch(/^v\d+\.\d+\.\d+$/);
+        expect(grammarRepos, `${source.path} must come from the repository of a pinned grammar`).toContain(source.repo);
+        expect(source.rev).toMatch(/^v?\d+\.\d+\.\d+$|^[0-9a-f]{7,40}$/);
         expect(source.commit).toMatch(/^[0-9a-f]{40}$/);
       } else {
         expect(source.origin).toBe('hesman');
         expect(source.path).toMatch(/\/hesman-[a-z]+\.scm$/);
       }
+    }
+  });
+
+  it('vendors an upstream query at the tag of the pinned grammar, or says why not', () => {
+    for (const source of SOURCES.filter((s) => s.origin === 'upstream')) {
+      const pinned = PARSERS.filter((p) => p.url.startsWith(`${source.repo}/releases/download/${source.rev}/`));
+      if (pinned.length === 0) expect(source.note, `${source.path} is not at a pinned grammar tag and has no "note"`).toBeTruthy();
     }
   });
 

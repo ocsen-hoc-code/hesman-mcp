@@ -1,0 +1,39 @@
+{
+  "files": {
+    "Inventory.kt": {
+      "symbolCount": { "min": 15, "max": 15 },
+      "symbols": [
+        { "name": "MAX_ITEMS", "kind": "constant", "line": 4, "isExported": true, "doc": "Largest count an item may have." },
+        { "name": "registry", "kind": "constant", "line": 6, "isExported": false },
+        { "name": "Status", "kind": "class", "line": 9, "isExported": true, "doc": "Status of an item." },
+        { "name": "ACTIVE", "kind": "constant", "line": 9, "isExported": true },
+        { "name": "RETIRED", "kind": "constant", "line": 9, "isExported": true },
+        { "name": "Stocker", "kind": "class", "line": 12, "isExported": true, "doc": "Anything that can be restocked." },
+        { "name": "restock", "kind": "function", "line": 14, "isExported": true, "doc": "Adds stock and returns the new count." },
+        { "name": "Item", "kind": "class", "line": 18, "isExported": true, "doc": "One stock item." },
+        { "name": "count", "kind": "constant", "line": 19, "isExported": true },
+        { "name": "restock", "kind": "function", "line": 23, "isExported": true, "doc": "Adds stock, capped at MAX_ITEMS." },
+        { "name": "record", "kind": "function", "line": 29, "isExported": false },
+        { "name": "create", "kind": "function", "line": 35, "isExported": true, "doc": "Creates an item with a normalized name." },
+        { "name": "normalize", "kind": "function", "line": 40, "isExported": false, "doc": "Trims and lower-cases a name." },
+        { "name": "clamp", "kind": "function", "line": 43, "isExported": false, "doc": "Keeps a count inside the allowed range." },
+        { "name": "Registry", "kind": "type", "line": 48, "isExported": true }
+      ],
+      "calls": [
+        { "from": "restock", "to": "clamp" },
+        { "from": "restock", "to": "record" },
+        { "from": "create", "to": "normalize" },
+        { "from": "create", "to": "Item" }
+      ]
+    }
+  },
+  "knownGaps": [
+    {
+      "file": "Inventory.kt",
+      "check": "docs",
+      "subject": "MAX_ITEMS@4",
+      "reason": "the fwcd grammar parses a comment that follows the `package` line as a child of package_header, so it is not a sibling above the first declaration of the file",
+      "fixedBy": "unassigned (Kotlin grammar: comment after the package header)"
+    }
+  ]
+}

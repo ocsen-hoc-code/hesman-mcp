@@ -77,7 +77,7 @@ describe('E2E find_pattern hardening', () => {
     const started = Date.now();
     const searchPromise = server.callTool(
       'find_pattern',
-      { pattern: '$$$A $$$B $$$C;', language: 'typescript', filePattern: 'min/**' },
+      { pattern: '$$$A $$$B $$$C;', language: 'javascript', filePattern: 'min/**' },
       20000,
     );
 

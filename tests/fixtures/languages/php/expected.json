@@ -1,0 +1,26 @@
+{
+  "files": {
+    "Inventory.php": {
+      "symbolCount": { "min": 12, "max": 12 },
+      "symbols": [
+        { "name": "Fixtures\\Inventory", "kind": "namespace", "line": 5, "isExported": true },
+        { "name": "MAX_ITEMS", "kind": "constant", "line": 8, "isExported": true, "doc": "Largest count an item may have." },
+        { "name": "Stocker", "kind": "interface", "line": 11, "isExported": true, "doc": "Anything that can be restocked." },
+        { "name": "restock", "kind": "function", "line": 14, "isExported": true, "doc": "Adds stock and returns the new count." },
+        { "name": "clamp", "kind": "function", "line": 18, "isExported": true, "doc": "Keeps a count inside the allowed range." },
+        { "name": "Item", "kind": "class", "line": 24, "isExported": true, "doc": "One stock item." },
+        { "name": "log", "kind": "variable", "line": 27, "isExported": false, "doc": "Events recorded for this item." },
+        { "name": "count", "kind": "variable", "line": 28, "isExported": true },
+        { "name": "__construct", "kind": "function", "line": 30, "isExported": true },
+        { "name": "restock", "kind": "function", "line": 36, "isExported": true, "doc": "Adds stock, capped at MAX_ITEMS." },
+        { "name": "record", "kind": "function", "line": 43, "isExported": false },
+        { "name": "normalize", "kind": "function", "line": 48, "isExported": false }
+      ],
+      "calls": [
+        { "from": "__construct", "to": "normalize" },
+        { "from": "restock", "to": "clamp" },
+        { "from": "restock", "to": "record" }
+      ]
+    }
+  }
+}

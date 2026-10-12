@@ -18,8 +18,8 @@ const FIXTURE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..',
 describe('detectLanguage', () => {
   it('detects TypeScript by extension', () => {
     expect(detectLanguage('src/index.ts', defaultConfig)).toBe('typescript');
-    expect(detectLanguage('src/component.tsx', defaultConfig)).toBe('typescript');
-    expect(detectLanguage('src/util.js', defaultConfig)).toBe('typescript');
+    expect(detectLanguage('src/component.tsx', defaultConfig)).toBe('tsx');
+    expect(detectLanguage('src/util.js', defaultConfig)).toBe('javascript');
   });
 
   it('returns null for unknown extensions', () => {

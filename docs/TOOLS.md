@@ -218,7 +218,7 @@ Search code by natural language description using AI embeddings (all-MiniLM-L6-v
     "query": { "type": "string", "description": "Natural language query to search for" },
     "topK": { "type": "number", "description": "Max results (default 10, max 50)" },
     "filePattern": { "type": "string", "description": "Glob filter, e.g. \"src/**/*.ts\"" },
-    "language": { "type": "string", "description": "Filter by language: typescript, python, go (symbols), or a text-tier label such as sql, shell, ruby, text (text chunks)" },
+    "language": { "type": "string", "description": "Filter by language: typescript, tsx, javascript, python, go, java, c, cpp, csharp, rust, php, ruby, kotlin, swift, bash, lua (symbols), or a text-tier label such as sql, yaml, zig, text (text chunks)" },
     "kind": { "type": "string", "description": "Filter by symbol kind: function, class, method, ...; \"text\" selects chunks of files without a grammar" },
     "minScore": { "type": "number", "description": "Minimum score threshold (0-1, default 0.0). Relevant matches typically score 0.3-0.6; thresholds above 0.5 often return nothing." }
   },

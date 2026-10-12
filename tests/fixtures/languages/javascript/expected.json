@@ -1,0 +1,36 @@
+{
+  "files": {
+    "legacy.js": {
+      "symbolCount": { "min": 9, "max": 10 },
+      "symbols": [
+        { "name": "DEFAULT_RETRIES", "kind": "variable", "line": 4, "isExported": false, "doc": "Default number of retries." },
+        { "name": "attempts", "kind": "variable", "line": 6, "isExported": false },
+        { "name": "failures", "kind": "variable", "line": 6, "isExported": false },
+        { "name": "backoff", "kind": "function", "line": 9, "isExported": true, "doc": "Waits before the next attempt." },
+        { "name": "Retrier", "kind": "class", "line": 14, "isExported": true, "doc": "Runs a task until it succeeds or the retries run out." },
+        { "name": "constructor", "kind": "method", "line": 15, "isExported": true },
+        { "name": "run", "kind": "method", "line": 20, "isExported": true, "doc": "Runs the task once per attempt." },
+        { "name": "sleep", "kind": "function", "line": 34, "isExported": false },
+        { "name": "createRetrier", "kind": "function", "line": 37, "isExported": true, "doc": "Creates a retrier with the default settings." }
+      ],
+      "calls": [
+        { "from": "run", "to": "backoff" },
+        { "from": "run", "to": "sleep" },
+        { "from": "createRetrier", "to": "Retrier" }
+      ]
+    },
+    "view.jsx": {
+      "symbolCount": { "min": 4, "max": 4 },
+      "symbols": [
+        { "name": "labelFor", "kind": "function", "line": 4, "isExported": false, "doc": "Label shown on the button for a given count." },
+        { "name": "Counter", "kind": "function", "line": 9, "isExported": true, "doc": "A button that counts its clicks." },
+        { "name": "increment", "kind": "function", "line": 11, "isExported": false },
+        { "name": "CounterPair", "kind": "function", "line": 20, "isExported": true, "doc": "Two counters side by side." }
+      ],
+      "calls": [
+        { "from": "Counter", "to": "labelFor" },
+        { "from": "increment", "to": "setCount" }
+      ]
+    }
+  }
+}
