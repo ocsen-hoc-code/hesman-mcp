@@ -653,3 +653,9 @@ The embedding model (`all-MiniLM-L6-v2`) is downloaded on first use and cached i
 ## License
 
 [MIT](./LICENSE) — Copyright (c) 2026 Minh Do
+
+The MIT license covers the code written for Hesman. Third-party software keeps its own license:
+
+- **Inside the package:** the Tree-sitter grammars and query files, all MIT; each is listed with its repository, revision and copyright in [NOTICE](./NOTICE).
+- **Installed by npm as dependencies:** all under permissive licenses (MIT, ISC, BSD, Apache-2.0); the full list is in [THIRD-PARTY-LICENSES.md](./THIRD-PARTY-LICENSES.md). The embedding library `@xenova/transformers` and the vector store `@zvec/zvec` are Apache-2.0.
+- **Downloaded at run time:** the embedding model `Xenova/all-MiniLM-L6-v2` (Apache-2.0) and on-demand grammars (MIT, except Elixir and HCL: Apache-2.0); see [NOTICE](./NOTICE). The `sharp` dependency of the embedding library installs a prebuilt libvips (LGPL-3.0-or-later) as a separate shared library.
