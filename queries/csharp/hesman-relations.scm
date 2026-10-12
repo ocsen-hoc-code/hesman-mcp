@@ -18,8 +18,9 @@
       (identifier) @name))) @reference.call
 
 (invocation_expression
-  function: (member_binding_expression
-    name: (identifier) @name)) @reference.call
+  function: (conditional_access_expression
+    (member_binding_expression
+      name: (identifier) @name))) @reference.call
 
 ; `new Item(...)`, `new Box<int>(...)`, `new Ns.Item(...)`
 (object_creation_expression

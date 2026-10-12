@@ -7,6 +7,7 @@ import { grammarSourceFor } from './grammar-store.js';
 import {
   TagsQuery,
   hasBody,
+  isMemberName,
   signatureOf,
   docCommentAbove,
   type ParsedReferences,
@@ -32,8 +33,11 @@ export interface ExtractedSymbol {
   language: string;
   is_exported: number;
   /**
-   * 1 for a function that is the value of an object key or is assigned to a
-   * property; the call resolver links such a function in its own file only.
+   * 1 for a function that is the value of an object key, is assigned to a
+   * property, is declared as a member (`function M.f()`) or is listed in an
+   * object literal of its file (`return { f }`): it is what a call
+   * with a receiver can target, and when it is not exported the call resolver
+   * links it in its own file only.
    */
   is_property?: number;
   /**
@@ -131,9 +135,9 @@ export async function parseFile(
     const { definitions, references } = !tags
       ? { definitions: [], references: none }
       : profile.relationQueries
-        ? tags.analyze(tree.rootNode)
+        ? tags.analyze(tree.rootNode, source)
         : { definitions: tags.definitions(tree.rootNode), references: none };
-    const symbols = extractSymbols(definitions, source, filePath, profile);
+    const symbols = extractSymbols(definitions, source, filePath, profile, new Set(references.members));
     const errors: Array<{ line: number; message: string }> = [];
     if (hasError) {
       collectErrorNodes(tree.rootNode, source, errors);
@@ -167,6 +171,7 @@ function extractSymbols(
   source: string,
   filePath: string,
   profile: LanguageProfile,
+  exposedAsMember: ReadonlySet<string>,
 ): ExtractedSymbol[] {
   const results: ExtractedSymbol[] = [];
   // Enclosing containers of the current definition, outermost first.
@@ -175,7 +180,7 @@ function extractSymbols(
 
   for (const definition of definitions) {
     if (profile.includeDefinition && !profile.includeDefinition(definition)) continue;
-    const { name, kind, node } = definition;
+    const { name, kind, node, nameNode } = definition;
 
     while (containers.length > 0 && containers[containers.length - 1].endIndex <= node.startIndex) {
       containers.pop();
@@ -199,7 +204,8 @@ function extractSymbols(
       parent_id: containers.length > 0 ? containers[containers.length - 1].id : null,
       language: profile.language,
       is_exported: (profile.isExported ? profile.isExported(name, node) : isEcmaScriptExported(name, node)) ? 1 : 0,
-      is_property: kind === 'function' && isPropertyAssigned(node) ? 1 : 0,
+      is_property:
+        kind === 'function' && (isPropertyAssigned(node) || isMemberName(nameNode, node, source) || exposedAsMember.has(name)) ? 1 : 0,
       is_declaration: CALLABLE_KINDS.has(kind) && !hasBody(node) ? 1 : 0,
     });
 

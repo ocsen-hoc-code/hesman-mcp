@@ -37,6 +37,8 @@ interface WorkerResult {
     line: number;
     col: number;
     to_name: string | null;
+    receiver: string | null;
+    names: string | null;
   }>;
   contentHash: string;
   error?: string;
@@ -81,6 +83,8 @@ parentPort.on('message', async (task: WorkerTask) => {
         line: r.line,
         col: r.col,
         to_name: r.to_name ?? null,
+        receiver: r.receiver ?? null,
+        names: r.names ?? null,
       }));
     }
 

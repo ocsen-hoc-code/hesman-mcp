@@ -181,10 +181,12 @@ src/
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
 | `symbols` | Extracted symbols | `id` (PK), `name`, `kind`, `file_path`, `start_line`, `end_line`, `signature`, `parent_id`, `is_exported`, `language` |
-| `relations` | Symbol relations | `from_id`, `to_id`, `kind` (calls/imports/extends/...), `file_path`, `line`, `col` |
+| `relations` | Symbol relations | `from_id` (a symbol id, or `module:<hash>` for a call made outside every function), `to_id`, `kind` (calls/imports/extends/...), `file_path`, `line`, `col`, `to_name` (callee name), `receiver` (of a call: null for `f()`, the receiver's last name for `a.f()`), `names` (bound by an import; a module name is prefixed with `*`) |
 | `file_hashes` | Content-based change detection | `file_path` (PK), `sha256`, `updated_at` |
 | `fts_symbols` | FTS5 full-text search index | Virtual table over `symbols(name, signature, doc_comment)` |
 | `metadata` | Index stats | `key`, `value` — stores `total_files`, `total_symbols`, `last_index_time` |
+
+A `symbols.db` that SQLite reports as corrupt is moved aside as `symbols.db.corrupt` (one generation is kept) and the index is rebuilt from the project files, at server start and by `hesman index`; `hesman ui` opens the index read-only and only reports the problem.
 
 ### ZVec (`zvec/` directory)
 
@@ -255,7 +257,7 @@ After all packages are indexed, cross-package relations are discovered by resolv
 ## Key Design Decisions
 
 1. **No LSP dependency** — Tree-sitter provides language-agnostic parsing without starting language servers
-2. **Query-based call and import extraction** — calls and imports are the `@reference.call` / `@reference.import` matches of each language's query layers (`TagsQuery.relations`), attributed to the innermost enclosing function and linked by name after indexing (`call-resolver.ts`). `extends` / `implements` are still matched by regex
+2. **Query-based call and import extraction** — calls and imports are the `@reference.call` / `@reference.import` matches of each language's query layers (`TagsQuery.relations`), attributed to the innermost enclosing function, method, class or function-valued variable (otherwise to the module) and linked by name after indexing (`call-resolver.ts`): own file → the import that binds the name → imported files → same directory → unique in the project, restricted by visibility (a symbol another file cannot reach is no cross-file target) and by the receiver (a member call targets a method or a property function); an ambiguous call stays unresolved. `extends` / `implements` are still matched by regex
 3. **Response-level compression** — Applied per-response rather than at the parser level so the original data is always available for non-MCP use
 4. **Content-hash incremental indexing** — Files are re-parsed only when their SHA-256 hash changes, detected during scanning
 5. **Single SQLite store for all packages** — In monorepo mode, all packages share one database; package isolation is achieved via the `file_path` column

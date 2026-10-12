@@ -23,6 +23,52 @@
 (export_statement
   source: (string (string_fragment) @name)) @reference.import
 
+; The names an import binds (`@import.name`, replaced by `@import.alias` when
+; there is one; `@import.module` for a name bound to the module itself). The
+; call resolver uses them: a call of an imported name is only linked through
+; that import.
+; `import fs from './m'`
+(import_statement
+  (import_clause (identifier) @import.name)
+  source: (string (string_fragment) @name)) @reference.import
+
+; `import { join, resolve as abs } from './m'`
+(import_statement
+  (import_clause
+    (named_imports
+      (import_specifier
+        name: (_) @import.name
+        alias: (identifier)? @import.alias)))
+  source: (string (string_fragment) @name)) @reference.import
+
+; `import * as os from './m'`
+(import_statement
+  (import_clause (namespace_import (identifier) @import.module))
+  source: (string (string_fragment) @name)) @reference.import
+
+; `const path = require('./m')`, `const { clamp, scale: grow } = require('./m')`
+(
+  (variable_declarator
+    name: (identifier) @import.name
+    value: (call_expression
+      function: (identifier) @_function
+      arguments: (arguments . (string (string_fragment) @name)))) @reference.import
+  (#eq? @_function "require")
+)
+
+(
+  (variable_declarator
+    name: (object_pattern
+      [
+        (shorthand_property_identifier_pattern) @import.name
+        (pair_pattern value: (identifier) @import.name)
+      ])
+    value: (call_expression
+      function: (identifier) @_function
+      arguments: (arguments . (string (string_fragment) @name)))) @reference.import
+  (#eq? @_function "require")
+)
+
 ; `require('./m')`, `await import('./m')`
 (
   (call_expression
@@ -34,3 +80,8 @@
 (call_expression
   function: (import)
   arguments: (arguments . (string (string_fragment) @name))) @reference.import
+
+; `return { run, stop }`: a function listed in an object literal is called
+; through that object (`obj.run()`), like a function stored under a key.
+(object
+  (shorthand_property_identifier) @name) @reference.member

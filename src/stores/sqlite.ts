@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import type BetterSqlite3 from 'better-sqlite3';
 import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('sqlite');
@@ -27,17 +27,59 @@ export interface SymbolRow {
   updated_at: number;
 }
 
-/** A symbol a call may be linked to. */
+/** A symbol a call may be linked to. Optional fields are absent when they do not apply. */
 export interface CallTargetCandidate {
   id: string;
   file_path: string;
   /**
-   * Set for a function that is only reachable through an object and is not
-   * exported (`{ onClick: () => ... }`, `obj.h = function ...`): a call from
-   * another file is never linked to it, however unique its name is.
+   * From where the symbol can be called when that is not the whole project
+   * (see `CALL_REACH`): `file` — its own file only; `include` — also a file
+   * that imports its file; `directory` — the files of its directory.
    */
-  same_file_only?: true;
+  reach?: 'file' | 'include' | 'directory';
+  /**
+   * What `receiver.name()` can call: a method, a function declared in a class
+   * or interface (some grammars tag methods as functions), or a function
+   * stored as an object key or property.
+   */
+  member?: true;
+  /** A class: `ns.Name(...)` / `new ns.Name(...)` constructs it. */
+  type?: true;
+  /** Id of the class, interface or namespace the symbol is declared in. */
+  parent_id?: string;
+  /** Name of that container. */
+  container?: string;
 }
+
+/**
+ * Visibility rule of the call resolver, per language, for a symbol whose
+ * `is_exported` is 0 (the language's own export rule, see the profiles):
+ *
+ * - `file`: TypeScript, TSX and JavaScript (a module-private declaration),
+ *   Lua (`local`), Swift (`private` / `fileprivate`). Nothing outside the file
+ *   can name the symbol.
+ * - `include`: C and C++ (`static`, an anonymous namespace, a private member).
+ *   The symbol has no external linkage, but a file that includes its header
+ *   compiles it (`static inline` helpers, inline private methods).
+ * - `directory`: Go. A lower-case identifier is visible in its package, and a
+ *   package is a directory.
+ *
+ * Every other language keeps project-wide reach: Rust items without `pub`
+ * are visible in their crate; Java, C#, Kotlin and PHP record `public` only,
+ * which says nothing about package or module visibility; Python, Ruby and
+ * Bash have no enforced privacy. A function stored as a property that is not
+ * exported has `file` reach in every language (M1-08).
+ */
+const CALL_REACH: ReadonlyMap<string, 'file' | 'include' | 'directory'> = new Map([
+  ['typescript', 'file'],
+  ['tsx', 'file'],
+  ['javascript', 'file'],
+  ['lua', 'file'],
+  ['swift', 'file'],
+  ['c', 'include'],
+  ['cpp', 'include'],
+  ['go', 'directory'],
+]);
 
 export interface RelationRow {
   from_id: string;
@@ -48,6 +90,10 @@ export interface RelationRow {
   col: number;
   /** Callee name of a `calls` relation (resolved into `to_id` after indexing). */
   to_name?: string | null;
+  /** Receiver of a `calls` relation: null for `f()`, the receiver's last name for `a.f()`, `*` when it has none. */
+  receiver?: string | null;
+  /** Names bound by an `imports` relation, space separated; a module name is prefixed with `*`. */
+  names?: string | null;
 }
 
 /**
@@ -71,12 +117,26 @@ export interface CallRelationToResolve {
   file_path: string;
   to_name: string;
   to_id: string;
+  /** The symbol (or `module:<file>`) that makes the call. */
+  from_id: string;
+  /** See `RelationRow.receiver`. */
+  receiver: string | null;
+}
+
+/** An import of a file: the module specifier and the names it binds (see `RelationRow.names`). */
+export interface StoredImport {
+  specifier: string;
+  names: string | null;
 }
 
 /** Kinds a call can never target (`foo(` is not a call of an interface or type). */
 const NON_CALLABLE_KINDS = ['interface', 'type', 'enum', 'namespace'];
 /** The kind of a symbol that `Name(...)` / `new Name(...)` instantiates. */
 const CLASS_KIND = 'class';
+const METHOD_KIND = 'method';
+const FUNCTION_KIND = 'function';
+/** Kinds whose callables are members. */
+const TYPE_KINDS: ReadonlySet<string> = new Set(['class', 'interface']);
 
 /** SQLite caps bound parameters; stay well below the limit. */
 const IN_CHUNK = 500;
@@ -143,8 +203,12 @@ export interface DependencyResult {
  *   7 — calls and imports come from the syntax tree (M1-07): other call
  *       relations for every language, calls for C, C++, Ruby and Bash, imports
  *       for Python, Go, C, C++ and Ruby, `is_declaration` on symbols.
+ *   8 — call-link precision (M1-09): a call is made by a function, method,
+ *       class or the module (`module:<file>`), never by a plain variable;
+ *       calls carry their `receiver` and imports the `names` they bind; other
+ *       links (visibility, imports, member calls).
  */
-export const INDEX_SCHEMA_VERSION = 7;
+export const INDEX_SCHEMA_VERSION = 8;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
 /**
@@ -215,6 +279,24 @@ const MIGRATIONS = [
   )`,
 ];
 
+/** Name of the database file inside the data directory. */
+const DB_FILE = 'symbols.db';
+/** A database and the files SQLite keeps next to it in WAL mode. */
+const DB_FILE_SUFFIXES = ['', '-wal', '-shm'];
+/** Inserted after the database file name of a damaged database that was moved aside. */
+const CORRUPT_MARK = '.corrupt';
+
+/**
+ * True if SQLite reports that the database file itself is damaged
+ * (`SQLITE_CORRUPT`, also from a virtual table: `SQLITE_CORRUPT_VTAB`) or is
+ * not a database at all (`SQLITE_NOTADB`). The index is derived data, so the
+ * answer to these is to rebuild it (`SqliteStore.rebuild`), not to fail.
+ */
+export function isCorruptDatabaseError(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null | undefined)?.code;
+  return typeof code === 'string' && (code === 'SQLITE_NOTADB' || code.startsWith('SQLITE_CORRUPT'));
+}
+
 function withRetry<T>(fn: () => T, maxRetries = 3): T {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -240,15 +322,66 @@ export class SqliteStore {
     this.dataDir = dataDir;
   }
 
+  /**
+   * Opens (or creates) the database. A file that SQLite reports as corrupt is
+   * moved aside and replaced by an empty database (see `rebuild`); any other
+   * failure is thrown.
+   */
   open(): void {
     mkdirSync(this.dataDir, { recursive: true });
-    const dbPath = join(this.dataDir, 'symbols.db');
-    this.db = new Database(dbPath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('synchronous = NORMAL');
-    this.runMigrations();
-    this.ensureFtsTriggers();
-    log.info({ dbPath }, 'SQLite store opened');
+    try {
+      this.openDatabase();
+    } catch (err) {
+      if (!isCorruptDatabaseError(err)) throw err;
+      this.rebuild(err);
+    }
+    log.info({ dbPath: join(this.dataDir, DB_FILE) }, 'SQLite store opened');
+  }
+
+  private openDatabase(): void {
+    this.db = new Database(join(this.dataDir, DB_FILE));
+    try {
+      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('synchronous = NORMAL');
+      this.runMigrations();
+      this.ensureFtsTriggers();
+    } catch (err) {
+      this.db.close();
+      throw err;
+    }
+  }
+
+  /**
+   * Replaces a damaged database by an empty one. The damaged files are moved
+   * aside as `symbols.db.corrupt` (`-wal`, `-shm`) rather than deleted, so
+   * they can still be inspected; only one such generation is kept, so repeated
+   * damage cannot fill the disk. Nothing else in the data directory is touched.
+   *
+   * The empty database has index schema version 0, so the next `indexProject`
+   * indexes every file again, and it records the vector documents as
+   * outdated: they were written for the damaged index and are cleared by the
+   * next run that has the vector store.
+   *
+   * @param reason - the error that showed the damage, for the log line
+   */
+  rebuild(reason: unknown): void {
+    const dbPath = join(this.dataDir, DB_FILE);
+    const movedTo = `${dbPath}${CORRUPT_MARK}`;
+    try {
+      if (this.db?.open) this.db.close();
+    } catch {
+      // A damaged database may not close cleanly; its files are moved either way.
+    }
+    for (const suffix of DB_FILE_SUFFIXES) {
+      rmSync(`${movedTo}${suffix}`, { force: true });
+      if (existsSync(`${dbPath}${suffix}`)) renameSync(`${dbPath}${suffix}`, `${movedTo}${suffix}`);
+    }
+    log.warn(
+      { dbPath, movedTo, error: reason instanceof Error ? reason.message : String(reason) },
+      'The index database is damaged: it was moved aside and the index is rebuilt from the project files',
+    );
+    this.openDatabase();
+    this.setVectorSchemaVersion(0);
   }
 
   close(): void {
@@ -268,6 +401,11 @@ export class SqliteStore {
       this.db.exec('ALTER TABLE relations ADD COLUMN to_name TEXT');
     }
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_relations_to_name ON relations(to_name)');
+    // `receiver` and `names` were added in index schema 8.
+    if (!columns.some((c) => c.name === 'receiver')) this.db.exec('ALTER TABLE relations ADD COLUMN receiver TEXT');
+    if (!columns.some((c) => c.name === 'names')) this.db.exec('ALTER TABLE relations ADD COLUMN names TEXT');
+    // Relations are replaced, and imports read, one file at a time (M1-09 stores more of them).
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_relations_file ON relations(file_path, kind)');
     // `is_property` was added in index schema 6; older databases lack the column.
     const symbolColumns = this.db.prepare('PRAGMA table_info(symbols)').all() as Array<{ name: string }>;
     if (!symbolColumns.some((c) => c.name === 'is_property')) {
@@ -501,7 +639,8 @@ export class SqliteStore {
     withRetry(() => {
       if (relations.length === 0) return;
       const stmt = this.db.prepare(
-        'INSERT OR REPLACE INTO relations (from_id, to_id, kind, file_path, line, col, to_name) VALUES (@from_id, @to_id, @kind, @file_path, @line, @col, @to_name)',
+        `INSERT OR REPLACE INTO relations (from_id, to_id, kind, file_path, line, col, to_name, receiver, names)
+         VALUES (@from_id, @to_id, @kind, @file_path, @line, @col, @to_name, @receiver, @names)`,
       );
       const insertMany = this.db.transaction((rows: RelationRow[]) => {
         for (const row of rows) {
@@ -513,6 +652,8 @@ export class SqliteStore {
             line: row.line,
             col: row.col,
             to_name: row.to_name ?? null,
+            receiver: row.receiver ?? null,
+            names: row.names ?? null,
           });
         }
       });
@@ -526,7 +667,7 @@ export class SqliteStore {
    * name is in `names` (the set of candidate symbols for that name changed).
    */
   getCallRelationsToResolve(scope?: { files: string[]; names: string[] }): CallRelationToResolve[] {
-    const base = 'SELECT rowid, file_path, to_name, to_id FROM relations WHERE kind = \'calls\' AND to_name IS NOT NULL';
+    const base = 'SELECT rowid, file_path, to_name, to_id, from_id, receiver FROM relations WHERE kind = \'calls\' AND to_name IS NOT NULL';
     if (!scope) {
       return this.db.prepare(`${base} ORDER BY rowid`).all() as CallRelationToResolve[];
     }
@@ -543,7 +684,8 @@ export class SqliteStore {
   }
 
   /**
-   * Symbols named `name` that a call can target, ordered by file and line.
+   * Symbols named `name` that a call can target, ordered by file and line,
+   * with what the resolver needs to know about each (`CallTargetCandidate`).
    * Besides the kinds that are never called (interfaces, types, …), two rules
    * remove same-named symbols that are not separate targets:
    *
@@ -560,22 +702,46 @@ export class SqliteStore {
   getCallTargetCandidates(name: string): CallTargetCandidate[] {
     const placeholders = NON_CALLABLE_KINDS.map(() => '?').join(',');
     let rows = this.db.prepare(
-      `SELECT id, file_path, kind, language, is_declaration AS declared, (is_property = 1 AND is_exported = 0) AS local
-         FROM symbols WHERE name = ? AND kind NOT IN (${placeholders}) ORDER BY file_path, start_line`,
+      `SELECT s.id, s.file_path, s.kind, s.language, s.is_declaration AS declared, s.is_exported AS exported,
+              s.is_property AS property, s.parent_id, p.name AS container, p.kind AS container_kind
+         FROM symbols s LEFT JOIN symbols p ON p.id = s.parent_id
+        WHERE s.name = ? AND s.kind NOT IN (${placeholders}) ORDER BY s.file_path, s.start_line`,
     ).all(name, ...NON_CALLABLE_KINDS) as Array<{
       id: string;
       file_path: string;
       kind: string;
       language: string;
       declared: number;
-      local: number;
+      exported: number;
+      property: number;
+      parent_id: string | null;
+      container: string | null;
+      container_kind: string | null;
     }>;
     if (rows.length > 1) {
       const classLanguages = new Set(rows.filter((r) => r.kind === CLASS_KIND).map((r) => r.language));
       if (classLanguages.size > 0) rows = rows.filter((r) => r.kind === CLASS_KIND || !classLanguages.has(r.language));
       if (rows.some((r) => !r.declared)) rows = rows.filter((r) => !r.declared);
     }
-    return rows.map(({ id, file_path, local }) => (local ? { id, file_path, same_file_only: true } : { id, file_path }));
+    return rows.map((r) => {
+      const candidate: CallTargetCandidate = { id: r.id, file_path: r.file_path };
+      const reach = r.exported ? undefined : r.property ? 'file' : CALL_REACH.get(r.language);
+      if (reach) candidate.reach = reach;
+      const inType = r.kind === FUNCTION_KIND && r.container_kind !== null && TYPE_KINDS.has(r.container_kind);
+      if (r.kind === METHOD_KIND || r.property || inType) candidate.member = true;
+      if (r.kind === CLASS_KIND) candidate.type = true;
+      if (r.parent_id) candidate.parent_id = r.parent_id;
+      if (r.container) candidate.container = r.container;
+      return candidate;
+    });
+  }
+
+  /** The imports of `filePath`, in the order they were stored. */
+  getImports(filePath: string): StoredImport[] {
+    const rows = this.db.prepare(
+      'SELECT to_id, names FROM relations WHERE kind = \'imports\' AND file_path = ? AND to_id LIKE \'unresolved:%\' ORDER BY line, rowid',
+    ).all(filePath) as Array<{ to_id: string; names: string | null }>;
+    return rows.map((r) => ({ specifier: r.to_id.slice('unresolved:'.length), names: r.names }));
   }
 
   /** Module specifiers imported by `filePath` (e.g. `./greet.js`). */

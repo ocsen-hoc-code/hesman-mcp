@@ -79,10 +79,11 @@ describe('SqliteStore call targets', () => {
       { ...sym('E', 'shared', 'function', '/p/a.ts'), is_property: 1, is_exported: 1 },
       { ...sym('D', 'declared', 'function', '/p/a.ts'), is_exported: 0 },
     ]);
-    expect(store.getCallTargetCandidates('onClick')).toEqual([{ id: 'P', file_path: '/p/a.ts', same_file_only: true }]);
+    expect(store.getCallTargetCandidates('onClick')).toEqual([{ id: 'P', file_path: '/p/a.ts', reach: 'file', member: true }]);
     // `exports.shared = () => ...` is reachable by a bare call after an import.
-    expect(store.getCallTargetCandidates('shared')).toEqual([{ id: 'E', file_path: '/p/a.ts' }]);
-    expect(store.getCallTargetCandidates('declared')).toEqual([{ id: 'D', file_path: '/p/a.ts' }]);
+    expect(store.getCallTargetCandidates('shared')).toEqual([{ id: 'E', file_path: '/p/a.ts', member: true }]);
+    // Since M1-09 every TypeScript declaration that is not exported is private to its file.
+    expect(store.getCallTargetCandidates('declared')).toEqual([{ id: 'D', file_path: '/p/a.ts', reach: 'file' }]);
     expect(store.getSymbolById('P')?.is_property).toBe(1);
     expect(store.getSymbolById('D')?.is_property).toBe(0);
   });
@@ -99,11 +100,93 @@ describe('SqliteStore call targets', () => {
     store = new SqliteStore(dir);
     store.open();
     store.upsertSymbols([{ ...sym('P', 'onClick', 'function', '/p/a.ts'), is_property: 1, is_exported: 0 }]);
-    expect(store.getCallTargetCandidates('onClick')).toEqual([{ id: 'P', file_path: '/p/a.ts', same_file_only: true }]);
+    expect(store.getCallTargetCandidates('onClick')).toEqual([{ id: 'P', file_path: '/p/a.ts', reach: 'file', member: true }]);
   });
 
-  it('is at index schema 7: calls come from the syntax tree, more languages have them (M1-07)', () => {
-    expect(INDEX_SCHEMA_VERSION).toBe(7);
+  it('tells the resolver from where a candidate can be called: the visibility rule per language (M1-09)', () => {
+    store = new SqliteStore(dir);
+    store.open();
+    const hidden = (id: string, file: string, language: string) => ({ ...sym(id, 'helper', 'function', file), language, is_exported: 0 });
+    store.upsertSymbols([
+      hidden('TS', '/p/a.ts', 'typescript'),
+      hidden('TSX', '/p/a.tsx', 'tsx'),
+      hidden('JS', '/p/a.js', 'javascript'),
+      hidden('LUA', '/p/a.lua', 'lua'),
+      hidden('SWIFT', '/p/a.swift', 'swift'),
+      hidden('C', '/p/a.c', 'c'),
+      hidden('CPP', '/p/a.cpp', 'cpp'),
+      hidden('GO', '/p/a.go', 'go'),
+      hidden('RUST', '/p/a.rs', 'rust'),
+      hidden('PY', '/p/a.py', 'python'),
+      hidden('JAVA', '/p/A.java', 'java'),
+      { ...sym('EXPORTED', 'helper', 'function', '/p/b.ts') },
+    ]);
+    const reach = Object.fromEntries(store.getCallTargetCandidates('helper').map((c) => [c.id, c.reach]));
+    expect(reach).toEqual({
+      TS: 'file', TSX: 'file', JS: 'file', LUA: 'file', SWIFT: 'file',
+      C: 'include', CPP: 'include',
+      GO: 'directory',
+      RUST: undefined, PY: undefined, JAVA: undefined, EXPORTED: undefined,
+    });
+  });
+
+  it('tells the resolver what a member call can target: methods, class-declared functions, property functions (M1-09)', () => {
+    store = new SqliteStore(dir);
+    store.open();
+    store.upsertSymbols([
+      sym('CLASS', 'Box', 'class', '/p/box.kt'),
+      { ...sym('METHOD', 'record', 'method', '/p/box.ts'), parent_id: 'CLASS' },
+      // Kotlin and PHP tag a method as a function.
+      { ...sym('INCLASS', 'restock', 'function', '/p/box.kt'), parent_id: 'CLASS' },
+      { ...sym('PROPERTY', 'run', 'function', '/p/api.js'), is_property: 1 },
+      sym('FREE', 'clamp', 'function', '/p/util.ts'),
+      sym('VARIABLE', 'map', 'variable', '/p/graph.js'),
+      // A local variable of a method is declared inside the class, and is still not a member.
+      { ...sym('LOCAL', 'items', 'variable', '/p/box.ts'), parent_id: 'CLASS' },
+    ]);
+    expect(store.getCallTargetCandidates('record')).toEqual([
+      { id: 'METHOD', file_path: '/p/box.ts', member: true, parent_id: 'CLASS', container: 'Box' },
+    ]);
+    expect(store.getCallTargetCandidates('restock')).toEqual([
+      { id: 'INCLASS', file_path: '/p/box.kt', member: true, parent_id: 'CLASS', container: 'Box' },
+    ]);
+    expect(store.getCallTargetCandidates('run')).toEqual([{ id: 'PROPERTY', file_path: '/p/api.js', member: true }]);
+    expect(store.getCallTargetCandidates('clamp')).toEqual([{ id: 'FREE', file_path: '/p/util.ts' }]);
+    expect(store.getCallTargetCandidates('map')).toEqual([{ id: 'VARIABLE', file_path: '/p/graph.js' }]);
+    expect(store.getCallTargetCandidates('items')).toEqual([
+      { id: 'LOCAL', file_path: '/p/box.ts', parent_id: 'CLASS', container: 'Box' },
+    ]);
+    expect(store.getCallTargetCandidates('Box')).toEqual([{ id: 'CLASS', file_path: '/p/box.kt', type: true }]);
+  });
+
+  it('stores the receiver of a call and the names of an import, also in a table of an older version (M1-09)', () => {
+    const db = new Database(join(dir, 'symbols.db'));
+    db.exec(`CREATE TABLE relations (
+      from_id TEXT NOT NULL, to_id TEXT NOT NULL, kind TEXT NOT NULL, file_path TEXT NOT NULL,
+      line INTEGER NOT NULL, col INTEGER NOT NULL DEFAULT 0, to_name TEXT,
+      PRIMARY KEY (from_id, to_id, kind, file_path, line))`);
+    db.close();
+
+    store = new SqliteStore(dir);
+    store.open();
+    store.upsertRelations([
+      { from_id: 'A', to_id: 'call:join', to_name: 'join', kind: 'calls', file_path: '/p/a.ts', line: 3, col: 2, receiver: 'path' },
+      { from_id: 'A', to_id: 'call:run', to_name: 'run', kind: 'calls', file_path: '/p/a.ts', line: 4, col: 2 },
+      { from_id: 'A', to_id: 'unresolved:node:path', kind: 'imports', file_path: '/p/a.ts', line: 1, col: 0, names: '*path' },
+      { from_id: 'A', to_id: 'unresolved:./setup.js', kind: 'imports', file_path: '/p/a.ts', line: 2, col: 0 },
+    ]);
+    expect(store.getCallRelationsToResolve().map((r) => [r.to_name, r.from_id, r.receiver])).toEqual([
+      ['join', 'A', 'path'],
+      ['run', 'A', null],
+    ]);
+    expect(store.getImports('/p/a.ts')).toEqual([
+      { specifier: 'node:path', names: '*path' },
+      { specifier: './setup.js', names: null },
+    ]);
+  });
+
+  it('is at index schema 8: callers, receivers, imported names and the link rules of M1-09', () => {
+    expect(INDEX_SCHEMA_VERSION).toBe(8);
   });
 
   it('offers a definition, not its body-less declaration, as a call target (M1-07)', () => {
@@ -145,7 +228,7 @@ describe('SqliteStore call targets', () => {
       // Another language's function of the same name is not a constructor of that class.
       { ...sym('PYFN', 'Box', 'function', '/p/tools/box.py'), language: 'python' },
     ]);
-    expect(store.getCallTargetCandidates('Item')).toEqual([{ id: 'CLASS', file_path: '/p/Item.java' }]);
+    expect(store.getCallTargetCandidates('Item')).toEqual([{ id: 'CLASS', file_path: '/p/Item.java', type: true }]);
     expect(store.getCallTargetCandidates('Box').map((c) => c.id)).toEqual(['CPPCLASS', 'PYFN']);
   });
 
