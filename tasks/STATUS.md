@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 7/9 done** · **M2: 5/7 done** · **M3: 2/2 done**
+Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 8/9 done** · **M2: 5/7 done** · **M3: 2/2 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -42,7 +42,7 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 | M1-03 | [Language conformance test suite](M1-03-language-conformance-suite.md) | Test | P0 | M1-02 | done |
 | M1-04 | [Universal text tier for files without a grammar](M1-04-universal-text-tier.md) | Indexing | P1 | M1-03 | done |
 | M1-05 | [Grammar delivery: bundled core + verified download](M1-05-grammar-delivery.md) | Distribution | P1 | M1-01, M0-10 | done |
-| M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | pending |
+| M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | done |
 | M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | done |
 | M1-08 | [Fix the extraction bugs found by the conformance suite](M1-08-extraction-bug-fixes.md) | Parsing | P0 | M1-03 | done |
 | M1-09 | [Call-link precision and recovery from a corrupt index](M1-09-call-link-precision.md) | Parsing | P0 | M1-07 | pending |
@@ -80,6 +80,7 @@ Publishing to npm: the owner decided on 2026-10-11 not to publish yet, so M2-06 
 
 ## Backlog after M0 (not specified, not scheduled)
 
+- **M1-06 follow-ups (support tiers):** the nine `docs/i18n/README.*.md` files still carry an old hand-written language table (three languages "fully supported", a "158 languages" sentence) that overstates support and differs from the generated README table; the last `RULES_BLOCK` bullet still says "Relations are pattern-matched" although calls come from the syntax tree since M1-07; `index_status` reports no parse-error count because the index records none; the text-chunk id lookup behind the tier note hashes every chunk id of every text file (only for ids that are not symbols; unmeasured on very large repositories). `index_status.grammars.languages[].tier` changed its values from `parsed` / `text` to `deep` / `structural` / `text` before any release.
 - **M1-07 remaining limits (call graph):** types are not resolved, so a method called on an interface with several implementations stays unlinked; a Ruby call with no receiver, arguments or parentheses is not seen; a C++ constructor call written as a declaration (`Item local(3);`) is not seen; Python `super().__init__()` links `__init__` to itself when the file has one `__init__`; Bash records every command as an unresolved call; Java annotation-as-signature is untouched; no import relations for Java, C#, Kotlin, Swift, PHP, Rust, Lua, Bash; `extends` / `implements` are still regexes; unused `relationQueries` strings remain in the ts/python/go profiles; no e2e assertion for the new languages' call graph through the real server. This supersedes the call-graph part of "Language limits recorded by M1-05a".
 - **M1-05b follow-ups (on-demand grammars):** Elixir's upstream tags query is Apache-2.0 and is not vendored (owner decision needed: allow a grammar's own Apache-2.0 query?); only R is compiled offline in tests, the other five on-demand queries are checked by the network script `scripts/verify-grammar-catalog.ts`; the watcher does not request a grammar for a new file of an uncached language (next indexing pass does); the follow-up indexing pass can overlap the watcher; 18 pinned grammars have no tags query and stay on the text tier; not built: a Hesman-built grammar pack (ADR 4.1.3) and `scripts/update-grammars.ts` (ADR 4.4); many languages have no upstream `.wasm` release asset (Dart, SQL, Dockerfile, Erlang, Nix, Vue, Svelte, …) and therefore stay text.
 - **M3-02 follow-ups (dashboard frontend):** proposed contract additions not made: `tier` in `index.languages[]` (the UI keeps a tested copy of the tier table), `signature` / `docComment` on graph nodes (today one extra `find_symbol` call per selected symbol), a stable `id` per log entry, `/api/logs` `level` documented as "this level and above", and whether playground runs should appear in Metrics (today they do not). Graph limits: O(n²) synchronous layout, 300-node cap, no node dragging, dense file graph. Not checked: screen reader, Firefox, Safari, measured contrast ratios. The backend test named "serves the placeholder page…" has a stale name. `hesman index` aborts with `database disk image is malformed` on a corrupt `symbols.db` instead of rebuilding it (seen on an old v1.0 index in this repository). The call graph of this repository links `.map(` / `.join(` calls to project symbols named `map` / `join` and names variables (`result`) as callers — check after M1-07.
