@@ -7,6 +7,10 @@ import { Parser } from 'web-tree-sitter';
 import { LANGUAGES, QUERIES_DIR, tagsQueryFiles } from '../../../src/parsers/languages';
 import { compileTagsQueries, loadGrammar, queryLayersOf } from '../../conformance/helpers';
 import { PARSERS } from '../../../scripts/download-parsers';
+import { ON_DEMAND_GRAMMARS, releaseAssetUrl } from '../../../scripts/grammar-catalog';
+
+/** URL of every pinned grammar: the bundled set and the on-demand catalog. */
+const PINNED_URLS = [...PARSERS.map((p) => p.url), ...ON_DEMAND_GRAMMARS.map((g) => releaseAssetUrl(g))];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(__dirname, '..', '..', '..');
@@ -84,7 +88,7 @@ describe('vendored tags queries', () => {
 
   it('uses only queries the owner allowed: the grammar\'s own upstream repository or Hesman, all MIT', () => {
     // ADR 0001, section 10: no Helix (MPL-2.0) or Aider (Apache-2.0) queries.
-    const grammarRepos = new Set(PARSERS.map((p) => /^(https:\/\/github\.com\/[^/]+\/[^/]+)\//.exec(p.url)![1]));
+    const grammarRepos = new Set(PINNED_URLS.map((url) => /^(https:\/\/github\.com\/[^/]+\/[^/]+)\//.exec(url)![1]));
     for (const source of SOURCES) {
       expect(source.license).toBe('MIT');
       if (source.origin === 'upstream') {
@@ -100,7 +104,7 @@ describe('vendored tags queries', () => {
 
   it('vendors an upstream query at the tag of the pinned grammar, or says why not', () => {
     for (const source of SOURCES.filter((s) => s.origin === 'upstream')) {
-      const pinned = PARSERS.filter((p) => p.url.startsWith(`${source.repo}/releases/download/${source.rev}/`));
+      const pinned = PINNED_URLS.filter((url) => url.startsWith(`${source.repo}/releases/download/${source.rev}/`));
       if (pinned.length === 0) expect(source.note, `${source.path} is not at a pinned grammar tag and has no "note"`).toBeTruthy();
     }
   });

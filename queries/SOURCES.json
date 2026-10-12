@@ -1,5 +1,5 @@
 {
-  "description": "Provenance of every query file under queries/. Upstream files are vendored unmodified (sha256 is checked by tests/unit/parsers/queries.test.ts); they must match the grammar revision pinned in scripts/download-parsers.ts (a \"note\" explains the one that does not). Files with origin \"hesman\" are written for this project: hesman-tags.scm fills gaps and is listed after the upstream query, hesman-overrides.scm is listed before it.",
+  "description": "Provenance of every query file under queries/. Upstream files are vendored unmodified (sha256 is checked by tests/unit/parsers/queries.test.ts); they must match the grammar revision pinned in scripts/download-parsers.ts (bundled grammars) or scripts/grammar-catalog.ts (grammars downloaded on demand) (a \"note\" explains the one that does not). Files with origin \"hesman\" are written for this project: hesman-tags.scm fills gaps and is listed after the upstream query, hesman-overrides.scm is listed before it.",
   "queries": [
     {
       "path": "javascript/tags.scm",
@@ -143,6 +143,72 @@
       "upstreamPath": "queries/tags.scm",
       "license": "MIT",
       "sha256": "fbe7ac23484845fe5ec15d40100f54d7a92e8b2788648414961bdbddaec9f976"
+    },
+    {
+      "path": "scala/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/tree-sitter/tree-sitter-scala",
+      "rev": "v0.26.2",
+      "commit": "b931fcc338390925eb893d70ad070033f5856ccf",
+      "upstreamPath": "queries/tags.scm",
+      "license": "MIT",
+      "sha256": "f56794ad2bc9ae5c7ffd332a40fa67a3af65880e18ba4124a0053f0bfff54757",
+      "note": "Query of an on-demand grammar (grammars.json): the grammar itself is not shipped, it is downloaded into the user's cache."
+    },
+    {
+      "path": "ocaml/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/tree-sitter/tree-sitter-ocaml",
+      "rev": "v0.26.0",
+      "commit": "e3c9cf368f68bffd2f81188229aefa7b434eda65",
+      "upstreamPath": "queries/tags.scm",
+      "license": "MIT",
+      "sha256": "bed0a869d8e842e9a5b4e84f0f4940293801b3791c21dcee8b9f73f67776a2d1",
+      "note": "Query of an on-demand grammar (grammars.json): the grammar itself is not shipped, it is downloaded into the user's cache."
+    },
+    {
+      "path": "fsharp/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/ionide/tree-sitter-fsharp",
+      "rev": "0.3.12",
+      "commit": "aefd0c8741bdf3aeb827a228aa4a996a6536697e",
+      "upstreamPath": "queries/tags.scm",
+      "license": "MIT",
+      "sha256": "b90d84f6981eaa2ddf04adf03de37fe9ae8e5dee299b053fc1f5dfe8d240e3dd",
+      "note": "Query of an on-demand grammar (grammars.json): the grammar itself is not shipped, it is downloaded into the user's cache."
+    },
+    {
+      "path": "r/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/r-lib/tree-sitter-r",
+      "rev": "v1.3.0",
+      "commit": "346d3707b8c9301f1051e8f6e32666e67529f7d2",
+      "upstreamPath": "queries/tags.scm",
+      "license": "MIT",
+      "sha256": "282aac27b55709b027ccf78fa690c5158a3cb2646c4fcd7776cb5ae8775c6dd0",
+      "note": "Query of an on-demand grammar (grammars.json): the grammar itself is not shipped, it is downloaded into the user's cache."
+    },
+    {
+      "path": "codeql/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/tree-sitter/tree-sitter-ql",
+      "rev": "v0.23.1",
+      "commit": "1fd627a4e8bff8c24c11987474bd33112bead857",
+      "upstreamPath": "queries/tags.scm",
+      "license": "MIT",
+      "sha256": "62c715ea2d48dad24f85b01b97fda44f07edb90f36b0669c7c1625d6deaf4e60",
+      "note": "Query of an on-demand grammar (grammars.json): the grammar itself is not shipped, it is downloaded into the user's cache."
+    },
+    {
+      "path": "arduino/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/tree-sitter-grammars/tree-sitter-arduino",
+      "rev": "v0.24.0",
+      "commit": "2f0c1223c50aa4b754136db544204c6fc99ffc77",
+      "upstreamPath": "queries/tags.scm",
+      "license": "MIT",
+      "sha256": "b0b6a398deacca2273216379c6337238e6236662dcfb22e95d28b758f660d047",
+      "note": "Query of an on-demand grammar (grammars.json): the grammar itself is not shipped, it is downloaded into the user's cache."
     },
     {
       "path": "typescript/hesman-tags.scm",

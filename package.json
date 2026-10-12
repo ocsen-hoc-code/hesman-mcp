@@ -25,6 +25,7 @@
     "dist/",
     "parsers/*.wasm",
     "queries/",
+    "grammars.json",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
