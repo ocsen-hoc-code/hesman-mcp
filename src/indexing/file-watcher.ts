@@ -139,6 +139,9 @@ export class FileWatcher {
         return;
       }
 
+      // The file was a text-tier file until its grammar arrived (M1-05): drop its chunks.
+      if (this.config.store.getTextFile(filePath)) removeTextFile(this.config.store, this.config.zvecStore, filePath);
+
       // Update stores (vectors first: their ids come from the SQLite rows)
       const oldSymbols = this.config.store.getSymbolsByFile(filePath);
       this.config.zvecStore?.deleteByFile(filePath, oldSymbols.map((s) => s.id));

@@ -24,7 +24,20 @@ Out of scope: an attacker who can already run code as the user, or modify the He
 | Orphan server processes | The server shuts down when stdin closes. | `src/index.ts` |
 | Deleting the wrong directory | `hesman clean` refuses the project root, its ancestors, the home directory, filesystem roots, and any non-empty directory without a Hesman `symbols.db`; `--force` does not bypass these checks. | `src/cli/commands.ts` |
 | Corrupting agent configuration | `hesman install` writes atomically (temp file + rename) and keeps a `<config>.hesman.bak` backup. | `src/cli/config-writer.ts` |
-| Tampered parser binaries | Downloaded Tree-sitter WASM grammars are verified against pinned SHA-256 hashes before being written. | `scripts/download-parsers.ts` |
+| Tampered parser binaries | Downloaded Tree-sitter WASM grammars are verified against pinned SHA-256 hashes before being written, and again before they are loaded (see [Grammar downloads](#grammar-downloads)). | `scripts/download-parsers.ts`, `src/parsers/grammar-store.ts` |
+
+## Grammar downloads
+
+Grammars outside the bundled set are fetched at run time, which is the only network access the indexer makes besides the first download of the embedding model. A grammar is WebAssembly that Hesman executes in the `web-tree-sitter` sandbox on the source files of the project, so what may be loaded is fixed in advance:
+
+- **Only pinned files.** `grammars.json`, shipped in the package, lists each grammar with its URL, size and sha256. Hesman never asks a remote service which grammars exist, and requests no URL that is not in that file. Every URL is an HTTPS release asset of the grammar's own GitHub repository; a redirect is followed only to `github.com`, `objects.githubusercontent.com` or `release-assets.githubusercontent.com`, at most three times.
+- **Verified before writing and before loading.** A response larger than the pinned size is aborted; the bytes are hashed in memory and written (temporary file, then rename) only if the hash matches. Each time a process loads a grammar it reads the cached file once, hashes those bytes and hands the same bytes to the runtime; a file that no longer matches is deleted and treated as missing. The same check applies to `hesman grammars install --from <directory>`.
+- **Failure is not an indexing failure.** Without the grammar (no network, wrong hash, timeout after 60 s) the files are indexed as text. A failed background download is not retried for 10 minutes.
+- **Nothing about the project is sent.** The request carries no query string and no project data; the host sees that this machine fetched a given grammar.
+- **Off switch.** `HESMAN_GRAMMARS_OFFLINE=1` or `"grammars": { "offline": true }` disables every grammar download, including `hesman grammars install <language>`.
+- **Where it is stored.** In the per-user cache (`HESMAN_CACHE_DIR`, `XDG_CACHE_HOME` or the platform's cache directory, under `hesman/grammars/`), never in the project. Anyone who can write to that directory can only cause a grammar to be discarded, not replaced, as long as they cannot also change `grammars.json` in the installation.
+
+Not covered: a grammar that is malicious at the pinned revision. Pins are reviewed when they are added (`scripts/verify-grammar-catalog.ts` loads each one), and the WebAssembly sandbox gives a grammar no file or network access of its own.
 
 ## Dashboard (`hesman ui`)
 

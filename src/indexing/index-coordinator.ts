@@ -11,6 +11,8 @@ import { indexTextFile, storedTextChunkIds } from './text-indexer.js';
 import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core.js';
 import { extractRelations } from '../parsers/relation-extractor.js';
 import { profileFor } from '../parsers/languages.js';
+import { onDemandLanguageForPath } from '../parsers/on-demand-languages.js';
+import { grammarStore } from '../parsers/grammar-store.js';
 import { WorkerPool, WorkerTask } from './worker-pool.js';
 import { resolveCallRelations, type CallResolutionScope } from './call-resolver.js';
 import type { IndexProgress, IndexRunPhase } from './index-state.js';
@@ -23,6 +25,12 @@ export interface IndexResult {
   symbolsFound: number;
   errors: string[];
   tookMs: number;
+  /**
+   * On-demand grammars this run asked for: files of these languages were
+   * indexed as text because the grammar is not cached, and a background
+   * download is now in flight. See `waitForRequestedGrammars`.
+   */
+  grammarsRequested: string[];
 }
 
 export interface IndexOptions {
@@ -103,6 +111,44 @@ function resetOutdatedIndex(store: SqliteStore, zvecStore?: ZVecStore): void {
   store.setVectorSchemaVersion(zvecStore || !hadData ? INDEX_SCHEMA_VERSION : vectorVersion);
 }
 
+/**
+ * Starts the background download of every on-demand grammar that would let a
+ * text-tier file of this scan be parsed. Returns at once with the ids being
+ * downloaded; never throws. Nothing is requested in offline mode.
+ */
+function requestMissingGrammars(files: readonly ScannedFile[], config: HesmanConfig): string[] {
+  if (config.grammars?.offline) return [];
+  const missing = new Set<string>();
+  for (const file of files) {
+    if (file.tier !== 'text') continue;
+    const language = onDemandLanguageForPath(file.filePath);
+    if (language) missing.add(language);
+  }
+  if (missing.size === 0) return [];
+  try {
+    return grammarStore().request(missing);
+  } catch (err) {
+    log.warn({ error: err instanceof Error ? err.message : String(err) }, 'Could not request on-demand grammars');
+    return [];
+  }
+}
+
+/**
+ * Waits until the downloads of `requested` have ended and returns the ids
+ * that are now cached: an indexing pass started after that parses their
+ * files. Resolves with `[]` when nothing arrived or `signal` aborts; never
+ * rejects.
+ */
+export async function waitForRequestedGrammars(requested: readonly string[], signal?: AbortSignal): Promise<string[]> {
+  if (requested.length === 0 || signal?.aborted) return [];
+  const store = grammarStore();
+  const aborted = new Promise<'aborted'>((resolveAborted) => {
+    signal?.addEventListener('abort', () => resolveAborted('aborted'), { once: true });
+  });
+  if ((await Promise.race([store.settled(), aborted])) === 'aborted') return [];
+  return requested.filter((id) => store.availablePath(id) !== null);
+}
+
 export async function indexProject(
   rootDir: string,
   store: SqliteStore,
@@ -165,6 +211,8 @@ export async function indexProject(
   // Scan for files
   const files = scanProject(rootDir, config);
   filesTotal = files.length;
+  // Files whose grammar is not cached yet are indexed as text below; the grammar is fetched meanwhile.
+  const grammarsRequested = requestMissingGrammars(files, config);
   report('indexing');
   await breathe();
 
@@ -435,5 +483,6 @@ export async function indexProject(
     symbolsFound,
     errors,
     tookMs,
+    grammarsRequested,
   };
 }

@@ -23,4 +23,5 @@ export const defaultConfig: HesmanConfig = {
   logFile: null,
   dataDir: '.hesman',
   autoCleanDataDir: false,
+  grammars: { offline: false },
 };

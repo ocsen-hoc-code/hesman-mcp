@@ -439,9 +439,33 @@ Check the indexing status of the project.
       { "language": "markdown", "files": 6, "chunks": 27 },
       { "language": "sql", "files": 3, "chunks": 4 }
     ]
+  },
+  "grammars": {
+    "offline": false,
+    "cacheDir": "/Users/me/Library/Caches/hesman/grammars/abi-15",
+    "languages": [
+      { "language": "typescript", "tier": "parsed", "files": 30, "grammar": "bundled" },
+      { "language": "go", "tier": "parsed", "files": 12, "grammar": "bundled" },
+      { "language": "markdown", "tier": "text", "files": 6, "grammar": "missing", "reason": "no-tags-query" },
+      { "language": "sql", "tier": "text", "files": 3, "grammar": "missing", "reason": "not-in-catalog" }
+    ]
   }
 }
 ```
+
+`grammars` says, for every language in `languages` and `textTier.languages` (in that order), how its files are stored now (`tier`: `parsed` or `text`) and where its grammar stands: `bundled` (shipped in the package), `cached` (an on-demand grammar that was downloaded and verified) or `missing`. A text-tier language also has a `reason`:
+
+| `reason` | Meaning |
+|----------|---------|
+| `downloading` | The grammar is being fetched in the background; the files are re-indexed with symbols when it arrives. |
+| `reindex-pending` | The grammar is cached (`grammar: "cached"`); the files are parsed by the next indexing pass, which the server starts as soon as its downloads have ended. |
+| `offline` | Downloads are disabled (`HESMAN_GRAMMARS_OFFLINE=1` or `grammars.offline`), so the files stay text. `hesman grammars install --from <directory>` can still fill the cache. |
+| `download-failed` | The download failed or did not match its pinned sha256; `detail` holds the error. It is not retried for 10 minutes. |
+| `not-downloaded` | An on-demand grammar that has not been requested yet (for example, the project was indexed while offline). |
+| `no-tags-query` | The catalog pins a grammar for this language, but there is no symbols query for it, so the files are indexed as text whether or not it is installed. |
+| `not-in-catalog` | Hesman knows no grammar for this language. |
+
+`grammars.offline` is `true` when downloads are disabled and `cacheDir` is where downloaded grammars are kept. Languages without files in the index are not listed; `hesman grammars list` shows the whole catalog.
 
 `textTier` counts the files without a grammar that are indexed as text (see [Text tier](#text-tier-files-without-a-grammar)): `files`, `chunks`, and the same per label. These files are not part of `totalFiles`, `totalSymbols` or `languages`, which describe symbols only; they are part of `indexing.filesDone` / `filesTotal`. With semantic search on, `health.zvecDocCount` is the number of embedded symbols plus `textTier.chunks`.
 
@@ -463,7 +487,7 @@ While the index is being built, `totalFiles`, `totalSymbols`, `totalRelations` a
 
 ## Text tier (files without a grammar)
 
-A file whose language has no grammar in the registry (`.sql`, `.sh`, `.rb`, `.zig`, `Dockerfile`, `Makefile`, Markdown, YAML, an unknown extension, ...) is indexed as **text**: it is split into blank-line-separated blocks packed into chunks of at most 30 lines, each with a 1-based inclusive line range. No symbols or relations are invented for it, so `find_symbol`, `get_file_structure`, `get_references`, `get_callers`, `get_callees`, `list_dependencies` and `impact_analysis` never return anything from such a file.
+A file whose language has no grammar available (`.sql`, `.zig`, `Dockerfile`, `Makefile`, Markdown, YAML, an unknown extension, ..., and the files of an on-demand language such as `.scala` or `.r` until its grammar is cached) is indexed as **text**: it is split into blank-line-separated blocks packed into chunks of at most 30 lines, each with a 1-based inclusive line range. No symbols or relations are invented for it, so `find_symbol`, `get_file_structure`, `get_references`, `get_callers`, `get_callees`, `list_dependencies` and `impact_analysis` never return anything from such a file.
 
 What works on a text-tier file:
 
@@ -474,6 +498,8 @@ What works on a text-tier file:
 | `get_context` | returns the requested lines | the response has `precision: "text"`; `symbolsInRange` is always empty |
 
 `precision: "text"` means "a line range of a file, not a symbol": do not pass the `symbolId` of such a result to a symbol tool; read the lines with `get_context` instead. Results that come from a parsed language carry **no** `precision` field.
+
+**On-demand languages.** Scala, OCaml, F#, R, CodeQL and Arduino have a grammar that is downloaded on first use (see `grammars` in [`index_status`](#index_status)). Their files start on the text tier with the language's own label (`scala`, `ocaml`, `fsharp`, `r`, `codeql`, `arduino`) and move to the parsed tier under the same label once the grammar is cached, so a `language` filter keeps working across the switch. The marker follows what is true at the time of the call: `find_pattern` and `get_context` report `precision: "text"` for such a language only while its grammar is not available.
 
 **Language labels.** A text-tier file gets a label from its name or extension — e.g. `sql`, `shell`, `ruby`, `rust`, `java`, `cpp`, `zig`, `cobol`, `dockerfile`, `makefile`, `markdown`, `yaml`, `json`, `toml` — and `text` when nothing matches. The table is in `src/parsers/text-languages.ts` (about 190 labels). A label is only a name to filter by; it implies no parser.
 

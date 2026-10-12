@@ -4,7 +4,8 @@ import { homedir } from 'node:os';
 import { getHeapStatistics } from 'node:v8';
 import { loadConfig } from '../config/loader.js';
 import { SqliteStore } from '../stores/sqlite.js';
-import { indexProject } from '../indexing/index-coordinator.js';
+import { indexProject, waitForRequestedGrammars, type IndexResult } from '../indexing/index-coordinator.js';
+import { configureGrammarStore } from '../parsers/grammar-store.js';
 import { splitArgs } from './args.js';
 
 /** The project root is the first positional argument; flags never count as a path. */
@@ -21,13 +22,28 @@ export async function runIndex(args: string[]): Promise<void> {
 
   store.open();
   try {
+    if (config.grammars.offline) configureGrammarStore({ offline: true });
+    const report = (result: IndexResult): void => {
+      console.log(`Done. ${result.filesScanned} files scanned, ${result.filesIndexed} indexed, ${result.symbolsFound} symbols found.`);
+      console.log(`Took ${result.tookMs}ms`);
+      if (result.errors.length > 0) {
+        console.log(`\nErrors (${result.errors.length}):`);
+        for (const err of result.errors) console.log(`  ${err}`);
+      }
+    };
     console.log(`Indexing project at ${projectRoot}...`);
     const result = await indexProject(projectRoot, store, config);
-    console.log(`Done. ${result.filesScanned} files scanned, ${result.filesIndexed} indexed, ${result.symbolsFound} symbols found.`);
-    console.log(`Took ${result.tookMs}ms`);
-    if (result.errors.length > 0) {
-      console.log(`\nErrors (${result.errors.length}):`);
-      for (const err of result.errors) console.log(`  ${err}`);
+    report(result);
+    // Files of an on-demand language were indexed as text; parse them once the grammar is here.
+    if (result.grammarsRequested.length > 0) {
+      console.log(`\nDownloading grammars: ${result.grammarsRequested.join(', ')}...`);
+      const arrived = await waitForRequestedGrammars(result.grammarsRequested);
+      const failed = result.grammarsRequested.filter((id) => !arrived.includes(id));
+      if (failed.length > 0) console.log(`Not downloaded (files stay indexed as text): ${failed.join(', ')}`);
+      if (arrived.length > 0) {
+        console.log(`Re-indexing with: ${arrived.join(', ')}...`);
+        report(await indexProject(projectRoot, store, config));
+      }
     }
   } finally {
     store.close();
@@ -91,6 +107,7 @@ Usage:
   hesman remove             Remove Hesman from the clients again
                             (--client <name…>, --all, --scope, --dry-run)
   hesman doctor             Check each client's Hesman entry end to end (--client <name…>, --json, --timeout <ms>)
+  hesman grammars           List or install Tree-sitter grammars (list [--json], install <language…> | --all | --from <directory>)
   hesman ui [path]          Local dashboard on 127.0.0.1: logs, metrics, graph, tool playground (--port <n>, --no-open)
   hesman install --agent X  Deprecated alias of: hesman setup --client X --yes
   hesman --version, -v      Print version
@@ -110,7 +127,8 @@ MCP tools (available when server is running):
   index_status           Report indexing health and statistics
 
 Supported languages: TypeScript, TSX, JavaScript, Python, Go, Java, C, C++, C#, Rust, PHP, Ruby,
-Kotlin, Swift, Bash, Lua (symbols); every other text file is indexed as text
+Kotlin, Swift, Bash, Lua (bundled, symbols); Scala, OCaml, F#, R, CodeQL, Arduino (symbols, grammar
+downloaded on first use — see "hesman grammars"); every other text file is indexed as text
 `);
 }
 
@@ -146,6 +164,14 @@ export function runRemove(args: string[]): Promise<void> {
 /** Deprecated alias of `hesman setup --client <agent> --yes`. */
 export function runInstall(args: string[]): Promise<void> {
   return runClientCommand('runInstall', args);
+}
+
+/** `hesman grammars`: list and install on-demand grammars (`grammars.ts`). Honours the `grammars.offline` config key. */
+export async function runGrammarsCommand(args: string[]): Promise<void> {
+  const { runGrammars } = await import('./grammars.js');
+  if (loadConfig().grammars.offline) configureGrammarStore({ offline: true });
+  const code = await runGrammars(args, { out: (line) => console.log(line) });
+  if (code !== 0) process.exitCode = code;
 }
 
 /** `hesman doctor`: read-only checks of this installation and of each client's entry (`doctor/doctor.ts`). */

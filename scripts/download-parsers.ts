@@ -1,7 +1,10 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync, realpathSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { sha256, verifyChecksum } from '../src/utils/checksum.js';
+
+// The checksum code is shared with the on-demand grammar cache (`src/parsers/grammar-store.ts`).
+export { sha256, verifyChecksum };
 
 export interface ParserSpec {
   name: string;
@@ -99,18 +102,6 @@ export const PARSERS: readonly ParserSpec[] = [
 export const OUT_DIR = fileURLToPath(new URL('../parsers', import.meta.url));
 
 export type FetchFn = (url: string) => Promise<Response>;
-
-export function sha256(buf: Buffer): string {
-  return createHash('sha256').update(buf).digest('hex');
-}
-
-/** Throws if `buf` does not hash to `expected`. */
-export function verifyChecksum(buf: Buffer, expected: string, name: string): void {
-  const actual = sha256(buf);
-  if (actual !== expected.toLowerCase()) {
-    throw new Error(`Checksum mismatch for ${name}: expected ${expected}, got ${actual}`);
-  }
-}
 
 /** True when `path` exists and its content hashes to `expected`. */
 export function hasValidFile(path: string, expected: string): boolean {

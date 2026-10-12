@@ -5,7 +5,8 @@ import { loadConfig, parseCliFlagsToOverrides } from './config/loader.js';
 import { SqliteStore } from './stores/sqlite.js';
 import { ZVecStore } from './stores/zvec.js';
 import { initEmbedding } from './stores/embedding.js';
-import { indexProject, IndexAbortedError } from './indexing/index-coordinator.js';
+import { indexProject, IndexAbortedError, waitForRequestedGrammars } from './indexing/index-coordinator.js';
+import { configureGrammarStore } from './parsers/grammar-store.js';
 import { indexState } from './indexing/index-state.js';
 import { WorkerPool } from './indexing/worker-pool.js';
 import { FileWatcher } from './indexing/file-watcher.js';
@@ -82,6 +83,12 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (args[0] === 'grammars') {
+    const { runGrammarsCommand } = await import('./cli/commands.js');
+    await runGrammarsCommand(args.slice(1));
+    return;
+  }
+
   if (args[0] === 'install') {
     const { runInstall } = await import('./cli/commands.js');
     await runInstall(args.slice(1));
@@ -123,6 +130,8 @@ async function main(): Promise<void> {
   const config = loadConfig(cliOverrides);
   const cwd = process.cwd();
   const semanticEnabled = config.semanticSearch.enabled;
+  // The config key turns grammar downloads off like HESMAN_GRAMMARS_OFFLINE does.
+  if (config.grammars.offline) configureGrammarStore({ offline: true });
 
   // The project comes from, in order: an explicit root, the client's MCP
   // roots, the working directory (see `server/project-root.ts`). Roots are
@@ -175,6 +184,13 @@ async function main(): Promise<void> {
   /** Loads the model, builds the initial index, then starts the watcher. Never rejects. */
   async function runBackgroundStartup(opened: OpenProject): Promise<void> {
     const { signal } = opened.abort;
+    const runIndex = () =>
+      indexProject(opened.root, opened.store, config, opened.zvecStore, pool, {
+        signal,
+        onProgress: (progress) => indexState.update(progress),
+      });
+    /** On-demand grammars the initial index asked for; their files are text until they arrive. */
+    let grammarsRequested: string[] = [];
     try {
       if (opened.zvecStore) {
         // The model must be ready before indexing: vectors are embedded per file.
@@ -186,10 +202,8 @@ async function main(): Promise<void> {
         if (modelError !== undefined) indexState.setModelError(modelError);
       }
 
-      const result = await indexProject(opened.root, opened.store, config, opened.zvecStore, pool, {
-        signal,
-        onProgress: (progress) => indexState.update(progress),
-      });
+      const result = await runIndex();
+      grammarsRequested = result.grammarsRequested;
       indexState.complete();
       log.info(
         { files: result.filesIndexed, symbols: result.symbolsFound },
@@ -221,6 +235,24 @@ async function main(): Promise<void> {
         log.info('File watcher started');
       } catch (err) {
         log.error(err, 'Failed to start file watcher — the index will not follow file changes');
+      }
+    }
+
+    // Grammars fetched in the background: once they are cached, a second pass
+    // moves their files from the text tier to the parsed tier. Requests are
+    // answered from the text tier in the meantime.
+    const arrived = await waitForRequestedGrammars(grammarsRequested, signal);
+    if (arrived.length > 0 && !signal.aborted) {
+      try {
+        log.info({ grammars: arrived }, 'Grammars downloaded — re-indexing their files');
+        indexState.begin('scanning');
+        const result = await runIndex();
+        indexState.complete();
+        log.info({ files: result.filesIndexed, symbols: result.symbolsFound }, 'Re-indexing with the new grammars complete');
+      } catch (err) {
+        if (err instanceof IndexAbortedError) return;
+        indexState.fail(err);
+        log.error(err, 'Re-indexing with the new grammars failed — their files stay on the text tier');
       }
     }
   }

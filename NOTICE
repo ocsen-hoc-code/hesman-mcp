@@ -213,6 +213,54 @@ queries/lua/tags.scm
   License:    MIT
   Copyright (c) 2021 Munif Tanjim
 
+queries/scala/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-scala
+  Revision:   v0.26.2 (b931fcc338390925eb893d70ad070033f5856ccf)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2018 Max Brunsfeld and GitHub
+
+queries/ocaml/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-ocaml
+  Revision:   v0.26.0 (e3c9cf368f68bffd2f81188229aefa7b434eda65)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2020 Max Brunsfeld and Pieter Goetschalckx
+
+queries/fsharp/tags.scm
+  Repository: https://github.com/ionide/tree-sitter-fsharp
+  Revision:   0.3.12 (aefd0c8741bdf3aeb827a228aa4a996a6536697e)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2023 Nikolaj Sidorenco
+
+queries/r/tags.scm
+  Repository: https://github.com/r-lib/tree-sitter-r
+  Revision:   v1.3.0 (346d3707b8c9301f1051e8f6e32666e67529f7d2)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2025 tree-sitter-r authors
+
+queries/codeql/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-ql
+  Revision:   v0.23.1 (1fd627a4e8bff8c24c11987474bd33112bead857)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2019-2024 GitHub, Inc.
+
+queries/arduino/tags.scm
+  Repository: https://github.com/tree-sitter-grammars/tree-sitter-arduino
+  Revision:   v0.24.0 (2f0c1223c50aa4b754136db544204c6fc99ffc77)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2022 ObserverOfTime
+
 queries/typescript/hesman-tags.scm
 queries/javascript/hesman-tags.scm
 queries/go/hesman-tags.scm
@@ -239,6 +287,7 @@ queries/rust/hesman-relations.scm
 queries/php/hesman-relations.scm
 queries/ruby/hesman-relations.scm
 queries/swift/hesman-relations.scm
+queries/fsharp/hesman-overrides.scm
   Written for Hesman. License: MIT, Copyright (c) 2026 Minh Do (see LICENSE).
 
 ================================================================================

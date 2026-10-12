@@ -25,6 +25,12 @@ export const HesmanConfigSchema = z.object({
   logFile: z.string().nullable().default(null),
   dataDir: z.string().default('.hesman'),
   autoCleanDataDir: z.boolean().default(false),
+  grammars: z
+    .object({
+      /** True: never download a grammar (same as `HESMAN_GRAMMARS_OFFLINE=1`). Cached grammars keep working. */
+      offline: z.boolean().default(false),
+    })
+    .default({}),
 });
 
 export type HesmanConfig = z.infer<typeof HesmanConfigSchema>;

@@ -27,6 +27,11 @@ import {
   rustProfile,
   swiftProfile,
 } from './profiles/generic.js';
+import {
+  isOnDemandGrammarCached,
+  onDemandLanguageById,
+  onDemandLanguageForExtension,
+} from './on-demand-languages.js';
 
 /**
  * Directory of the vendored Tree-sitter queries (`queries/` at the package
@@ -278,9 +283,21 @@ export function isLanguageId(id: string): boolean {
   return BY_ID.has(id);
 }
 
-/** The registry entry for a language id, or undefined. */
+/**
+ * The entry for a language id, or undefined: a bundled language, or one whose
+ * grammar is fetched on demand (`on-demand-languages.ts`), cached or not.
+ */
 export function languageById(id: string): LanguageDefinition | undefined {
-  return BY_ID.get(id);
+  return BY_ID.get(id) ?? onDemandLanguageById(id);
+}
+
+/**
+ * True when files of this language are parsed right now: its grammar is
+ * bundled, or it is an on-demand grammar that is in the cache. False means the
+ * language's files are on the text tier.
+ */
+export function hasGrammar(id: string): boolean {
+  return BY_ID.has(id) || isOnDemandGrammarCached(id);
 }
 
 /** Absolute paths of a language's tags query files, in layer order (empty if it has none). */
@@ -290,18 +307,28 @@ export function tagsQueryFiles(def: LanguageDefinition): string[] {
   return relative.map((path) => join(QUERIES_DIR, path));
 }
 
-/** The parsing profile for a language id, or undefined if the language is not registered. */
+/** The parsing profile for a language id (bundled or on demand), or undefined if the language is unknown. */
 export function profileFor(id: string): LanguageProfile | undefined {
-  return BY_ID.get(id)?.profile;
+  return languageById(id)?.profile;
 }
 
-/** The registry entry for a file extension (with or without the leading dot), or undefined. */
+/**
+ * The entry for a file extension (with or without the leading dot), or
+ * undefined. An on-demand language is returned only while its grammar is
+ * cached, so "has an entry" always means "is parsed".
+ */
 export function languageForExtension(ext: string): LanguageDefinition | undefined {
   const normalized = (ext.startsWith('.') ? ext : `.${ext}`).toLowerCase();
-  return BY_EXTENSION.get(normalized);
+  const bundled = BY_EXTENSION.get(normalized);
+  if (bundled) return bundled;
+  const onDemand = onDemandLanguageForExtension(normalized);
+  return onDemand && isOnDemandGrammarCached(onDemand.id) ? onDemand : undefined;
 }
 
-/** The language id for a file path, based on its extension, or undefined if unsupported. */
+/**
+ * The language id a file is parsed as, based on its extension, or undefined
+ * when it has no grammar available (the file is then a text-tier file).
+ */
 export function languageForPath(filePath: string): string | undefined {
   const ext = extname(filePath);
   if (!ext) return undefined;

@@ -406,7 +406,8 @@ Create a `hesman.config.json` in your project root (all fields optional):
     "embeddingModel": "Xenova/all-MiniLM-L6-v2"
   },
   "logLevel": "info",
-  "dataDir": ".hesman"
+  "dataDir": ".hesman",
+  "grammars": { "offline": false }
 }
 ```
 
@@ -430,6 +431,8 @@ Settings are resolved in this order (later overrides earlier):
 | `HESMAN_LOG_LEVEL` | `--log-level` | One of: trace, debug, info, warn, error |
 | `HESMAN_DATA_DIR` | `--data-dir` | Directory for index data (default: `.hesman`) |
 | `HESMAN_WATCH_MODE` | `--watch-mode` | Enable/disable file watching (true/false) |
+| `HESMAN_GRAMMARS_OFFLINE` | — | `1` or `true`: never download a grammar (config key `grammars.offline`) |
+| `HESMAN_CACHE_DIR` | — | Directory that holds the per-user grammar cache (`<dir>/hesman/grammars/`) |
 
 ### CLI Flags
 
@@ -459,6 +462,8 @@ hesman diag [path]             Print diagnostics: memory, store stats, pool, cac
 hesman diag --json             Output diagnostics as JSON
 hesman setup                   Add Hesman to your AI clients (--client, --all, --yes, --dry-run, --scope, --project-root, --command, --rules)
 hesman remove                  Remove Hesman from the clients again (--client, --all, --scope, --dry-run)
+hesman grammars list           Bundled, cached and on-demand grammars with sizes (--json)
+hesman grammars install <lang…> Download grammars into the cache (--all, or --from <directory> without network)
 hesman install --agent <name>  Deprecated alias of: hesman setup --client <name> --yes
 hesman --version, -v           Print version number
 hesman --help, -h              Show help text
@@ -486,12 +491,28 @@ hesman --help, -h              Show help text
 | C++ | `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.ipp`, `.tpp` | deep | Symbols + call graph |
 | Ruby | `.rb`, `.rake`, `.gemspec`, `.ru`, `.podspec` | deep | Symbols + call graph |
 | Bash | `.sh`, `.bash` | deep | Symbols + call graph |
+| Scala | `.scala`, `.sc`, `.sbt` | structural, on demand | Symbols only |
+| OCaml | `.ml` | structural, on demand | Symbols only |
+| F# | `.fs`, `.fsx` | structural, on demand | Symbols only |
+| R | `.r` | structural, on demand | Symbols only |
+| CodeQL | `.ql`, `.qll` | structural, on demand | Symbols only |
+| Arduino | `.ino` | structural, on demand | Symbols only |
 | Everything else | any text file | text | Text chunks for `semantic_search`, `find_pattern` and `get_context` |
 
-These 16 grammars ship inside the package, so they work offline. What the tiers mean today:
+The first 16 grammars ship inside the package, so they work offline.
+
+**On-demand grammars.** The grammars marked *on demand* are not in the package. The first time a project contains files of such a language, those files are indexed as text at once and the server downloads the grammar in the background (0.3–11.4 MB per grammar, from the release page of the grammar's own repository on GitHub); when it has arrived the files are re-indexed with symbols. Each grammar is pinned by URL, size and sha256 in the shipped `grammars.json`; a download that does not match is discarded and the files stay text. Grammars are cached per user, outside the project: `HESMAN_CACHE_DIR`, else `XDG_CACHE_HOME`, else `~/Library/Caches` (macOS), `%LOCALAPPDATA%` (Windows) or `~/.cache`, under `hesman/grammars/`.
+
+- **Turn downloads off:** set `HESMAN_GRAMMARS_OFFLINE=1`, or `"grammars": { "offline": true }` in `hesman.config.json`. Hesman then makes no network request for grammars; files of on-demand languages stay on the text tier unless the grammar is already cached.
+- **Pre-fill the cache:** `hesman grammars install scala r` or `hesman grammars install --all` (46.9 MB); on a machine without network access, copy the `.wasm` files there and run `hesman grammars install --from <directory>`. `hesman grammars list` shows what is bundled, cached and available. See [docs/CLI.md](./docs/CLI.md#hesman-grammars).
+- **See what is missing:** `index_status` lists, per language, whether its grammar is bundled, cached or missing, and why.
+
+`grammars.json` also pins 18 grammars that have no symbols query yet (Haskell, Elixir, Zig, Julia, Perl, Objective-C, Odin, Luau, Starlark, HTML, CSS, JSON, YAML, TOML, XML, Markdown, HCL, Make). They can be installed with `hesman grammars install`, but Hesman does not use them yet: files of those languages are indexed as text and their grammar is never downloaded automatically.
+
+What the tiers mean today:
 
 - **deep** — definitions (functions, classes, methods, constants, ...) plus `calls` relations, so `get_references`, `get_symbol_context` and `impact_analysis` have a call graph. Calls are read from the syntax tree of each language (its call expressions, `new X(...)`, Ruby and Bash calls without parentheses), and are linked by name: the caller's own file first, then the files it imports, its directory, and the project; a name that stays ambiguous is left unlinked instead of being linked to every candidate. A call is linked to a definition rather than to a declaration without a body (a C/C++ prototype, an interface or abstract method), and `new X(...)` to the class `X` rather than to one of its constructors. Types are not resolved, so a method called on an interface with several implementations stays unlinked, and a Ruby method called without arguments or parentheses is not seen as a call. Import relations exist for TypeScript/JavaScript, Python, Go, C/C++ (`#include "..."`) and Ruby (`require`, `require_relative`); `extends` / `implements` relations only where a language writes `class X extends Y` or `class X implements Y`.
-- **structural** — definitions only. No bundled language is in this tier any more; it remains for a grammar whose calls cannot be extracted reliably.
+- **structural** — definitions only. No bundled language is in this tier any more. The on-demand languages are structural because only their upstream symbols query is used: there is no visibility rule for them (every definition counts as exported) and no call extraction.
 - **text** — no symbols; see "Text tier" in [docs/TOOLS.md](./docs/TOOLS.md).
 
 Symbol kinds follow each grammar's own tags query, so some are coarser than the language: PHP and Kotlin methods are `function`, Rust and Swift enums and Kotlin interfaces are `class`, Rust type aliases are `class`. Adding a language requires a grammar, a tags query, a small profile and one entry in the language registry (`src/parsers/languages.ts`) — see the [Contributing Guide](./docs/CONTRIBUTING.md) for step-by-step instructions.
