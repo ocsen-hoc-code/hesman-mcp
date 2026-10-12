@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 5/8 done** · **M2: 5/7 done** · **M3: 1/2 done**
+Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 5/8 done** · **M2: 5/7 done** · **M3: 2/2 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -73,12 +73,13 @@ Goal: `hesman ui` opens a local web page (127.0.0.1 + token) to watch logs and m
 | # | Task | Area | Priority | Depends on | Status |
 |---|---|---|---|---|---|
 | M3-01 | [Observability data + `hesman ui` backend (HTTP API)](M3-01-observability-and-ui-api.md) | Server | P0 | M0-12 | done |
-| M3-02 | [Dashboard frontend](M3-02-dashboard-frontend.md) | UI | P0 | M0-12 | pending |
+| M3-02 | [Dashboard frontend](M3-02-dashboard-frontend.md) | UI | P0 | M0-12 | done |
 
 Publishing to npm: the owner decided on 2026-10-11 not to publish yet, so M2-06 and the `npx` checks of M2-04 stay on hold.
 
 ## Backlog after M0 (not specified, not scheduled)
 
+- **M3-02 follow-ups (dashboard frontend):** proposed contract additions not made: `tier` in `index.languages[]` (the UI keeps a tested copy of the tier table), `signature` / `docComment` on graph nodes (today one extra `find_symbol` call per selected symbol), a stable `id` per log entry, `/api/logs` `level` documented as "this level and above", and whether playground runs should appear in Metrics (today they do not). Graph limits: O(n²) synchronous layout, 300-node cap, no node dragging, dense file graph. Not checked: screen reader, Firefox, Safari, measured contrast ratios. The backend test named "serves the placeholder page…" has a stale name. `hesman index` aborts with `database disk image is malformed` on a corrupt `symbols.db` instead of rebuilding it (seen on an old v1.0 index in this repository). The call graph of this repository links `.map(` / `.join(` calls to project symbols named `map` / `join` and names variables (`result`) as callers — check after M1-07.
 - **M3-01 follow-ups (dashboard backend):** `ReadOnlySqliteStore` reaches into `SqliteStore`'s private `db` through a cast (add a proper `openReadOnly()`); `/api/graph/search` is a `LIKE '%q%'` scan; `/api/logs` re-reads up to 10 MB per request; a `logFile` placed inside the project but outside the data directory is seen by the file watcher (no guard); the dashboard cannot run `semantic_search` (ZVec exclusive lock) or show live indexing progress; Windows and the browser-open path are unverified. One `npm test` run in five failed 2 tests while three other agents were running suites (load average ~40); not reproduced in four further runs, the failing tests were not captured.
 - **Answer-quality eval suite** — measure tokens *and* accuracy against an agent reading files directly (all four roles in the dev-team session agreed; codebase-memory-mcp's published weakness is 83% vs 92%).
 - **ADR: daemon + stdio shim architecture** — prerequisite for multi-project and the dashboard.
