@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { importedFiles, pickCallTarget } from '../../../src/indexing/call-resolver';
 
 const c = (id: string, file_path: string) => ({ id, file_path });
@@ -81,5 +84,72 @@ describe('importedFiles', () => {
     expect(files.has('/p/lib/util.ts')).toBe(true);
     expect(files.has('/p/lib/util/index.ts')).toBe(true);
     expect([...files].some((f) => f.includes('react') || f.includes('node:fs'))).toBe(false);
+  });
+});
+
+describe('importedFiles: languages other than TypeScript/JavaScript (M1-07)', () => {
+  let dir: string;
+
+  beforeAll(() => {
+    dir = realpathSync(mkdtempSync(join(tmpdir(), 'hesman-imports-')));
+  });
+
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('Python: relative imports are resolved from the package of the importing module', () => {
+    const files = importedFiles('/p/app/api/main.py', ['.greet', '..core.util', '.']);
+    expect(files.has('/p/app/api/greet.py')).toBe(true);
+    expect(files.has('/p/app/api/greet/__init__.py')).toBe(true);
+    expect(files.has('/p/app/core/util.py')).toBe(true);
+    expect(files.has('/p/app/api/__init__.py')).toBe(true);
+    expect(files.has('/p/app/api/other.py')).toBe(false);
+  });
+
+  it('Python: an absolute import matches the module path under any source root', () => {
+    const files = importedFiles('/p/app/api/main.py', ['pkg.util', 'os']);
+    expect(files.has('/p/src/pkg/util.py')).toBe(true);
+    expect(files.has('/p/src/pkg/util/__init__.py')).toBe(true);
+    expect(files.has('/p/src/other/util.py')).toBe(false);
+    expect(files.has('/p/src/pkgs/util.py')).toBe(false);
+  });
+
+  it('Go: an import of the module in go.mod maps to the files of that package directory', () => {
+    mkdirSync(join(dir, 'gomod', 'cmd', 'app'), { recursive: true });
+    writeFileSync(join(dir, 'gomod', 'go.mod'), 'module example.com/shop\n\ngo 1.22\n');
+    const files = importedFiles(join(dir, 'gomod', 'cmd', 'app', 'main.go'), ['fmt', 'example.com/shop/internal/util', 'example.com/other/util']);
+    expect(files.has(join(dir, 'gomod', 'internal', 'util', 'clamp.go'))).toBe(true);
+    expect(files.has(join(dir, 'gomod', 'internal', 'util', 'deep', 'x.go'))).toBe(false);
+    expect(files.has(join(dir, 'gomod', 'other', 'util', 'clamp.go'))).toBe(false);
+    expect(files.has(join(dir, 'gomod', 'fmt', 'print.go'))).toBe(false);
+  });
+
+  it('Go: without a go.mod above the file no import is mapped', () => {
+    mkdirSync(join(dir, 'nomod'), { recursive: true });
+    const files = importedFiles(join(dir, 'nomod', 'main.go'), ['example.com/shop/util']);
+    expect(files.has(join(dir, 'nomod', 'util', 'clamp.go'))).toBe(false);
+  });
+
+  it('C and C++: an included header also stands for the source file of the same name', () => {
+    const files = importedFiles('/p/src/report.c', ['inventory.h', 'stock/item.hpp', '../vendor/zip.h']);
+    expect(files.has('/p/src/inventory.h')).toBe(true);
+    expect(files.has('/p/src/inventory.c')).toBe(true);
+    expect(files.has('/p/include/inventory.h')).toBe(true);
+    expect(files.has('/p/lib/inventory.c')).toBe(true);
+    expect(files.has('/p/include/stock/item.hpp')).toBe(true);
+    expect(files.has('/p/lib/stock/item.cpp')).toBe(true);
+    expect(files.has('/p/lib/other/item.cpp')).toBe(false);
+    expect(files.has('/p/src/my_inventory.c')).toBe(false);
+    expect(files.has('/p/vendor/zip.h')).toBe(true);
+    expect(files.has('/p/vendor/zip.c')).toBe(true);
+  });
+
+  it('Ruby: `require_relative` is resolved from the requiring file, `require` by its path under any load path', () => {
+    const files = importedFiles('/p/lib/shop/main.rb', ['util', '../core/clamp', 'shop/item']);
+    expect(files.has('/p/lib/shop/util.rb')).toBe(true);
+    expect(files.has('/p/lib/core/clamp.rb')).toBe(true);
+    expect(files.has('/p/lib/shop/item.rb')).toBe(true);
+    expect(files.has('/p/lib/shop/other.rb')).toBe(false);
   });
 });

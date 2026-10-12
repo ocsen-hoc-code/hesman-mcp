@@ -262,6 +262,19 @@ describe('calls come from the syntax tree: languages the regex could not handle'
     ]);
     expect(calls).toEqual(['log->echo', 'main->log', 'main->require_command']);
   });
+  it('Bash: control-flow builtins (`return`, `exit`, `break`, `continue`) are not calls', async () => {
+    const { calls } = await extract('.sh', [
+      'check() {',
+      '  for f in "$@"; do',
+      '    [ -e "$f" ] || continue',
+      '    validate "$f" || break',
+      '  done',
+      '  command -v curl >/dev/null || exit 1',
+      '  return 0',
+      '}',
+    ]);
+    expect(calls).toEqual(['check->command', 'check->validate']);
+  });
 });
 
 describe('a declaration is never a call, recursion still is', () => {

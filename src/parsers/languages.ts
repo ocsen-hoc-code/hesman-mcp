@@ -62,7 +62,8 @@ export interface LanguageDefinition {
    * as paths relative to the `queries/` directory. A list is layered in order
    * and when two layers tag the same name the earlier one wins: list the
    * grammar's upstream queries first and Hesman's gap fillers
-   * (`hesman-tags.scm`) last, so they only add definitions. A
+   * (`hesman-tags.scm` for definitions, `hesman-relations.scm` for calls and
+   * imports) last, so they only add to what upstream tags. A
    * `hesman-overrides.scm` layer is listed *before* upstream, for the rare
    * pattern whose upstream definition node is wrong (the file states why).
    * Every file must be recorded in `queries/SOURCES.json` and `NOTICE`. A
@@ -71,7 +72,8 @@ export interface LanguageDefinition {
   readonly tagsQuery?: string | readonly string[];
   /**
    * Optional Tree-sitter query files (paths relative to the `parsers/` directory),
-   * keyed by relation kind. Reserved for M1: query-driven extraction.
+   * keyed by relation kind. Unused: calls and imports are driven by the
+   * `@reference.*` patterns of `tagsQuery` (M1-07).
    */
   readonly queries?: Readonly<Partial<Record<keyof RelationQueries, string>>>;
   /**
@@ -94,9 +96,22 @@ const TS_TAGS = [
  * Their grammars ship in `parsers/`; every other file is indexed by the text
  * tier (`text-languages.ts`).
  *
- * `tier` is `deep` only where the regex call extractor finds every call
- * between the definitions of the language's conformance fixture and reports no
- * false self-call; the reason for each `structural` entry is next to it.
+ * `tier` is `deep` only where every call between the definitions of the
+ * language's conformance fixture is extracted from the syntax tree and
+ * resolved, with no false self-call; an entry that cannot promise that is
+ * `structural` and says why. Since M1-07 all sixteen are `deep`.
+ *
+ * Calls and imports come from the same query layers as the symbols: the
+ * `@reference.call` patterns of the upstream tags query where it has them,
+ * plus `hesman-relations.scm` for what upstream does not tag
+ * (`TagsQuery.relations`). Per language:
+ * - upstream calls only: go, python (+ Hesman imports), kotlin, lua;
+ * - upstream calls + Hesman additions: typescript, tsx, javascript (`new X()`,
+ *   `#private()`, imports), java (`new X()`), csharp (plain and generic calls,
+ *   `new X()`), php (plain function calls, `new X()`), rust (path and
+ *   turbofish calls), ruby (`X.new`, requires; upstream's bare-identifier
+ *   pattern needs an unsupported predicate and is skipped);
+ * - Hesman calls only (upstream tags no reference): c, cpp, swift, bash.
  */
 export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
   {

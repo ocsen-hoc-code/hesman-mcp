@@ -23,7 +23,11 @@
   (variable_assignment
     name: (variable_name) @name) @definition.variable)
 
-; `require_command curl`
-(command
-  name: (command_name
-    (word) @name)) @reference.call
+; `require_command curl`: a command is a call (of a function of the script, a
+; builtin or a program). The control-flow builtins are statements, not calls.
+(
+  (command
+    name: (command_name
+      (word) @name)) @reference.call
+  (#not-any-of? @name "return" "exit" "break" "continue")
+)

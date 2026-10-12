@@ -18,9 +18,10 @@ export interface ProfileOptions {
   /** WASM file name inside `parsers/`. */
   grammar: string;
   /**
-   * True to run the regex relation extractor (`relation-extractor.ts`) on this
-   * language. Only for languages whose registry tier is `deep`; a structural
-   * language stores symbols and no relations.
+   * True to extract relations (calls and imports from the language's query
+   * layers, see `TagsQuery.relations`) for this language. Only for languages
+   * whose registry tier is `deep`; a structural language stores symbols and
+   * no relations.
    */
   relations?: boolean;
   isExported?: LanguageProfile['isExported'];
@@ -34,9 +35,9 @@ export function defineProfile(options: ProfileOptions): LanguageProfile {
     extensions: [...options.extensions],
     parserWasmPath: join(PARSERS_DIR, options.grammar),
   };
-  // The extractor only looks at whether `relationQueries` is present; the
-  // queries themselves are not used until relation extraction moves to
-  // Tree-sitter queries (M1-07).
+  // `relationQueries` is only a marker: the parser and the extractor look at
+  // whether it is present. The call and import patterns themselves live in
+  // the query layers of the registry entry (`queries/<lang>/`).
   if (options.relations) profile.relationQueries = {};
   if (options.isExported) profile.isExported = options.isExported;
   if (options.includeDefinition) profile.includeDefinition = options.includeDefinition;

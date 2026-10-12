@@ -4,8 +4,9 @@
  * Most grammars ship a `queries/tags.scm` that follows one convention:
  * `@definition.<suffix>` marks a definition node, `@reference.<suffix>` marks a
  * reference, and `@name` marks the identifier inside either. This module runs
- * such queries and turns the matches into definitions and references, so a
- * language needs a grammar and a query file instead of hand-written code.
+ * such queries and turns the matches into definitions, references and the
+ * relations built from them (calls, imports), so a language needs a grammar
+ * and query files instead of hand-written code.
  *
  * Nothing here knows about a specific language. Language-specific behavior
  * lives in the query files (`queries/<lang>/`) and, as a documented exception,
@@ -356,65 +357,6 @@ export class TagsQuery {
 
 function hasProperties(properties: Record<string, string | null> | undefined): boolean {
   return properties !== undefined && properties !== null && Object.keys(properties).length > 0;
-}
-
-/** A half-open range of source offsets: `[start, end)`. */
-export type OffsetRange = readonly [start: number, end: number];
-
-/**
- * True for a node that is text, not code: `name(` inside it is never a call.
- * Grammars name these nodes differently (`string_fragment`, `string_content`,
- * `interpreted_string_literal_content`, `line_str_text`, `heredoc_body`, ...),
- * so the type is matched by what every grammar's name has in common instead of
- * by a per-language list. Only the innermost node at an offset is tested, so
- * code inside an interpolation (`${f()}`, `f"{f()}"`) is an identifier there
- * and stays visible. A grammar with other names is simply not filtered.
- */
-const TEXT_NODE_TYPE = /comment|string|str_text|heredoc|regex|jsx_text|escape_sequence/;
-
-/**
- * True for a declaration that names a callable and its parameters but is not
- * a call and has no body: interface and abstract members, overloads, ambient
- * functions (`method_signature`, `function_signature_item`, ...), Go interface
- * method specifications (`method_elem`, `method_spec`).
- */
-const SIGNATURE_NODE_TYPE = /signature|^method_elem$|^method_spec$/;
-
-/**
- * The source ranges, among those that contain one of `offsets`, in which
- * `name(` is not a call: string and comment text, and signature-only
- * declarations. `offsets` are the places where the regex call extractor
- * (`relation-extractor.ts`) sees a callee name; it skips the ones inside the
- * returned ranges.
- *
- * Only the given offsets are looked up in the tree (one node each), which is
- * far cheaper than collecting every string and comment of a file. Nothing
- * here knows a specific language.
- *
- * @param offsets - ascending source offsets, each at the start of an identifier
- * @returns ranges sorted by start, non-overlapping
- */
-export function ignoredRangesAt(root: Node, offsets: readonly number[]): OffsetRange[] {
-  const ranges: OffsetRange[] = [];
-  let covered = -1;
-  for (const offset of offsets) {
-    if (offset < covered) continue;
-    const node = root.descendantForIndex(offset, offset + 1);
-    if (!node) continue;
-    let ignored: Node | null = null;
-    if (node.isNamed && TEXT_NODE_TYPE.test(node.type)) {
-      ignored = node;
-    } else {
-      // The name of a signature is a direct child of the signature node.
-      const parent = node.parent;
-      if (parent && SIGNATURE_NODE_TYPE.test(parent.type)) ignored = parent;
-    }
-    if (!ignored) continue;
-    // Everything before `offset` is already decided, so a range never reaches back over an earlier one.
-    ranges.push([Math.max(ignored.startIndex, covered), ignored.endIndex]);
-    covered = ignored.endIndex;
-  }
-  return ranges;
 }
 
 /** Node types that are the body of a function in some grammar (`block`, `function_body`, `compound_statement`, ...). */

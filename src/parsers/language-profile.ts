@@ -29,7 +29,13 @@ export interface LanguageProfile {
   extensions: string[];
   /** Path to the tree-sitter WASM parser file */
   parserWasmPath: string;
-  /** Optional relation extraction queries. If absent, relations are not extracted. */
+  /**
+   * Marks a language whose relations are extracted (registry tier `deep`); if
+   * absent, no relation is stored. Only its presence matters: calls and
+   * imports come from the `@reference.call` / `@reference.import` patterns of
+   * the language's query layers (`TagsQuery.relations`), not from the strings
+   * in this object.
+   */
   relationQueries?: RelationQueries;
   /**
    * Decide whether a named symbol is visible outside its module/package,
