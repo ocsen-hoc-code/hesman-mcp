@@ -5,7 +5,7 @@ import { embedBatch } from '../stores/embedding.js';
 import type { ZVecStore } from '../stores/zvec.js';
 import { createLogger } from '../utils/logger.js';
 import type { HesmanConfig } from '../config/schema.js';
-import { INDEX_SCHEMA_VERSION, type SqliteStore } from '../stores/sqlite.js';
+import { INDEX_SCHEMA_VERSION, isCorruptDatabaseError, type SqliteStore } from '../stores/sqlite.js';
 import { scanProject, type ScannedFile } from './project-scanner.js';
 import { indexTextFile, storedTextChunkIds } from './text-indexer.js';
 import { parseFile, initParser, type ExtractedSymbol } from '../parsers/core.js';
@@ -102,9 +102,10 @@ function resetOutdatedIndex(store: SqliteStore, zvecStore?: ZVecStore): void {
     'Index schema is outdated — forcing a full re-index',
   );
   // Vectors are only written for stored symbols: an empty index (new data dir)
-  // has none to go stale.
+  // has none to go stale. An empty index that replaced a damaged one says so
+  // itself: it records its vectors as outdated (`SqliteStore.rebuild`).
   const stats = store.getStats();
-  const hadData = stats.totalSymbols > 0 || stats.lastIndexTime !== null;
+  const hadData = stats.totalSymbols > 0 || stats.lastIndexTime !== null || store.getVectorSchemaVersion() !== undefined;
   zvecStore?.clear();
   store.clearIndex();
   store.setIndexSchemaVersion(INDEX_SCHEMA_VERSION);
@@ -149,6 +150,14 @@ export async function waitForRequestedGrammars(requested: readonly string[], sig
   return requested.filter((id) => store.availablePath(id) !== null);
 }
 
+/**
+ * Indexes the project: every file that is new or changed since the last run.
+ *
+ * The index is derived data. When SQLite reports the database as corrupt
+ * while the run reads or resets it, the damaged files are moved aside
+ * (`SqliteStore.rebuild`), the vectors written for them are cleared, and the
+ * run starts over on the empty index, once.
+ */
 export async function indexProject(
   rootDir: string,
   store: SqliteStore,
@@ -156,6 +165,23 @@ export async function indexProject(
   zvecStore?: ZVecStore,
   pool?: WorkerPool,
   options: IndexOptions = {},
+): Promise<IndexResult> {
+  try {
+    return await runIndexPass(rootDir, store, config, zvecStore, pool, options);
+  } catch (err) {
+    if (!isCorruptDatabaseError(err)) throw err;
+    store.rebuild(err);
+    return runIndexPass(rootDir, store, config, zvecStore, pool, options);
+  }
+}
+
+async function runIndexPass(
+  rootDir: string,
+  store: SqliteStore,
+  config: HesmanConfig,
+  zvecStore: ZVecStore | undefined,
+  pool: WorkerPool | undefined,
+  options: IndexOptions,
 ): Promise<IndexResult> {
   const startTime = Date.now();
   const errors: string[] = [];

@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import type BetterSqlite3 from 'better-sqlite3';
 import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('sqlite');
@@ -279,6 +279,24 @@ const MIGRATIONS = [
   )`,
 ];
 
+/** Name of the database file inside the data directory. */
+const DB_FILE = 'symbols.db';
+/** A database and the files SQLite keeps next to it in WAL mode. */
+const DB_FILE_SUFFIXES = ['', '-wal', '-shm'];
+/** Inserted after the database file name of a damaged database that was moved aside. */
+const CORRUPT_MARK = '.corrupt';
+
+/**
+ * True if SQLite reports that the database file itself is damaged
+ * (`SQLITE_CORRUPT`, also from a virtual table: `SQLITE_CORRUPT_VTAB`) or is
+ * not a database at all (`SQLITE_NOTADB`). The index is derived data, so the
+ * answer to these is to rebuild it (`SqliteStore.rebuild`), not to fail.
+ */
+export function isCorruptDatabaseError(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null | undefined)?.code;
+  return typeof code === 'string' && (code === 'SQLITE_NOTADB' || code.startsWith('SQLITE_CORRUPT'));
+}
+
 function withRetry<T>(fn: () => T, maxRetries = 3): T {
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -304,15 +322,66 @@ export class SqliteStore {
     this.dataDir = dataDir;
   }
 
+  /**
+   * Opens (or creates) the database. A file that SQLite reports as corrupt is
+   * moved aside and replaced by an empty database (see `rebuild`); any other
+   * failure is thrown.
+   */
   open(): void {
     mkdirSync(this.dataDir, { recursive: true });
-    const dbPath = join(this.dataDir, 'symbols.db');
-    this.db = new Database(dbPath);
-    this.db.pragma('journal_mode = WAL');
-    this.db.pragma('synchronous = NORMAL');
-    this.runMigrations();
-    this.ensureFtsTriggers();
-    log.info({ dbPath }, 'SQLite store opened');
+    try {
+      this.openDatabase();
+    } catch (err) {
+      if (!isCorruptDatabaseError(err)) throw err;
+      this.rebuild(err);
+    }
+    log.info({ dbPath: join(this.dataDir, DB_FILE) }, 'SQLite store opened');
+  }
+
+  private openDatabase(): void {
+    this.db = new Database(join(this.dataDir, DB_FILE));
+    try {
+      this.db.pragma('journal_mode = WAL');
+      this.db.pragma('synchronous = NORMAL');
+      this.runMigrations();
+      this.ensureFtsTriggers();
+    } catch (err) {
+      this.db.close();
+      throw err;
+    }
+  }
+
+  /**
+   * Replaces a damaged database by an empty one. The damaged files are moved
+   * aside as `symbols.db.corrupt` (`-wal`, `-shm`) rather than deleted, so
+   * they can still be inspected; only one such generation is kept, so repeated
+   * damage cannot fill the disk. Nothing else in the data directory is touched.
+   *
+   * The empty database has index schema version 0, so the next `indexProject`
+   * indexes every file again, and it records the vector documents as
+   * outdated: they were written for the damaged index and are cleared by the
+   * next run that has the vector store.
+   *
+   * @param reason - the error that showed the damage, for the log line
+   */
+  rebuild(reason: unknown): void {
+    const dbPath = join(this.dataDir, DB_FILE);
+    const movedTo = `${dbPath}${CORRUPT_MARK}`;
+    try {
+      if (this.db?.open) this.db.close();
+    } catch {
+      // A damaged database may not close cleanly; its files are moved either way.
+    }
+    for (const suffix of DB_FILE_SUFFIXES) {
+      rmSync(`${movedTo}${suffix}`, { force: true });
+      if (existsSync(`${dbPath}${suffix}`)) renameSync(`${dbPath}${suffix}`, `${movedTo}${suffix}`);
+    }
+    log.warn(
+      { dbPath, movedTo, error: reason instanceof Error ? reason.message : String(reason) },
+      'The index database is damaged: it was moved aside and the index is rebuilt from the project files',
+    );
+    this.openDatabase();
+    this.setVectorSchemaVersion(0);
   }
 
   close(): void {
