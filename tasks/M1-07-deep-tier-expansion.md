@@ -1,10 +1,10 @@
 ---
 id: M1-07
 title: Expand the deep tier (call graph + imports) to the most-used languages
-status: todo
+status: pending
 priority: P2
 depends_on: [M1-02, M1-03]
-updated: 2026-10-06
+updated: 2026-10-12
 ---
 
 ## Context
@@ -36,4 +36,5 @@ npx vitest run tests/conformance/
 
 ## Progress notes
 
+- 2026-10-12: started (branch `rebuild/m1-m2`).
 - 2026-10-06: task created.

@@ -1,7 +1,7 @@
 {
   "files": {
     "inventory.py": {
-      "symbolCount": { "min": 12, "max": 14 },
+      "symbolCount": { "min": 14, "max": 14 },
       "symbols": [
         { "name": "MAX_ITEMS", "kind": "constant", "line": 5, "isExported": true },
         { "name": "_DEFAULT_COUNT", "kind": "constant", "line": 6, "isExported": false },
@@ -24,21 +24,5 @@
         { "from": "restock_all", "to": "restock" }
       ]
     }
-  },
-  "knownGaps": [
-    {
-      "file": "inventory.py",
-      "check": "symbols",
-      "subject": "LOW_STOCK@7",
-      "reason": "the upstream tags query only tags `NAME = value`; the names of a tuple assignment (`A, B = 1, 2`) are not extracted",
-      "fixedBy": "unassigned (queries/python/hesman-tags.scm gap filler)"
-    },
-    {
-      "file": "inventory.py",
-      "check": "symbols",
-      "subject": "HIGH_STOCK@7",
-      "reason": "the upstream tags query only tags `NAME = value`; the names of a tuple assignment (`A, B = 1, 2`) are not extracted",
-      "fixedBy": "unassigned (queries/python/hesman-tags.scm gap filler)"
-    }
-  ]
+  }
 }
