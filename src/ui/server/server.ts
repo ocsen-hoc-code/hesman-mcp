@@ -74,8 +74,8 @@ const LIMITATIONS = [
   {
     feature: 'semantic_search',
     reason:
-      'The dashboard does not open the vector store or load the embedding model; both belong to the MCP server. ' +
-      'Run semantic_search through the MCP server.',
+      'The vector store can be open in one process only and the MCP server holds its lock; the dashboard also does ' +
+      'not load the embedding model. Run semantic_search through the MCP server.',
   },
   {
     feature: 'indexing_progress',
