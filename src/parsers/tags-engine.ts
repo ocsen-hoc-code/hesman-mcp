@@ -31,8 +31,14 @@ const IMPORT_SUFFIX = 'import';
 const IMPORT_NAME_CAPTURE = 'import.name';
 const IMPORT_ALIAS_CAPTURE = 'import.alias';
 const IMPORT_MODULE_CAPTURE = 'import.module';
+/**
+ * Reference suffix of a name that an object exposes as one of its members
+ * (`return { run, stop }`): a function of that name declared in the file is
+ * called through the object, as `obj.run()`.
+ */
+const MEMBER_SUFFIX = 'member';
 /** The relation suffixes, as they appear in query text. */
-const RELATION_CAPTURES = [...CALL_SUFFIXES, IMPORT_SUFFIX].map((suffix) => `@${REFERENCE_PREFIX}${suffix}`);
+const RELATION_CAPTURES = [...CALL_SUFFIXES, IMPORT_SUFFIX, MEMBER_SUFFIX].map((suffix) => `@${REFERENCE_PREFIX}${suffix}`);
 
 /** Signatures longer than this are cut (one very long line would bloat every response). */
 export const MAX_SIGNATURE_LENGTH = 200;
@@ -121,6 +127,8 @@ export interface ParsedReferences {
   calls: CallSite[];
   /** In document order. */
   imports: ImportSite[];
+  /** Names the file exposes as members of an object (`@reference.member`); absent when there is none. */
+  members?: string[];
 }
 
 /**
@@ -391,6 +399,7 @@ export class TagsQuery {
     const calls: Array<CallSite & { index: number }> = [];
     /** Imports by the node of their specifier: several patterns may describe one import. */
     const imports = new Map<number, ImportSite & { index: number; bound: Map<number, ImportedName & { index: number }> }>();
+    const members = new Set<string>();
     for (const match of matches) {
       const pattern = match.patternIndex - offset;
       if (pattern < 0 || skipped.has(pattern)) continue;
@@ -413,6 +422,11 @@ export class TagsQuery {
       if (!nameNode || !node || definitionNames.has(nameNode.id)) continue;
       const name = nameNode.text;
       if (name.length === 0) continue;
+
+      if (suffix === MEMBER_SUFFIX) {
+        members.add(name);
+        continue;
+      }
 
       if (suffix === IMPORT_SUFFIX) {
         let site = imports.get(nameNode.id);
@@ -456,6 +470,7 @@ export class TagsQuery {
           const names = [...bound.values()].sort((a, b) => a.index - b.index).map(({ index: _i, ...boundName }) => boundName);
           return { ...site, names };
         }),
+      ...(members.size > 0 ? { members: [...members] } : {}),
     };
   }
 

@@ -300,6 +300,36 @@ describe('the receiver of a call (M1-09)', () => {
   });
 });
 
+describe('functions exposed as members (M1-09)', () => {
+  const propertyFunctions = async (ext: string, lines: string[]): Promise<string[]> => {
+    const path = join(dir, `case${counter++}${ext}`);
+    writeFileSync(path, lines.join('\n') + '\n');
+    const result = await parseFile(path, profileFor(languageForPath(path) ?? '')!);
+    return result.symbols.filter((s) => s.is_property === 1).map((s) => s.name).sort();
+  };
+
+  it('TypeScript: a function listed in an object literal is a property function; one that is only called is not', async () => {
+    expect(
+      await propertyFunctions('.ts', [
+        'export function start() {',
+        '  const callTool = async (name: string): Promise<string> => name;',
+        '  function close(): void {}',
+        '  function helper(): number {',
+        '    return 1;',
+        '  }',
+        '  helper();',
+        '  return { callTool, close, count: helper() };',
+        '}',
+      ]),
+    ).toEqual(['callTool', 'close']);
+  });
+
+  it('Lua and Kotlin: a function declared as a member of a table or a type is a property function', async () => {
+    expect(await propertyFunctions('.lua', ['local M = {}', 'function M.clamp(n)', '  return n', 'end', 'local function plain(n)', '  return n', 'end'])).toEqual(['clamp']);
+    expect(await propertyFunctions('.kt', ['fun String.shout(): String {', '    return this', '}', 'private fun plain(): Int {', '    return 1', '}'])).toEqual(['shout']);
+  });
+});
+
 describe('the names an import binds (M1-09)', () => {
   it('TypeScript: named, aliased, default and namespace imports; a bare import binds nothing', async () => {
     const { imports } = await extract('.ts', [

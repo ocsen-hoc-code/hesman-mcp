@@ -274,6 +274,47 @@ describe('finding 2: a member call is not linked to a free function or a variabl
     expect(calleesOf(root, db, 'lib/api.js', 'start')).toEqual(['function run @ lib/api.js']);
   });
 
+  it('TypeScript: a member reached through its object is linked from another file, exported or not', async () => {
+    const { root, db } = await indexed({
+      // An object-literal method and a function listed in an object literal: neither is exported.
+      'src/adapter.ts': [
+        'export function createClient() {',
+        '  const callTool = async (name: string): Promise<string> => name;',
+        '  return {',
+        '    callTool,',
+        '    write(entry: string): string {',
+        '      return entry;',
+        '    },',
+        '  };',
+        '}',
+      ],
+      // Same-named methods elsewhere, not imported by the caller.
+      'src/other/logger.ts': [
+        'export class Logger {',
+        '  write(line: string): string {',
+        '    return line;',
+        '  }',
+        '  callTool(name: string): string {',
+        '    return name;',
+        '  }',
+        '}',
+      ],
+      'src/setup.ts': [
+        "import { createClient } from './adapter.js';",
+        'export async function setup(): Promise<string> {',
+        '  const client = createClient();',
+        "  const written = client.write('entry');",
+        "  return written + (await client.callTool('index_status'));",
+        '}',
+      ],
+    });
+    expect(calleesOf(root, db, 'src/setup.ts', 'setup')).toEqual([
+      'function callTool @ src/adapter.ts',
+      'function createClient @ src/adapter.ts',
+      'method write @ src/adapter.ts',
+    ]);
+  });
+
   it('Rust: `util::clamp()` links to the function of the module the path names', async () => {
     const { root, db } = await indexed({
       'src/util.rs': ['pub fn clamp(n: i32) -> i32 {', '    n', '}'],

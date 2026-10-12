@@ -80,3 +80,8 @@
 (call_expression
   function: (import)
   arguments: (arguments . (string (string_fragment) @name))) @reference.import
+
+; `return { run, stop }`: a function listed in an object literal is called
+; through that object (`obj.run()`), like a function stored under a key.
+(object
+  (shorthand_property_identifier) @name) @reference.member

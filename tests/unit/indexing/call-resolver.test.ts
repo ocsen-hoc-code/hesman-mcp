@@ -126,6 +126,20 @@ describe('pickCallTarget: member calls (M1-09)', () => {
     expect(pickCallTarget('/p/a.ts', [{ id: 'class', file_path: '/p/lib/item.py', type: true }], none, { receiver: 'models' })).toBe('class');
   });
 
+  it('a member that is not exported is reached through its object where its file is imported or in the same directory', () => {
+    const hidden: CallTargetCandidate = { id: 'hidden', file_path: '/p/lib/adapter.ts', member: true, reach: 'file' };
+    expect(pickCallTarget('/p/src/setup.ts', [hidden], new Set(['/p/lib/adapter.ts']), { receiver: 'client' })).toBe('hidden');
+    expect(pickCallTarget('/p/lib/setup.ts', [hidden], none, { receiver: 'client' })).toBe('hidden');
+    // The name alone is no evidence: not through the project-wide tier, and never by a bare call.
+    expect(pickCallTarget('/p/src/setup.ts', [hidden], none, { receiver: 'client' })).toBeNull();
+    expect(pickCallTarget('/p/src/setup.ts', [hidden], new Set(['/p/lib/adapter.ts']))).toBeNull();
+    expect(pickCallTarget('/p/lib/setup.ts', [hidden], none)).toBeNull();
+    // A free function that is out of reach stays out of reach for `util.f()`.
+    const lower = [{ id: 'lower', file_path: '/p/util/clamp.go', reach: 'directory' as const }];
+    expect(pickCallTarget('/p/cmd/main.go', lower, none, { receiver: 'util' })).toBeNull();
+    expect(pickCallTarget('/p/util/item.go', lower, none, { receiver: 'util' })).toBe('lower');
+  });
+
   it('a receiver that names the module, class or namespace of a free function reaches it', () => {
     expect(pickCallTarget('/p/src/main.rs', [{ id: 'f', file_path: '/p/src/util.rs' }], none, { receiver: 'util' })).toBe('f');
     expect(pickCallTarget('/p/src/main.rs', [{ id: 'f', file_path: '/p/src/util/mod.rs' }], none, { receiver: 'util' })).toBe('f');

@@ -300,8 +300,25 @@ function forReceiver(
   return { candidates: pool.filter((c) => c.member || c.type || namesContainer(receiver, c)) };
 }
 
-/** True if a call from `callerFile` can name `candidate`, which is in another file reached through `tier`. */
-function reaches(candidate: CallTargetCandidate, callerDir: string, tier: 'import' | 'directory' | 'project'): boolean {
+/**
+ * True if a call from a file in `callerDir` can reach `candidate`, which is in
+ * another file found through `tier`.
+ *
+ * Visibility is about names: a call without a receiver names its target, so
+ * the target must be visible from the calling file. A member call
+ * (`memberCall`) reaches a member through a value, and a value travels: the
+ * method of an object literal or of a class that is not exported is called
+ * from the files that receive the object. Such a member is therefore linked
+ * when the calling file imports its file or shares its directory, and never
+ * through the project-wide tier, where the only evidence would be the name.
+ */
+function reaches(
+  candidate: CallTargetCandidate,
+  callerDir: string,
+  tier: 'import' | 'directory' | 'project',
+  memberCall: boolean,
+): boolean {
+  if (memberCall && candidate.member && candidate.reach === 'file') return tier !== 'project';
   switch (candidate.reach) {
     case undefined:
       return true;
@@ -325,9 +342,9 @@ function reaches(candidate: CallTargetCandidate, callerDir: string, tier: 'impor
  * several → ambiguous, returns `null` (no fan-out to every same-named symbol).
  *
  * Two rules narrow the candidates first. Visibility: a candidate is only
- * counted in a tier it can be called from (`CallTargetCandidate.reach`), so a
- * module-private symbol is never the target of a call in another file,
- * however unique its name is. Member calls: see `forReceiver`.
+ * counted in a tier it can be called from (`CallTargetCandidate.reach`, see
+ * `reaches`), so a module-private symbol is never the target of a bare call
+ * in another file, however unique its name is. Member calls: see `forReceiver`.
  *
  * Calls of an imported name are decided before this by `resolveCall`.
  */
@@ -340,11 +357,12 @@ export function pickCallTarget(
   const narrowed = forReceiver(candidates, call);
   if (narrowed.decided !== undefined) return narrowed.decided;
   const callerDir = dirname(callerFile);
+  const memberCall = call.receiver !== undefined && call.receiver !== null;
   const tiers: Array<(c: CallTargetCandidate) => boolean> = [
     (c) => c.file_path === callerFile,
-    (c) => imported.has(c.file_path) && reaches(c, callerDir, 'import'),
-    (c) => dirname(c.file_path) === callerDir && reaches(c, callerDir, 'directory'),
-    (c) => reaches(c, callerDir, 'project'),
+    (c) => imported.has(c.file_path) && reaches(c, callerDir, 'import', memberCall),
+    (c) => dirname(c.file_path) === callerDir && reaches(c, callerDir, 'directory', memberCall),
+    (c) => reaches(c, callerDir, 'project', memberCall),
   ];
   for (const inTier of tiers) {
     const hits = narrowed.candidates.filter(inTier);
@@ -441,9 +459,10 @@ function throughImport(
   specifier: string,
   candidates: CallTargetCandidate[],
   lookup: ImportLookup,
+  memberCall: boolean,
 ): CallTargetCandidate[] {
   const callerDir = dirname(imports.file);
-  const visible = candidates.filter((c) => c.file_path === imports.file || reaches(c, callerDir, 'import'));
+  const visible = candidates.filter((c) => c.file_path === imports.file || reaches(c, callerDir, 'import', memberCall));
   if (visible.length === 0) return [];
   let modules: ImportedFiles[] = [imports.filesOf(specifier)];
   const visited = new Set<string>();
@@ -505,15 +524,15 @@ export function resolveCall(
 
   if (receiver === undefined) {
     const binding = imports.binding(name);
-    if (binding) return unique(throughImport(imports, binding.specifier, candidates, lookup));
+    if (binding) return unique(throughImport(imports, binding.specifier, candidates, lookup, false));
   } else {
     const binding = imports.binding(receiver);
     if (binding) {
       const specifier = imports.submodule(binding, receiver) ?? binding.specifier;
-      const hits = throughImport(imports, specifier, candidates, lookup);
+      const hits = throughImport(imports, specifier, candidates, lookup, true);
       if (hits.length > 0 || binding.module) return unique(hits);
       if (specifier !== binding.specifier) {
-        const members = throughImport(imports, binding.specifier, narrowed.candidates, lookup);
+        const members = throughImport(imports, binding.specifier, narrowed.candidates, lookup, true);
         if (members.length > 0) return unique(members);
       }
     }
