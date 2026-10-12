@@ -335,6 +335,25 @@ describe('indexing a project with an on-demand language', () => {
       }
       await indexProject(root, store, config());
       expect(symbolNames()).toEqual(['report', 'safe_mean', 'spread']);
+
+      // The download alone (request, body, sha256, atomic write), into an empty cache.
+      const emptyCache = mkdtempSync(join(tmpdir(), 'hesman-on-demand-cache-'));
+      try {
+        const fresh = configureGrammarStore({ cacheRoot: emptyCache, fetch, offline: false });
+        const before = performance.now();
+        expect(fresh.request(['r'])).toEqual(['r']);
+        const returned = performance.now();
+        await fresh.settled();
+        const done = performance.now();
+        expect(fresh.status('r')).toEqual({ state: 'cached' });
+        // request() only starts the download: the caller is not held up by it.
+        expect(returned - before).toBeLessThan(50);
+        if (process.env.HESMAN_PRINT_TIMINGS) {
+          console.log(`request() returned after ${(returned - before).toFixed(2)} ms; download + verify + write took ${(done - before).toFixed(1)} ms`);
+        }
+      } finally {
+        rmSync(emptyCache, { recursive: true, force: true });
+      }
     });
   });
 });

@@ -232,24 +232,33 @@ export class GrammarStore {
     return join(this.cacheDir, `${id}-${this.required(id).sha256.slice(0, 12)}.wasm`);
   }
 
-  /** Hashes the cached file; deletes it when it does not match. */
-  private verifyCached(id: string, entry: GrammarEntry, path: string): boolean {
+  /** Reads and hashes the cached file; deletes it when it does not match. Returns the verified bytes, or null. */
+  private readVerified(id: string, entry: GrammarEntry, path: string): Buffer | null {
     let bytes: Buffer;
     try {
       bytes = readFileSync(path);
     } catch {
       this.verified.delete(id);
-      return false;
+      return null;
     }
     if (bytes.length === entry.bytes && sha256(bytes) === entry.sha256) {
-      const st = statSync(path);
-      this.verified.set(id, { size: st.size, mtimeMs: st.mtimeMs });
-      return true;
+      try {
+        const st = statSync(path);
+        this.verified.set(id, { size: st.size, mtimeMs: st.mtimeMs });
+      } catch {
+        this.verified.delete(id);
+      }
+      return bytes;
     }
     log.warn({ language: id, path }, 'Cached grammar does not match its pinned sha256; deleting it');
     this.verified.delete(id);
     rmSync(path, { force: true });
-    return false;
+    return null;
+  }
+
+  /** Hashes the cached file; deletes it when it does not match. */
+  private verifyCached(id: string, entry: GrammarEntry, path: string): boolean {
+    return this.readVerified(id, entry, path) !== null;
   }
 
   /**
@@ -285,6 +294,19 @@ export class GrammarStore {
     const path = this.cachePath(id);
     if (!this.verifyCached(id, entry, path)) throw new Error(`The ${id} grammar is not available in ${this.cacheDir}`);
     return path;
+  }
+
+  /**
+   * The bytes of a cached on-demand grammar, hashed now. This is what the
+   * runtime loads: the file is read once, so it cannot change between the
+   * check and the load. Throws when the grammar is missing or does not match.
+   */
+  verifiedBytes(id: string): Uint8Array {
+    const entry = this.required(id);
+    if (entry.bundled) throw new Error(`The ${id} grammar is bundled; it is loaded from ${this.parsersDir}`);
+    const bytes = this.readVerified(id, entry, this.cachePath(id));
+    if (!bytes) throw new Error(`The ${id} grammar is not available in ${this.cacheDir}`);
+    return bytes;
   }
 
   status(id: string): GrammarStatus {
@@ -486,11 +508,12 @@ export function configureGrammarStore(options: GrammarStoreOptions): GrammarStor
 }
 
 /**
- * The file to load for a profile: its `parsers/` path for a bundled language,
- * or the cached grammar (hashed again now) for a language fetched on demand.
+ * What `Language.load` gets for a profile: the `parsers/` path of a bundled
+ * language, or the bytes of the cached grammar (hashed again now) for a
+ * language fetched on demand.
  */
-export function grammarFileFor(profile: { language: string; parserWasmPath: string }): string {
+export function grammarSourceFor(profile: { language: string; parserWasmPath: string }): string | Uint8Array {
   const store = grammarStore();
   const entry = store.entry(profile.language);
-  return entry && !entry.bundled ? store.verifiedPath(profile.language) : profile.parserWasmPath;
+  return entry && !entry.bundled ? store.verifiedBytes(profile.language) : profile.parserWasmPath;
 }

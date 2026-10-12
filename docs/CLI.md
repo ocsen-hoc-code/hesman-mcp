@@ -1,6 +1,6 @@
 # Hesman CLI
 
-`hesman` without a subcommand runs the MCP server on stdio. This page covers the subcommands that connect it to AI clients (`setup`, `remove`, `doctor`) and the local dashboard (`ui`). `hesman --help` lists the others (`index`, `status`, `clean`, `diag`).
+`hesman` without a subcommand runs the MCP server on stdio. This page covers the subcommands that connect it to AI clients (`setup`, `remove`, `doctor`), the local dashboard (`ui`) and the grammar cache (`grammars`). `hesman --help` lists the others (`index`, `status`, `clean`, `diag`).
 
 Supported clients and their `--client` names: `claude-code`, `claude-desktop`, `codex`, `cursor`, `antigravity`, `vscode`, `gemini-cli`, `windsurf`. Accepted short names: `gemini` (gemini-cli), `copilot` and `code` (vscode), `codex-cli` (codex). `claude` is rejected as ambiguous.
 
@@ -189,3 +189,66 @@ All responses are JSON: `{ "ok": true, "data": ... }` or `{ "ok": false, "error"
 | `POST /api/tools/:name` | body `{ "args": { ... } }` as `application/json`, at most 1 MiB | `result` (the tool's JSON, including `_meta`), `isError`, `durationMs` |
 
 A tool error is a `200` with `isError: true` and the tool's `error` object in `result`, exactly as over MCP. HTTP errors use the codes `UNAUTHORIZED` (401), `FORBIDDEN` (403), `NOT_FOUND` and `SYMBOL_NOT_FOUND` (404), `METHOD_NOT_ALLOWED` (405), `TOOL_UNAVAILABLE` (409), `PAYLOAD_TOO_LARGE` (413), `UNSUPPORTED_MEDIA_TYPE` (415), `INVALID_INPUT` (400) and `INTERNAL_ERROR` (500).
+
+## `hesman grammars`
+
+Hesman ships 16 Tree-sitter grammars in the package. Other grammars are downloaded on demand into a per-user cache; this command shows the state of all of them and fills the cache by hand. The server does the same download by itself, in the background, when a project contains files of an on-demand language — `hesman grammars install` is for preparing a machine in advance or for machines without network access.
+
+```
+hesman grammars list [--json]
+hesman grammars install <language…>
+hesman grammars install --all
+hesman grammars install --from <directory> [language…]
+```
+
+| Command | What it does |
+|---|---|
+| `list` | One line per grammar: language, state (`bundled`, `cached`, `available`), size, ABI, whether it gives symbols or leaves its files on the text tier, source repository, tag and license. Then the totals and the cache directory. `hesman grammars` alone is the same. |
+| `list --json` | The same as one JSON object (below). |
+| `install <language…>` | Downloads the named grammars from the URLs pinned in `grammars.json`. A language that is not in the catalog is rejected before anything is downloaded. |
+| `install --all` | Prints how many grammars are missing and the total download size first, then downloads every on-demand grammar. The whole catalog is 24 grammars, 46.9 MB (46,893,269 bytes). |
+| `install --from <directory> [language…]` | Installs from `.wasm` files in a directory, without the network (it also works in offline mode). A file is recognised by its release name (`tree-sitter-scala.wasm`) or its cache name (`scala-37d7fe5a91ca.wasm`), so the cache directory of another machine can be copied as it is. Without languages, every catalog grammar found in the directory is installed. |
+
+Rules that hold for every path into the cache:
+
+- **Pinned.** A grammar is identified by URL, size and sha256 in `grammars.json`, which ships in the package. Hesman never asks a remote service which grammars exist and never contacts a URL that is not in that file.
+- **Verified twice.** The bytes are hashed before they are written (temporary file, then rename) and the cached file is hashed again before it is loaded. A file that does not match is deleted and counts as missing.
+- **Cache location.** `HESMAN_CACHE_DIR`, else `XDG_CACHE_HOME` (absolute paths only), else `~/Library/Caches` on macOS, `%LOCALAPPDATA%` on Windows and `~/.cache` elsewhere; under it `hesman/grammars/abi-15/<language>-<first 12 hex of sha256>.wasm`. `abi-15` is the highest grammar ABI the bundled runtime loads. A `NOTICE.txt` next to the files names the repository, tag and license of each cached grammar.
+- **Offline mode.** With `HESMAN_GRAMMARS_OFFLINE=1` (or `true`), or `"grammars": { "offline": true }` in `hesman.config.json`, nothing is downloaded: `install <language…>` and `install --all` fail with a hint to use `--from`, and the server leaves files of uncached languages on the text tier. Grammars that are already cached keep working.
+
+Exit code: `0` when every requested grammar is bundled, cached or was installed; `1` when one failed (unknown language, network error, wrong hash, offline, file not found in `--from`).
+
+Six on-demand grammars come with a symbols query (`scala`, `ocaml`, `fsharp`, `r`, `codeql`, `arduino`): once cached, files of those languages are parsed and their functions, classes and modules are indexed. The other 18 are listed as `text tier`: they are pinned and installable, but no symbols query exists for them yet, so Hesman indexes their files as text and never downloads them automatically.
+
+### `list --json` output
+
+```json
+{
+  "abi": { "min": 13, "max": 15 },
+  "cacheDir": "/Users/me/Library/Caches/hesman/grammars/abi-15",
+  "offline": false,
+  "totals": { "bundled": 16, "bundledBytes": 27327695, "cached": 1, "cachedBytes": 487039, "onDemand": 24, "onDemandBytes": 46893269 },
+  "grammars": [
+    {
+      "id": "r",
+      "state": "cached",
+      "bytes": 487039,
+      "abi": 14,
+      "symbols": true,
+      "extensions": [".r"],
+      "license": "MIT",
+      "repo": "https://github.com/r-lib/tree-sitter-r",
+      "rev": "v1.3.0",
+      "url": "https://github.com/r-lib/tree-sitter-r/releases/download/v1.3.0/tree-sitter-r.wasm",
+      "sha256": "3e406e27cec05a60ba3281e2da021187200b83d152d9eb0dcf0a731cbfbcc28d",
+      "path": "/Users/me/Library/Caches/hesman/grammars/abi-15/r-3e406e27cec0.wasm"
+    }
+  ]
+}
+```
+
+`state` is `bundled` (in the package), `cached` (downloaded and verified) or `available` (in the catalog, not downloaded). `symbols` is `false` for a grammar without a symbols query. `extensions` is present only when `symbols` is `true`; `path` only when `state` is `cached`. `onDemand` and `onDemandBytes` count the whole catalog, cached or not.
+
+### Maintaining the catalog
+
+`grammars.json` is generated: `npx tsx scripts/generate-grammar-manifest.ts` builds it from the bundled set (`scripts/download-parsers.ts`, `parsers/`, `NOTICE`) and the on-demand table in `scripts/grammar-catalog.ts`; a unit test fails while the committed file is out of date. Each on-demand entry is the `.wasm` asset of the grammar's own upstream release. After changing an entry or a query of an on-demand language, run `npx tsx scripts/verify-grammar-catalog.ts` (network): it downloads every pinned file through the same code the server uses, checks hash, size and ABI, and compiles the vendored queries against the grammar.

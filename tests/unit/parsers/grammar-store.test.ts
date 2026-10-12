@@ -172,6 +172,17 @@ describe('GrammarStore', () => {
     expect(existsSync(store.cachePath('zig'))).toBe(false);
   });
 
+  it('hands the loader the bytes it hashed, so the file cannot be swapped between the check and the load', async () => {
+    const store = storeWith(serving(BYTES));
+    await store.install('zig');
+    expect(Buffer.from(store.verifiedBytes('zig'))).toEqual(BYTES);
+
+    writeFileSync(store.cachePath('zig'), Buffer.from(BYTES.toString().toUpperCase()));
+    expect(() => store.verifiedBytes('zig')).toThrow(/not available/);
+    expect(existsSync(store.cachePath('zig'))).toBe(false);
+    expect(() => store.verifiedBytes('lua')).toThrow(/bundled/);
+  });
+
   it('accepts a file another process cached', () => {
     const store = storeWith(serving(BYTES));
     mkdirSync(store.cacheDir, { recursive: true });

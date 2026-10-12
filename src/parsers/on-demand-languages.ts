@@ -35,7 +35,7 @@ function defineOnDemand(id: string, entry: GrammarManifest['grammars'][string]):
   const profile: LanguageProfile = {
     language: id,
     extensions: [...extensions],
-    // Where the grammar is cached. `core.ts` loads it through `grammarFileFor`, which hashes the file first.
+    // Where the grammar is cached. `core.ts` loads it through `grammarSourceFor`, which hashes the file first.
     get parserWasmPath(): string {
       return grammarStore().cachePath(id);
     },
