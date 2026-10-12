@@ -18,6 +18,9 @@ import {
 import { ON_DEMAND_LANGUAGES, onDemandLanguageForPath } from '../../../src/parsers/on-demand-languages';
 import { textLanguageForPath } from '../../../src/parsers/text-languages';
 import { parseFile } from '../../../src/parsers/core';
+import { realDoctorEnvironment } from '../../../src/cli/doctor/environment';
+import { runDoctor } from '../../../src/cli/doctor/doctor';
+import { cleanupEnvs, makeEnv } from '../cli/clients/helpers';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const GRAMMAR_FIXTURES = join(REPO, 'tests', 'fixtures', 'grammars');
@@ -116,5 +119,39 @@ describe('on-demand languages', () => {
     await expect(parseFile(join(REPO, 'tests', 'fixtures', 'on-demand', 'r', 'stats.R'), profileFor('scala')!)).rejects.toThrow(
       /scala grammar is not available/,
     );
+  });
+
+  it('are not bundled parsers for hesman doctor: a missing on-demand grammar is not a failed check', async () => {
+    const machine = realDoctorEnvironment();
+    expect(machine.grammars).toHaveLength(16);
+    for (const def of ON_DEMAND_LANGUAGES) expect(machine.grammars).not.toContain(def.grammar);
+
+    const lines: string[] = [];
+    const env = makeEnv();
+    try {
+      await runDoctor(
+        ['--json'],
+        { env, out: (line) => lines.push(line) },
+        {
+          ...machine,
+          // No process is started and no request is made.
+          fetchStatus: async () => 404,
+          probe: async () => ({
+            handshakeMs: 1,
+            timedOut: false,
+            server: { name: 'hesman', version: '1.0.0' },
+            nonProtocolStdout: [],
+            stderrTail: [],
+            project: { state: 'opened', root: env.cwd, source: 'working directory' },
+          }),
+        },
+      );
+    } finally {
+      cleanupEnvs();
+    }
+    const report = JSON.parse(lines.join('\n')) as { server: { checks: Array<{ id: string; status: string; message: string }> } };
+    const parsers = report.server.checks.find((check) => check.id === 'parsers')!;
+    expect(parsers.status).toBe('pass');
+    expect(parsers.message).toContain('All 16 bundled parsers');
   });
 });
