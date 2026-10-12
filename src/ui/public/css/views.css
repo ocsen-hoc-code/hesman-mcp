@@ -308,6 +308,7 @@ summary.log-head::before {
   content: '+';
   position: absolute;
   left: var(--space-2);
+  top: var(--space-1);
   font-family: var(--font-code);
   color: var(--ink-muted);
 }
@@ -438,4 +439,9 @@ details[open] > summary.log-head::before {
   .page-head {
     margin-bottom: var(--space-4);
   }
+}
+
+/* The first section of a column sits right under the page head. */
+.columns > div > .section:first-child {
+  margin-top: 0;
 }

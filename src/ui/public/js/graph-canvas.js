@@ -37,6 +37,7 @@ export function createGraphCanvas({ onSelect }) {
   );
   let full = { x: 0, y: 0, w: 1000, h: 640 };
   let view = { ...full };
+  let fitted = '';
 
   const applyView = () => svg.setAttribute('viewBox', `${view.x.toFixed(1)} ${view.y.toFixed(1)} ${view.w.toFixed(1)} ${view.h.toFixed(1)}`);
 
@@ -92,9 +93,18 @@ export function createGraphCanvas({ onSelect }) {
 
   function draw(graph, positions, size, selectedId) {
     const hadFocus = svg.contains(document.activeElement) ? document.activeElement.dataset.id : null;
-    const sizeChanged = size.width !== full.w || size.height !== full.h;
-    full = { x: 0, y: 0, w: size.width, h: size.height };
-    if (sizeChanged) view = { ...full };
+    // Fit the view to what is drawn (plus room for labels) whenever the set of nodes changes.
+    const points = graph.nodes.map((n) => positions.get(n.id)).filter(Boolean);
+    const signature = `${graph.nodes.length}:${graph.rootId}:${size.width}`;
+    if (points.length > 0 && signature !== fitted) {
+      fitted = signature;
+      const minX = Math.min(...points.map((p) => p.x)) - 50;
+      const maxX = Math.max(...points.map((p) => p.x)) + 130;
+      const minY = Math.min(...points.map((p) => p.y)) - 30;
+      const maxY = Math.max(...points.map((p) => p.y)) + 30;
+      full = { x: minX, y: minY, w: Math.max(300, maxX - minX), h: Math.max(200, maxY - minY) };
+      view = { ...full };
+    }
     applyView();
 
     const degree = degrees(graph);
@@ -104,6 +114,8 @@ export function createGraphCanvas({ onSelect }) {
       if (edge.to === selectedId) neighbors.add(edge.from);
     }
     const labelAll = graph.nodes.length <= ALL_LABELS_UP_TO;
+    // A hub has too many neighbors to label them all; then only the busiest nodes keep their label.
+    const labelNeighbors = neighbors.size <= 30;
     const busiest = new Set([...degree.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([id]) => id));
     const radius = (node) => (node.kind === 'file' ? 5 + Math.min(7, Math.sqrt(node.symbols ?? 1)) : 6 + Math.min(5, Math.sqrt(degree.get(node.id) ?? 0)));
     const radii = new Map(graph.nodes.map((n) => [n.id, radius(n)]));
@@ -135,7 +147,7 @@ export function createGraphCanvas({ onSelect }) {
       ...graph.nodes.map((node) => {
         const at = positions.get(node.id) ?? { x: size.width / 2, y: size.height / 2 };
         const r = radii.get(node.id);
-        const labelled = labelAll || node.id === graph.rootId || node.id === selectedId || neighbors.has(node.id) || busiest.has(node.id);
+        const labelled = labelAll || node.id === graph.rootId || node.id === selectedId || (labelNeighbors && neighbors.has(node.id)) || busiest.has(node.id);
         const classes = ['node', `kind-${SQUARE_KINDS.has(node.kind) ? 'type' : TRIANGLE_KINDS.has(node.kind) ? 'value' : 'callable'}`];
         if (node.id === graph.rootId) classes.push('is-root');
         if (node.id === selectedId) classes.push('is-selected');

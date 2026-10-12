@@ -231,6 +231,22 @@ describe('layoutGraph', () => {
     expect(linked).toBeLessThan((total / count) * 0.6);
   });
 
+  it('keeps unconnected groups off the border instead of pushing them into the corners', () => {
+    // A dense group of 30 and two small groups with no link to it.
+    const group = Array.from({ length: 38 }, (_, i) => ({ id: `g${i}` }));
+    const links = [];
+    for (let i = 1; i < 30; i++) links.push({ from: `g${i}`, to: `g${Math.floor(i / 2)}` }, { from: `g${i}`, to: 'g0' });
+    for (let i = 31; i < 34; i++) links.push({ from: 'g30', to: `g${i}` });
+    for (let i = 35; i < 38; i++) links.push({ from: 'g34', to: `g${i}` });
+    const onBorder = (options: object) =>
+      [...layoutGraph(group, links, { width: 1000, height: 640, padding: 40, ...options }).values()].filter(
+        (p: { x: number; y: number }) => p.x <= 41 || p.y <= 41 || p.x >= 959 || p.y >= 599,
+      ).length;
+    expect(onBorder({})).toBe(0);
+    // Without the pull to the middle the same graph ends up squeezed against the edges.
+    expect(onBorder({ gravity: 0 })).toBeGreaterThan(3);
+  });
+
   it('pins the fixed node at the center and starts from known positions', () => {
     const pos = layoutGraph(nodes.slice(0, 5), edges.slice(0, 4), { width: 600, height: 400, fixedId: 'n0' });
     expect(pos.get('n0')).toEqual({ x: 300, y: 200 });

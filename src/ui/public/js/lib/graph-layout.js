@@ -18,6 +18,8 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
  * @param edges `[{ from, to }]`
  * @param options `{ width, height, positions?: Map<id,{x,y}>, fixedId?, iterations?, padding? }`
  *   `positions` are starting points for nodes laid out before, so an expanded graph does not jump.
+ *   `gravity` (default 4) pulls every node to the middle; it keeps unconnected groups from being
+ *   pushed against the border.
  * @returns Map<id, { x, y }>
  */
 export function layoutGraph(nodes, edges, options) {
@@ -49,6 +51,14 @@ export function layoutGraph(nodes, edges, options) {
   const links = edges
     .map((e) => [index.get(e.from), index.get(e.to)])
     .filter(([a, b]) => a !== undefined && b !== undefined && a !== b);
+  // A node with many links would pull all its neighbors onto itself, so each link is weakened
+  // by the size of the smaller of its two ends.
+  const degree = new Float64Array(n);
+  for (const [a, b] of links) {
+    degree[a]++;
+    degree[b]++;
+  }
+  const gravity = options.gravity ?? 4;
 
   // Ideal distance between neighbors, from the free area per node.
   const k = Math.sqrt(((width - 2 * padding) * (height - 2 * padding)) / n) * 0.9;
@@ -81,7 +91,7 @@ export function layoutGraph(nodes, edges, options) {
       const vx = xs[a] - xs[b];
       const vy = ys[a] - ys[b];
       const d = Math.sqrt(vx * vx + vy * vy) || 0.01;
-      const force = d / k;
+      const force = d / k / Math.sqrt(Math.min(degree[a], degree[b]));
       dx[a] -= vx * force;
       dy[a] -= vy * force;
       dx[b] += vx * force;
@@ -91,8 +101,8 @@ export function layoutGraph(nodes, edges, options) {
     const temperature = (Math.min(width, height) / 8) * (1 - step / iterations) + 0.5;
     for (let i = 0; i < n; i++) {
       if (i === fixed) continue;
-      dx[i] += (cx - xs[i]) * 0.02;
-      dy[i] += (cy - ys[i]) * 0.02;
+      dx[i] += (cx - xs[i]) * gravity;
+      dy[i] += (cy - ys[i]) * gravity;
       const length = Math.sqrt(dx[i] * dx[i] + dy[i] * dy[i]) || 1;
       const move = Math.min(length, temperature);
       xs[i] = clamp(xs[i] + (dx[i] / length) * move, padding, width - padding);

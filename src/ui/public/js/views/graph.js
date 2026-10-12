@@ -208,7 +208,7 @@ export function mount(container, ctx) {
             {},
             h(
               'button',
-              { type: 'button', className: 'result', onclick: () => startFrom(symbol.id) },
+              { type: 'button', className: 'result', onclick: () => choose(symbol) },
               h('span', { className: 'result-name code' }, symbol.name),
               h('span', { className: 'muted' }, ` ${symbol.kind}${symbol.isExported ? ', exported' : ''} `),
               h('span', { className: 'muted code' }, `${symbol.filePath}:${symbol.startLine}`),
@@ -221,6 +221,14 @@ export function mount(container, ctx) {
       searchState.textContent = '';
       replace(results, h('li', {}, errorState(describeError(err), search)));
     }
+  }
+
+  /** Draw a search result and fold the result list away so the drawing has the room. */
+  function choose(symbol) {
+    searchRun++;
+    replace(results);
+    searchState.textContent = `Drawing ${symbol.name}. Type again to find another symbol.`;
+    startFrom(symbol.id);
   }
 
   function syncMode() {

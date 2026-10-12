@@ -35,11 +35,12 @@
 }
 
 .graph-controls {
-  position: absolute;
-  right: var(--space-2);
-  bottom: var(--space-2);
   display: flex;
+  justify-content: flex-end;
   gap: var(--space-1);
+  padding: var(--space-1);
+  border-top: 1px solid var(--rule);
+  background: var(--surface);
 }
 
 .edge {
@@ -59,7 +60,7 @@
 
 .edge.is-active {
   stroke: var(--accent);
-  stroke-width: 1.8;
+  stroke-width: 1.4;
 }
 
 .edge-arrow {
