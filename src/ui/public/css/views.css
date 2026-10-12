@@ -82,6 +82,12 @@
   font-size: inherit;
 }
 
+/* Names in the first column (language, tool) stay on one line; the table scrolls sideways instead. */
+.data td.code:first-child {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
 /* ── Overview ──────────────────────────────────────────────────────── */
 
 .index-state {
@@ -421,6 +427,11 @@ details[open] > summary.log-head::before {
   color: var(--ink-muted);
 }
 
+/* The first section of a column sits right under the page head. */
+.columns > div > .section:first-child {
+  margin-top: 0;
+}
+
 /* ── Phone width ───────────────────────────────────────────────────── */
 
 @media (max-width: 760px) {
@@ -436,12 +447,16 @@ details[open] > summary.log-head::before {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .columns > div + div > .section:first-child,
+  .columns > .section-first {
+    margin-top: var(--space-6);
+  }
+
+  .tier {
+    min-width: 4.6rem;
+  }
+
   .page-head {
     margin-bottom: var(--space-4);
   }
-}
-
-/* The first section of a column sits right under the page head. */
-.columns > div > .section:first-child {
-  margin-top: 0;
 }

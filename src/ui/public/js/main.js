@@ -71,7 +71,7 @@ async function start() {
   if (mock) {
     const { createMockFetch } = await import('./mock/mock-server.js');
     fetchImpl = createMockFetch({ scenario: query.get('scenario') ?? 'ready' });
-    connection.after(h('p', { className: 'mock-flag' }, 'Mock data, no server'));
+    connection.after(h('p', { className: 'mock-flag', title: 'Sample data generated in this page. No server is contacted.' }, 'Mock data'));
   }
   const api = createApi({ fetchImpl, token });
 

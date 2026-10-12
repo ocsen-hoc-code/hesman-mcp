@@ -35,8 +35,8 @@ function summarySection(summary) {
     { className: 'figures' },
     figure('Calls', formatCount(summary.calls)),
     figure('Failed', formatCount(summary.errors), summary.calls > 0 ? formatPercent(summary.errors / summary.calls) : null),
-    figure('Median latency', formatDuration(summary.p50Ms)),
-    figure('95th percentile', formatDuration(summary.p95Ms)),
+    figure('Median latency', summary.calls > 0 ? formatDuration(summary.p50Ms) : DASH),
+    figure('95th percentile', summary.calls > 0 ? formatDuration(summary.p95Ms) : DASH),
     figure('Tokens before compression', formatTokens(summary.tokensOriginal)),
     figure('Tokens returned', formatTokens(summary.tokensReturned), saved.saved > 0 ? `${saved.label} fewer` : null),
   );
