@@ -1,0 +1,20 @@
+{
+  "files": {
+    "inventory.lua": {
+      "symbolCount": { "min": 6, "max": 6 },
+      "symbols": [
+        { "name": "clamp", "kind": "function", "line": 10, "isExported": false, "doc": "Keeps a count inside the allowed range." },
+        { "name": "normalize", "kind": "function", "line": 18, "isExported": false, "doc": "Trims and lower-cases a name." },
+        { "name": "new", "kind": "function", "line": 26, "isExported": true, "doc": "Creates an item with a normalized name." },
+        { "name": "restock", "kind": "method", "line": 33, "isExported": true, "doc": "Adds stock, capped at MAX_ITEMS." },
+        { "name": "label", "kind": "function", "line": 38, "isExported": true },
+        { "name": "restock_all", "kind": "function", "line": 43, "isExported": true, "doc": "Restocks every registered item." }
+      ],
+      "calls": [
+        { "from": "new", "to": "normalize" },
+        { "from": "restock", "to": "clamp" },
+        { "from": "restock_all", "to": "restock" }
+      ]
+    }
+  }
+}

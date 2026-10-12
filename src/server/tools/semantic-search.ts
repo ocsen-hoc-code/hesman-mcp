@@ -28,7 +28,7 @@ const inputSchema = {
       type: 'string',
       description:
         `Filter by language: ${LANGUAGE_IDS.join(', ')} (symbols), or the label of a language without a grammar ` +
-        `such as "sql", "shell", "ruby", "dockerfile" or "${TEXT_LANGUAGE_FALLBACK}" (text chunks)`,
+        `such as "sql", "yaml", "zig", "dockerfile" or "${TEXT_LANGUAGE_FALLBACK}" (text chunks)`,
     },
     kind: {
       type: 'string',

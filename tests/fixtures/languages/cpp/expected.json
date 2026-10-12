@@ -1,0 +1,20 @@
+{
+  "files": {
+    "inventory.cpp": {
+      "symbolCount": { "min": 11, "max": 11 },
+      "symbols": [
+        { "name": "inventory", "kind": "namespace", "line": 4, "isExported": true },
+        { "name": "Status", "kind": "type", "line": 10, "isExported": true, "doc": "Status of an item." },
+        { "name": "Stocker", "kind": "class", "line": 13, "isExported": true, "doc": "Anything that can be restocked." },
+        { "name": "restock", "kind": "function", "line": 15, "isExported": true },
+        { "name": "clamp", "kind": "function", "line": 21, "isExported": false, "doc": "Keeps a count inside the allowed range." },
+        { "name": "Item", "kind": "class", "line": 31, "isExported": true, "doc": "One stock item." },
+        { "name": "Item", "kind": "function", "line": 33, "isExported": true },
+        { "name": "restock", "kind": "function", "line": 36, "isExported": true, "doc": "Adds stock, capped at kMaxItems." },
+        { "name": "name", "kind": "function", "line": 38, "isExported": true },
+        { "name": "record", "kind": "function", "line": 41, "isExported": false },
+        { "name": "restock", "kind": "method", "line": 48, "isExported": true }
+      ]
+    }
+  }
+}

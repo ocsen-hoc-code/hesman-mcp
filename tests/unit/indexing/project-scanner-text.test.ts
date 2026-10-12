@@ -27,7 +27,7 @@ describe('scanProject — text tier on the fixture', () => {
   it('lists files without a grammar as text-tier files with a language label', () => {
     const expected: Record<string, string> = {
       'db/schema.sql': 'sql',
-      'scripts/deploy.sh': 'shell',
+      'scripts/deploy.zsh': 'shell',
       'build.zig': 'zig',
       Dockerfile: 'dockerfile',
       Makefile: 'makefile',
@@ -55,7 +55,7 @@ describe('scanProject — text tier on the fixture', () => {
       'db/schema.sql',
       'legacy/payroll.cobol',
       'notes.xyzzy',
-      'scripts/deploy.sh',
+      'scripts/deploy.zsh',
       'src/app.ts',
     ]);
   });

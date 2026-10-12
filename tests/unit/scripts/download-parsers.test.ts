@@ -4,12 +4,14 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  OUT_DIR,
   PARSERS,
   sha256,
   verifyChecksum,
   hasValidFile,
   ensureParser,
 } from '../../../scripts/download-parsers';
+import { LANGUAGES } from '../../../src/parsers/languages';
 
 const CONTENT = Buffer.from('fake wasm bytes');
 const GOOD_HASH = createHash('sha256').update(CONTENT).digest('hex');
@@ -36,6 +38,19 @@ describe('download-parsers', () => {
     for (const p of PARSERS) {
       expect(p.sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(p.url).toMatch(/^https:\/\//);
+    }
+  });
+
+  it('pins exactly the grammars the language registry needs, as GitHub release assets', () => {
+    expect(PARSERS.map((p) => p.name).sort()).toEqual([...new Set(LANGUAGES.map((l) => l.grammar))].sort());
+    for (const p of PARSERS) {
+      expect(p.url).toMatch(new RegExp(`^https://github\\.com/[\\w.-]+/[\\w.-]+/releases/download/[\\w.-]+/${p.name}$`));
+    }
+  });
+
+  it('matches the grammars committed in parsers/, so tests and installs work offline', () => {
+    for (const p of PARSERS) {
+      expect(hasValidFile(join(OUT_DIR, p.name), p.sha256), `${p.name} is missing or does not match its pinned sha256`).toBe(true);
     }
   });
 

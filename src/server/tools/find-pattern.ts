@@ -39,7 +39,7 @@ const inputSchema = {
       type: 'string',
       description:
         'Language to search in: a parsed language (e.g. "typescript") or the label of a language without a grammar ' +
-        '(e.g. "sql", "shell", "ruby", "dockerfile"; "text" for unrecognised text files)',
+        '(e.g. "sql", "yaml", "zig", "dockerfile"; "text" for unrecognised text files)',
     },
     filePattern: {
       type: 'string',

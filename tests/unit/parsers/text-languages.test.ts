@@ -10,7 +10,10 @@ describe('textLanguageForPath', () => {
   it('labels common languages by extension', () => {
     expect(textLanguageForPath('build.zig')).toBe('zig');
     expect(textLanguageForPath('db/schema.sql')).toBe('sql');
-    expect(textLanguageForPath('scripts/deploy.sh')).toBe('shell');
+    expect(textLanguageForPath('scripts/deploy.zsh')).toBe('shell');
+    // Extensions of a bundled grammar carry its registry id, so a fallback to the text tier keeps the language.
+    expect(textLanguageForPath('scripts/deploy.sh')).toBe('bash');
+    expect(textLanguageForPath('src/App.tsx')).toBe('tsx');
     expect(textLanguageForPath('app/models/user.rb')).toBe('ruby');
     expect(textLanguageForPath('legacy/payroll.cobol')).toBe('cobol');
     expect(textLanguageForPath('src/main.rs')).toBe('rust');

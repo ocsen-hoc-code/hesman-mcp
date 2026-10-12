@@ -1,0 +1,16 @@
+{
+  "files": {
+    "widget.tsx": {
+      "symbolCount": { "min": 4, "max": 4 },
+      "symbols": [
+        { "name": "BadgeProps", "kind": "interface", "line": 4, "isExported": true, "doc": "Props accepted by the badge." },
+        { "name": "formatCount", "kind": "function", "line": 10, "isExported": false, "doc": "Formats the counter shown next to the label." },
+        { "name": "Badge", "kind": "function", "line": 15, "isExported": true, "doc": "A small badge with an optional counter." },
+        { "name": "BadgeList", "kind": "function", "line": 25, "isExported": true, "doc": "Renders one badge per item." }
+      ],
+      "calls": [
+        { "from": "Badge", "to": "formatCount" }
+      ]
+    }
+  }
+}

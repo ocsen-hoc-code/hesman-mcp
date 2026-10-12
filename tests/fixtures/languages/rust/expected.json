@@ -1,0 +1,35 @@
+{
+  "files": {
+    "inventory.rs": {
+      "symbolCount": { "min": 13, "max": 13 },
+      "symbols": [
+        { "name": "MAX_ITEMS", "kind": "constant", "line": 6, "isExported": true, "doc": "Largest count an item may have." },
+        { "name": "DEFAULT_NAME", "kind": "constant", "line": 8, "isExported": false },
+        { "name": "Status", "kind": "class", "line": 12, "isExported": true, "doc": "Status of an item." },
+        { "name": "Stocker", "kind": "interface", "line": 18, "isExported": true, "doc": "Anything that can be restocked." },
+        { "name": "Item", "kind": "class", "line": 24, "isExported": true, "doc": "One stock item." },
+        { "name": "Registry", "kind": "class", "line": 29, "isExported": false },
+        { "name": "new", "kind": "method", "line": 33, "isExported": true, "doc": "Creates an item with a normalized name." },
+        { "name": "label", "kind": "method", "line": 37, "isExported": false },
+        { "name": "restock", "kind": "method", "line": 43, "isExported": true },
+        { "name": "normalize", "kind": "function", "line": 50, "isExported": false, "doc": "Trims and lower-cases a name." },
+        { "name": "clamp", "kind": "function", "line": 59, "isExported": false, "doc": "Keeps a count inside the allowed range." },
+        { "name": "units", "kind": "namespace", "line": 64, "isExported": true, "doc": "Unit helpers." },
+        { "name": "dozens", "kind": "method", "line": 66, "isExported": true, "doc": "Converts dozens to single units." }
+      ],
+      "calls": [
+        { "from": "new", "to": "normalize" },
+        { "from": "restock", "to": "clamp" }
+      ]
+    }
+  },
+  "knownGaps": [
+    {
+      "file": "inventory.rs",
+      "check": "docs",
+      "subject": "Status@12",
+      "reason": "an attribute (`#[derive(...)]`) between the doc comment and the item is a separate sibling node, so the generic \"comments directly above\" helper finds no comment",
+      "fixedBy": "unassigned (doc comments above attributes)"
+    }
+  ]
+}

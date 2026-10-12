@@ -131,7 +131,7 @@ src/
 ├── cli/                  # CLI subcommands (commands.ts, install.ts)
 ├── config/               # Config loading (schema.ts, loader.ts, defaults.ts)
 ├── parsers/              # Tree-sitter parsing, compression, language profiles
-│   └── profiles/         # Language-specific profiles (typescript.ts, python.ts, go.ts)
+│   └── profiles/         # Language profiles (typescript.ts, python.ts, go.ts, generic.ts for the data-only ones)
 ├── indexing/             # Index orchestration, worker pool, file watcher
 ├── stores/               # SQLite and ZVec store implementations
 ├── server/               # MCP server, tool implementations, response compression
@@ -151,8 +151,12 @@ file, a small profile and one registry entry.
 ### 1. Add the WASM Grammar
 
 Add the grammar to `parsers/` and pin its URL and sha256 in `scripts/download-parsers.ts`. It must
-load in the pinned `web-tree-sitter` (0.25.10: ABI 13–15). Use the upstream release asset, as
-decided in [ADR 0001](adr/0001-grammar-distribution.md).
+load in the pinned `web-tree-sitter` (0.25.10: ABI 13–15). Use the `.wasm` asset of the grammar's
+own upstream GitHub release, as decided in [ADR 0001](adr/0001-grammar-distribution.md); do not
+substitute a third-party build. The bundled core set is committed to git and has a size budget:
+`parsers/` at most 30 MB unpacked and at most 3 MB added to the gzipped npm tarball (16 grammars
+today: 27.3 MB). A grammar that does not fit belongs to the on-demand catalog, not to `parsers/`.
+Add the grammar and its license to `NOTICE`.
 
 ### 2. Vendor the Tags Query
 
@@ -169,6 +173,13 @@ written for.
   `queries/<lang>/hesman-tags.scm` and list it **after** the upstream file. Layers are applied in
   order and the earliest pattern that tags a name wins, so a gap filler adds symbols but never
   changes what upstream tags.
+- If an upstream pattern puts the `@definition` capture on the wrong node, so that the symbol's
+  lines, signature and doc comment are wrong, add `queries/<lang>/hesman-overrides.scm` and list it
+  **before** the upstream file, with a comment that states why. Today: C and C++ (upstream tags only
+  the `function_declarator`) and Swift (upstream tags members on the enclosing type). Do not use an
+  override just to change a kind.
+- Where upstream has no tags query at the pinned tag, say so in the `note` of the `SOURCES.json`
+  entry (Kotlin: the query the same repository added later; Bash: a Hesman query).
 
 The engine understands the shared convention:
 
@@ -188,7 +199,11 @@ without its body, and the doc comment is the contiguous comment block directly a
 
 ### 3. Create the Profile
 
-Create `src/parsers/profiles/<language>.ts`:
+A language that needs nothing beyond a grammar, a query and a visibility rule is one
+`defineProfile({ language, extensions, grammar, relations, isExported })` call in
+`src/parsers/profiles/generic.ts`, with its `isExported` rule documented in one comment line
+(`relations: true` only for a `deep` entry). A language that needs an override hook gets its own
+file, `src/parsers/profiles/<language>.ts`:
 
 ```typescript
 import type { LanguageProfile } from '../language-profile.js';
@@ -234,7 +249,7 @@ export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
   // ...existing entries
   {
     id: 'mylang',                       // must equal myLangProfile.language
-    tier: 'structural',                 // 'deep' only if calls are extracted (the conformance suite checks)
+    tier: 'structural',                 // 'deep' only if every call of the fixture is found and none is a false self-call
     extensions: ['.my'],                // lowercase, with the leading dot; must equal the profile's list
     grammar: 'tree-sitter-mylang.wasm', // file name inside parsers/; must match parserWasmPath
     tagsQuery: ['mylang/tags.scm', 'mylang/hesman-tags.scm'], // relative to queries/, layered in order
@@ -310,8 +325,11 @@ set `HESMAN_CONFORMANCE_REPORT=<dir>` to also write it as Markdown and JSON.
 - Add a fixture project in `tests/fixtures/<lang>-basic/` (or a directory in `polyglot-basic`) and
   an e2e assertion that `find_symbol` finds one of its symbols through the real server, which
   indexes via the worker pool.
-- If the change alters the symbols of an already supported language, bump `INDEX_SCHEMA_VERSION`
-  in `src/stores/sqlite.ts` so existing indexes are rebuilt.
+- If the change alters the symbols of an already supported language, or moves an extension to
+  another language id, bump `INDEX_SCHEMA_VERSION` in `src/stores/sqlite.ts` so existing indexes
+  are rebuilt.
+- `src/parsers/text-languages.ts` must label every extension of the new entry with its registry id
+  (`languages.test.ts` checks it), so a file keeps its language when it falls back to the text tier.
 
 No other code changes are needed: the worker, file watcher, scanner and `get_context` pick the
 language up from the registry.
