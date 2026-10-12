@@ -226,6 +226,11 @@
       "license": "MIT"
     },
     {
+      "path": "python/hesman-tags.scm",
+      "origin": "hesman",
+      "license": "MIT"
+    },
+    {
       "path": "java/hesman-tags.scm",
       "origin": "hesman",
       "license": "MIT"

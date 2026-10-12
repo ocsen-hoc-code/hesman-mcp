@@ -9,6 +9,7 @@ import {
 import { createLogger } from '../utils/logger.js';
 import { formatError, ErrorCode } from './error-codes.js';
 import type { MetricsCollector } from '../diagnostics/metrics.js';
+import type { ToolCallRecorder } from '../diagnostics/tool-call-log.js';
 
 const log = createLogger('mcp-server');
 
@@ -17,7 +18,7 @@ export type ToolHandler = (
 ) => Promise<{ content: Array<{ type: string; text?: string }> }>;
 
 /** Result of a tool call: the handler's, or an error produced before it ran. */
-type ToolResult = Awaited<ReturnType<ToolHandler>> & { isError?: boolean };
+export type ToolResult = Awaited<ReturnType<ToolHandler>> & { isError?: boolean };
 
 /**
  * Runs before every tool call. Returning a result answers the call with it
@@ -42,6 +43,7 @@ export class McpServer {
   private server: Server;
   private tools: RegisteredTool[] = [];
   private metrics?: MetricsCollector;
+  private recorder?: ToolCallRecorder;
   private guard?: ToolCallGuard;
   private clientReadyListener?: () => void;
   private clientReadySeen = false;
@@ -56,6 +58,11 @@ export class McpServer {
 
   setMetrics(metrics: MetricsCollector | undefined): void {
     this.metrics = metrics;
+  }
+
+  /** Where finished tool calls are recorded (`diagnostics/tool-call-log.ts`); `undefined` stops recording. */
+  setCallRecorder(recorder: ToolCallRecorder | undefined): void {
+    this.recorder = recorder;
   }
 
   setToolCallGuard(guard: ToolCallGuard): void {
@@ -106,6 +113,78 @@ export class McpServer {
     log.debug({ name }, 'Tool registered');
   }
 
+  /** The registered tools as `tools/list` reports them. */
+  listTools(): Array<{ name: string; description: string; inputSchema: object }> {
+    return this.tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      inputSchema: t.inputSchema,
+    }));
+  }
+
+  hasTool(name: string): boolean {
+    return this.tools.some((t) => t.name === name);
+  }
+
+  /**
+   * Runs one tool call exactly as `tools/call` does: unknown tools and thrown
+   * errors become error results, the guard runs first, and the finished call
+   * goes to the metrics and the call recorder. Never rejects. `hesman ui` calls
+   * this directly, so both entry points share validation and error handling.
+   */
+  async callTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
+    const startTime = performance.now();
+    const result = await this.runTool(name, args);
+    if (this.recorder) {
+      try {
+        this.recorder.record({ tool: name, args, durationMs: performance.now() - startTime, result });
+      } catch {
+        // Recording is best effort: it must never fail a call.
+      }
+    }
+    return result;
+  }
+
+  private async runTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
+    const tool = this.tools.find((t) => t.name === name);
+    if (!tool) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(formatError(ErrorCode.INVALID_INPUT, `Unknown tool: ${name}`)),
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    try {
+      const blocked = await this.guard?.();
+      if (blocked) return blocked;
+
+      const startTime = performance.now();
+      const result = await tool.handler(args);
+      const tookMs = performance.now() - startTime;
+      if (this.metrics) {
+        this.metrics.recordQuery(tookMs);
+      }
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.error({ tool: tool.name, error: message }, 'Tool handler error');
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(formatError(ErrorCode.INTERNAL_ERROR, message)),
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+
   async connect(): Promise<void> {
     // Register request handlers
     this.server.oninitialized = () => this.markClientReady();
@@ -115,59 +194,14 @@ export class McpServer {
 
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       this.markClientReady();
-      return {
-        tools: this.tools.map((t) => ({
-          name: t.name,
-          description: t.description,
-          inputSchema: t.inputSchema,
-        })),
-      };
+      return { tools: this.listTools() };
     });
 
     this.server.setRequestHandler(
       CallToolRequestSchema,
       async (request: CallToolRequest) => {
         this.markClientReady();
-        const tool = this.tools.find((t) => t.name === request.params.name);
-        if (!tool) {
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  formatError(ErrorCode.INVALID_INPUT, `Unknown tool: ${request.params.name}`),
-                ),
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        try {
-          const blocked = await this.guard?.();
-          if (blocked) return blocked;
-
-          const args = (request.params.arguments ?? {}) as Record<string, unknown>;
-          const startTime = performance.now();
-          const result = await tool.handler(args);
-          const tookMs = performance.now() - startTime;
-          if (this.metrics) {
-            this.metrics.recordQuery(tookMs);
-          }
-          return result;
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          log.error({ tool: tool.name, error: message }, 'Tool handler error');
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(formatError(ErrorCode.INTERNAL_ERROR, message)),
-              },
-            ],
-            isError: true,
-          };
-        }
+        return this.callTool(request.params.name, (request.params.arguments ?? {}) as Record<string, unknown>);
       },
     );
 

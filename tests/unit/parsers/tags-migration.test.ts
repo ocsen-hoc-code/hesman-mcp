@@ -199,7 +199,8 @@ describe('profiles on the tags engine', () => {
       const byName = (name: string): ExtractedSymbol => symbols.find((s) => s.name === name)!;
       expect(byName('User').signature).toBe('class User');
       expect(byName('fmt').signature).toBe('def fmt(name)');
-      expect(byName('greet').signature).toBe('def greet(');
+      // The parameter list spans lines 13-15 and is joined into one line (M1-08).
+      expect(byName('greet').signature).toBe('def greet(self)');
       expect(byName('LIMIT').signature).toBe('LIMIT = 10');
     });
   });

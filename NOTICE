@@ -264,6 +264,7 @@ queries/arduino/tags.scm
 queries/typescript/hesman-tags.scm
 queries/javascript/hesman-tags.scm
 queries/go/hesman-tags.scm
+queries/python/hesman-tags.scm
 queries/java/hesman-tags.scm
 queries/c/hesman-overrides.scm
 queries/c/hesman-tags.scm

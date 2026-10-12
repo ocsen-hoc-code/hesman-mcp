@@ -100,7 +100,8 @@
       ],
       "queries": {
         "tags": [
-          "queries/python/tags.scm"
+          "queries/python/tags.scm",
+          "queries/python/hesman-tags.scm"
         ]
       }
     },

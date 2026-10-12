@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-11 · **M0: 16/16 done** · **M1: 4/8 done** · **M2: 5/7 done** · **M3: 0/2 done**
+Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 5/8 done** · **M2: 5/7 done** · **M3: 1/2 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -43,8 +43,8 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 | M1-04 | [Universal text tier for files without a grammar](M1-04-universal-text-tier.md) | Indexing | P1 | M1-03 | done |
 | M1-05 | [Grammar delivery: bundled core + verified download](M1-05-grammar-delivery.md) | Distribution | P1 | M1-01, M0-10 | pending |
 | M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | todo |
-| M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | todo |
-| M1-08 | [Fix the extraction bugs found by the conformance suite](M1-08-extraction-bug-fixes.md) | Parsing | P0 | M1-03 | pending |
+| M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | pending |
+| M1-08 | [Fix the extraction bugs found by the conformance suite](M1-08-extraction-bug-fixes.md) | Parsing | P0 | M1-03 | done |
 
 Recommended order: 01 → 02 → 03 → (04, 05 in parallel) → 06 → 07 (one sub-task per language).
 
@@ -72,13 +72,14 @@ Goal: `hesman ui` opens a local web page (127.0.0.1 + token) to watch logs and m
 
 | # | Task | Area | Priority | Depends on | Status |
 |---|---|---|---|---|---|
-| M3-01 | [Observability data + `hesman ui` backend (HTTP API)](M3-01-observability-and-ui-api.md) | Server | P0 | M0-12 | pending |
+| M3-01 | [Observability data + `hesman ui` backend (HTTP API)](M3-01-observability-and-ui-api.md) | Server | P0 | M0-12 | done |
 | M3-02 | [Dashboard frontend](M3-02-dashboard-frontend.md) | UI | P0 | M0-12 | pending |
 
 Publishing to npm: the owner decided on 2026-10-11 not to publish yet, so M2-06 and the `npx` checks of M2-04 stay on hold.
 
 ## Backlog after M0 (not specified, not scheduled)
 
+- **M3-01 follow-ups (dashboard backend):** `ReadOnlySqliteStore` reaches into `SqliteStore`'s private `db` through a cast (add a proper `openReadOnly()`); `/api/graph/search` is a `LIKE '%q%'` scan; `/api/logs` re-reads up to 10 MB per request; a `logFile` placed inside the project but outside the data directory is seen by the file watcher (no guard); the dashboard cannot run `semantic_search` (ZVec exclusive lock) or show live indexing progress; Windows and the browser-open path are unverified. One `npm test` run in five failed 2 tests while three other agents were running suites (load average ~40); not reproduced in four further runs, the failing tests were not captured.
 - **Answer-quality eval suite** — measure tokens *and* accuracy against an agent reading files directly (all four roles in the dev-team session agreed; codebase-memory-mcp's published weakness is 83% vs 92%).
 - **ADR: daemon + stdio shim architecture** — prerequisite for multi-project and the dashboard.
 - **Multi-project support** and **web dashboard** (bind 127.0.0.1, token-protected).
@@ -111,5 +112,6 @@ Publishing to npm: the owner decided on 2026-10-11 not to publish yet, so M2-06 
 - **Doctor follow-ups from M2-05:** project-scope config files, the `env` block of an entry and the PATH a desktop app really gets are not checked; `--client` parsing and aliases are duplicated from `setup.ts` (export `parseOptions` and share it); the registry check for `npx` entries has no offline flag (unreachable is only a warning).
 - **Extraction bugs found by the conformance suite (M1-03), recorded as `knownGaps` in `tests/fixtures/languages/*/expected.json`:** (1) JSX/TSX files parsed with the TypeScript grammar produce 11–14 ERROR nodes and an arrow-function component is indexed as `variable` (fixed by M1-05's separate `tsx`/`javascript` entries); (2) `isNodeExported` reports declarations local to an exported function, and `private` members of an exported class, as exported; (3) CommonJS `module.exports = { … }` is not recognized as an export; (4) Python tuple assignment (`A, B = 1, 2`) is not indexed; (5) the regex call extractor emits false calls (interface method specs, format strings such as `"%s ("`); (6) a multi-line TypeScript constructor gets the signature `constructor(`. Fixing 2–4 changes stored symbols and needs a schema-version bump.
 - **Language limits recorded by M1-05a (16 bundled grammars):** c, cpp, ruby and bash are `structural` (no call graph: prototype + definition are two same-named callables in C/C++; Ruby and Bash calls have no parentheses); Java/C# `new X(...)` is not linked when the class declares a constructor; an interface method and its implementation are two same-named callables (Java, C#, Kotlin, Swift, PHP), so cross-file calls to them stay unresolved; kinds follow the upstream queries and are coarse in places (PHP/Kotlin methods are `function`, Rust enums and Swift structs are `class`, C++ member functions are `function`); false unresolved calls from `foreach (`, `when (`, Lua `function(`; a Java method with an annotation on its own line gets the annotation as its signature; import relations exist only for ES `import … from`. Most of these belong to M1-07 (query-based relations).
+- **Follow-ups from M1-08:** `protected` class members and function-valued keys of an exported object are treated as not exported (owner may revisit); the call regex still accepts an anonymous `function (…)` / Go `func(…)` literal as a callee (belongs to M1-07); `docs/ARCHITECTURE.md` does not mention `symbols.is_property`.
 - **Zod validation** for every tool input (replace `as` casts).
 - Evaluate replacing ZVec with an in-SQLite vector store to drop one store.
