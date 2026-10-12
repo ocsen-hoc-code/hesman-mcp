@@ -1,5 +1,6 @@
 // Mock implementations of the 11 MCP tools over the made-up project.
-// The schemas mirror src/server/tools/*.ts as of 2026-10-12; the real backend sends its own.
+// The schemas mirror src/server/tools/*.ts (argument names, types, enums and bounds are checked by
+// tests/unit/ui/smoke.test.ts; descriptions are shortened). The real backend sends its own.
 
 const SYMBOL_KINDS = ['function', 'class', 'method', 'variable', 'interface', 'type', 'enum', 'namespace', 'constant'];
 const int = (minimum, maximum, description) => ({ type: 'integer', minimum, maximum, description });
@@ -78,8 +79,8 @@ export const TOOLS = [
     inputSchema: schema(
       {
         filePath: str('Absolute or relative file path'),
-        startLine: int(1, 1000000, 'Focus line number (1-indexed)'),
-        endLine: int(1, 1000000, 'End line (default: same as startLine)'),
+        startLine: int(1, 10000000, 'Focus line number (1-indexed)'),
+        endLine: int(1, 10000000, 'End line (default: same as startLine)'),
         contextLines: int(0, 200, 'Lines of context above and below (default: 5, max 200)'),
         mode: str('Compact mode strips comments and blank lines (default: compact)', { enum: ['compact', 'full'] }),
         symbolName: str('Optional — return symbols in range'),
