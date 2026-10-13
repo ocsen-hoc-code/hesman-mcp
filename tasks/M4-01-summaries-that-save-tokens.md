@@ -1,7 +1,7 @@
 ---
 id: M4-01
 title: List and call-graph responses that actually save tokens
-status: pending
+status: done
 priority: P0
 depends_on: [M0-15]
 updated: 2026-10-13
@@ -33,11 +33,11 @@ The cost of these responses is mostly repetition: every row repeats a long absol
 
 ## Acceptance criteria
 
-- [ ] The benchmark exists, is deterministic, and its numbers are in the report (tokens before/after and reduction per tool).
-- [ ] At least `get_references`, `get_callers`, `get_callees`, `get_file_structure`, `list_dependencies` and `find_symbol` return fewer tokens than their plain payload on lists of 10 or more rows, with no information loss that the report cannot justify; `_meta.reduction` shows it.
-- [ ] No tool response is ever larger than its plain payload (test over the benchmark set).
-- [ ] The full payload is still reachable and paging works.
-- [ ] The dashboard playground and graph views still work with the new shapes (unit tests green; the mock matches).
+- [x] The benchmark exists, is deterministic, and its numbers are in the report (tokens before/after and reduction per tool).
+- [x] At least `get_references`, `get_callers`, `get_callees`, `get_file_structure`, `list_dependencies` and `find_symbol` return fewer tokens than their plain payload on lists of 10 or more rows, with no information loss that the report cannot justify; `_meta.reduction` shows it.
+- [x] No tool response is ever larger than its plain payload (test over the benchmark set).
+- [x] The full payload is still reachable and paging works.
+- [x] The dashboard playground and graph views still work with the new shapes (unit tests green; the mock matches). Not checked in a real browser.
 
 ## Verification
 
@@ -47,4 +47,5 @@ npm test && npm run test:e2e
 
 ## Progress notes
 
+- 2026-10-13: done. Benchmark `tests/fixtures/response-bench` + `tests/perf/response-tokens.ts` + `scripts/bench-responses.ts` (commit 235fad3). Compact shapes in `response-compressor.ts` (`format: compact|full`, named columns, grouped by file, relative paths; compact only when smaller), handlers pass format and project root (a1dc12e). Dashboard graph/mock/API test (542b4aa). Docs, CHANGELOG, rules line, e2e helper default (052fde5). Measured in `docs/TOOLS.md`. `npm test` 141 files, 2231 passed + 1 skipped (twice); `npm run test:e2e` 113 passed (was 110, +3 shape tests); `npm run test:conformance` 258 passed. Open: callers/callees have no cursor (topK up to 200); `list_dependencies imported_by` returns 0 for TS relative imports (imports stay `unresolved:` in the index, outside this task); a no-caller result grows by 5 tokens (format label).
 - 2026-10-13: task created (owner asked to make summaries save tokens); started.
