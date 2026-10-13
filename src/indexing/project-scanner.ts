@@ -51,7 +51,7 @@ export function detectLanguage(filePath: string, config: HesmanConfig): string |
 }
 
 /** True for entries the walk never descends into or lists, whatever the ignore files say. */
-function isAlwaysSkipped(entry: string): boolean {
+export function isAlwaysSkipped(entry: string): boolean {
   // Always-ignored directories, and dotfiles/dirs (except .env files)
   return ALWAYS_IGNORE.has(entry) || (entry.startsWith('.') && entry !== '.env');
 }

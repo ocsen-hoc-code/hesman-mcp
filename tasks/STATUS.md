@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-12 · **M0: 16/16 done** · **M1: 8/9 done** · **M2: 5/7 done** · **M3: 2/2 done**
+Updated: 2026-10-13 · **M0: 16/16 done** · **M1: 9/9 done** · **M2: 5/7 done** · **M3: 2/2 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -45,7 +45,7 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 | M1-06 | [Expose support tiers to agents and users](M1-06-support-tiers-visibility.md) | Tools | P1 | M1-04, M1-05 | done |
 | M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | done |
 | M1-08 | [Fix the extraction bugs found by the conformance suite](M1-08-extraction-bug-fixes.md) | Parsing | P0 | M1-03 | done |
-| M1-09 | [Call-link precision and recovery from a corrupt index](M1-09-call-link-precision.md) | Parsing | P0 | M1-07 | pending |
+| M1-09 | [Call-link precision and recovery from a corrupt index](M1-09-call-link-precision.md) | Parsing | P0 | M1-07 | done |
 
 Recommended order: 01 → 02 → 03 → (04, 05 in parallel) → 06 → 07 (one sub-task per language).
 
@@ -80,6 +80,7 @@ Publishing to npm: the owner decided on 2026-10-11 not to publish yet, so M2-06 
 
 ## Backlog after M0 (not specified, not scheduled)
 
+- **M1-09 remaining limits (call links):** the receiver's type is not resolved, so a unique project method named like a built-in still collects calls on other objects (on this repository: `ImportedFiles.has` 154, `TagsQuery.delete` 53, `SqliteStore.open` / `close` 43 each) — the largest remaining source of false callers, needs its own task; a bare call can still link to an exported method in another file; an aliased import (`import { a as b }`) does not link to `a`; two calls of one name on one line by one caller are one row; re-exports through a Python absolute import are not followed; editing a re-exporting file does not re-resolve calls through it; a module-level call is stored with a `module:<hash>` pseudo caller (`get_references` shows `callerName: null`, `get_callers` and the dashboard do not show it), which raised this repository's `symbols.db` from 9.4 MB to 20.3 MB; `hesman status` also moves a corrupt index aside; corruption met inside per-file error handling is reported as file errors, not repaired. Found while merging: the file watcher's glob ignore list was not interpreted by chokidar 5, so files under `node_modules` / `dist` were indexed on change (fixed 2026-10-13: the watcher goes through `scanFile`).
 - **README and translations:** the README is kept in English plus nine translations (`docs/i18n/README.{vi,ru,de,fr,es,pt,zh,ja,ar}.md`, owner decision 2026-10-12); all nine were re-translated from the README on 2026-10-12 and a user-visible README change must be applied to them in the same piece of work. Their language table is a hand translation of the generated one and no test compares them with the English file. Still open in the English README: performance targets (`< 1ms`, `< 10ms`, `≥ 500 files/sec`) read like measured numbers; the architecture diagram is titled "3-Layer Compression Pipeline" although the third layer is not applied; "Measuring Savings" says every response has `_meta` while `index_status` has none; the intro says "Everything runs locally. No external APIs." without the download caveat; two links point readers to `tasks/STATUS.md`.
 - **M1-06 follow-ups (support tiers):** the last `RULES_BLOCK` bullet still says "Relations are pattern-matched" although calls come from the syntax tree since M1-07; `index_status` reports no parse-error count because the index records none; the text-chunk id lookup behind the tier note hashes every chunk id of every text file (only for ids that are not symbols; unmeasured on very large repositories). `index_status.grammars.languages[].tier` changed its values from `parsed` / `text` to `deep` / `structural` / `text` before any release.
 - **M1-07 remaining limits (call graph):** types are not resolved, so a method called on an interface with several implementations stays unlinked; a Ruby call with no receiver, arguments or parentheses is not seen; a C++ constructor call written as a declaration (`Item local(3);`) is not seen; Python `super().__init__()` links `__init__` to itself when the file has one `__init__`; Bash records every command as an unresolved call; Java annotation-as-signature is untouched; no import relations for Java, C#, Kotlin, Swift, PHP, Rust, Lua, Bash; `extends` / `implements` are still regexes; unused `relationQueries` strings remain in the ts/python/go profiles; no e2e assertion for the new languages' call graph through the real server. This supersedes the call-graph part of "Language limits recorded by M1-05a".

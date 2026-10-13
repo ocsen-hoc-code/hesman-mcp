@@ -82,9 +82,15 @@ describe('FileWatcher', () => {
     // Change a file in node_modules — should be ignored
     writeFileSync(join(TEST_DIR, 'node_modules', 'pkg', 'index.ts'), 'export const x = 2;');
 
-    // Wait for chokidar to fire
+    // Wait for chokidar to fire, then for whatever it did pick up. A late
+    // event for test.ts (written just before the watcher started) may still
+    // be in flight, so the pending count says nothing about node_modules:
+    // what matters is that the ignored file never reaches the index.
     await new Promise(r => setTimeout(r, 300));
-    expect(watcher.pendingCount).toBe(0);
+    await watcher.drain();
+    const ignoredFile = join(TEST_DIR, 'node_modules', 'pkg', 'index.ts');
+    expect(store.getSymbolsByFile(ignoredFile)).toEqual([]);
+    expect(store.getFileHash(ignoredFile)).toBeNull();
 
     await watcher.stop();
   });

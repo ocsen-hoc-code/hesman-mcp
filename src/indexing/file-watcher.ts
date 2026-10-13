@@ -1,5 +1,6 @@
 import { watch, type FSWatcher } from 'chokidar';
 import { readFileSync } from 'node:fs';
+import { relative, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { WorkerPool } from './worker-pool.js';
 import type { SqliteStore } from '../stores/sqlite.js';
@@ -9,7 +10,7 @@ import { embedBatch } from '../stores/embedding.js';
 import { createLogger } from '../utils/logger.js';
 import { languageForPath } from '../parsers/languages.js';
 import { resolveCallRelations } from './call-resolver.js';
-import { scanFile } from './project-scanner.js';
+import { isAlwaysSkipped, scanFile } from './project-scanner.js';
 import { indexTextFile, removeTextFile, storedTextChunkIds } from './text-indexer.js';
 import { defaultConfig } from '../config/defaults.js';
 
@@ -38,13 +39,16 @@ export class FileWatcher {
   }
 
   async start(): Promise<void> {
-    const ignored = [
-      '**/node_modules/**',
-      '**/.git/**',
-      '**/dist/**',
-      '**/.hesman/**',
-      ...this.config.ignore,
-    ];
+    // chokidar 4+ no longer understands glob strings, so the directories the
+    // scanner never enters are matched by path segment here. This only keeps
+    // the OS watcher out of them; whether a changed file is indexed is decided
+    // by `scanFile` in `handleChange`, with the scanner's full rule set.
+    const root = this.config.projectRoot;
+    const ignored = (path: string): boolean => {
+      const rel = relative(root, path);
+      if (rel === '' || rel.startsWith('..')) return false;
+      return rel.split(sep).some(isAlwaysSkipped);
+    };
 
     this.watcher = watch(this.config.projectRoot, {
       ignored,
@@ -70,14 +74,19 @@ export class FileWatcher {
    * scanner would list it (same ignore, size, binary and bulk-file rules).
    * A file that no longer qualifies loses what the text tier stored for it.
    */
-  private async handleTextChange(filePath: string): Promise<void> {
-    const { store, zvecStore } = this.config;
-    const scanned = scanFile(this.config.projectRoot, filePath, {
+  /** The scanner's verdict on one path: `null` when a full scan would not list it. */
+  private scan(filePath: string): ReturnType<typeof scanFile> {
+    return scanFile(this.config.projectRoot, filePath, {
       ...defaultConfig,
       ignore: this.config.ignore,
       maxFileSizeBytes: this.config.maxFileSizeBytes ?? defaultConfig.maxFileSizeBytes,
       languages: this.config.languages ?? ['*'],
     });
+  }
+
+  private async handleTextChange(filePath: string): Promise<void> {
+    const { store, zvecStore } = this.config;
+    const scanned = this.scan(filePath);
     if (!scanned || scanned.tier !== 'text') {
       if (store.getTextFile(filePath)) {
         removeTextFile(store, zvecStore, filePath);
@@ -111,6 +120,9 @@ export class FileWatcher {
   private async handleChange(filePath: string): Promise<void> {
     const lang = languageForPath(filePath);
     if (!lang) return this.handleTextChange(filePath);
+    // Same rules as a full scan: an ignored directory, a .gitignore entry, a
+    // symlink or an oversized file is not indexed just because it changed.
+    if (!this.scan(filePath)) return;
 
     const now = Date.now();
     const lastChange = this.changeTimestamps.get(filePath) || 0;
