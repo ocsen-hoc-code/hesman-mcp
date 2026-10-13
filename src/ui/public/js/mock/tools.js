@@ -7,6 +7,7 @@ const int = (minimum, maximum, description) => ({ type: 'integer', minimum, maxi
 const str = (description, extra = {}) => ({ type: 'string', description, ...extra });
 const schema = (properties, required) => ({ type: 'object', properties, ...(required ? { required } : {}) });
 const symbolIdArg = (what) => str(`Symbol ID to ${what}`);
+const formatArg = () => str('Response shape (default "compact": rows under named columns, grouped by file; "full": one object per row)', { enum: ['compact', 'full'] });
 
 export const TOOLS = [
   {
@@ -21,6 +22,7 @@ export const TOOLS = [
           enum: ['exact', 'fuzzy', 'prefix'],
         }),
         topK: int(1, 200, 'Max results (default 20, max 200)'),
+        format: formatArg(),
       },
       ['name'],
     ),
@@ -32,6 +34,7 @@ export const TOOLS = [
       {
         filePath: str('Path to the file to analyze'),
         includeNested: { type: 'boolean', description: 'Include nested symbols (methods in classes). Default: true' },
+        format: formatArg(),
       },
       ['filePath'],
     ),
@@ -45,6 +48,7 @@ export const TOOLS = [
         referenceKind: str('Filter: calls, import, extends, implements, type_ref, all'),
         topK: int(1, 200, 'Max results (default 50, max 200)'),
         cursor: str('Pagination cursor from previous response'),
+        format: formatArg(),
       },
       ['symbolId'],
     ),
@@ -57,6 +61,7 @@ export const TOOLS = [
         symbolId: symbolIdArg('find callers for'),
         maxDepth: int(1, 3, 'Max call chain depth (default 1, max 3)'),
         topK: int(1, 200, 'Max results (default 50, max 200)'),
+        format: formatArg(),
       },
       ['symbolId'],
     ),
@@ -69,6 +74,7 @@ export const TOOLS = [
         symbolId: symbolIdArg('find callees for'),
         maxDepth: int(1, 3, 'Max call chain depth (default 1, max 3)'),
         topK: int(1, 200, 'Max results (default 50, max 200)'),
+        format: formatArg(),
       },
       ['symbolId'],
     ),
@@ -122,6 +128,7 @@ export const TOOLS = [
     inputSchema: schema({
       filePath: str('File path to analyze (optional; returns all project-level imports if omitted)'),
       direction: str('Direction: "imports" (default), "imported_by", or "both"', { enum: ['imports', 'imported_by', 'both'] }),
+      format: formatArg(),
     }),
   },
   {
@@ -135,6 +142,7 @@ export const TOOLS = [
         newSignature: str('New signature (if change_signature)'),
         newReturnType: str('New return type (if change_return_type)'),
         maxFiles: int(1, 200, 'Max impacted files in output (default 20, max 200)'),
+        format: formatArg(),
       },
       ['symbolId', 'changeType'],
     ),
@@ -219,11 +227,33 @@ function related(project, symbol, direction, kind, limit) {
     .map((e) => ({ edge: e, other: project.byId.get(direction === 'in' ? e.from : e.to) }));
 }
 
+/**
+ * The compact list shape the server returns by default (M4-01): rows are arrays
+ * under the named `columns`, grouped by the file of each row.
+ */
+function compactFiles(items, fileOf, columns, row) {
+  const files = new Map();
+  for (const item of items) {
+    const file = fileOf(item);
+    if (!files.has(file)) files.set(file, []);
+    files.get(file).push(row(item));
+  }
+  return { columns, files: [...files].map(([file, rows]) => ({ file, rows })) };
+}
+const wantsFull = (args) => args.format === 'full';
+const SYMBOL_COLUMNS = ['id', 'name', 'kind', 'line', 'endLine', 'signature', 'docComment', 'isExported', 'language'];
+const symbolRow = (s) => [s.id, s.name, s.kind, s.startLine, s.endLine, s.signature, s.docComment, s.isExported, s.language];
+const CALL_COLUMNS = ['symbolId', 'name', 'kind', 'line', 'depth', 'callLine', 'callFile'];
+const callCompactRow = (row) => [row.symbolId, row.name, row.kind, row.startLine, row.depth, row.callSite.line, null];
+const REFERENCE_COLUMNS = ['line', 'col', 'kind', 'callerSymbolId', 'callerName'];
+const FILE_COLUMNS = ['id', 'name', 'kind', 'line', 'endLine', 'signature', 'isExported', 'parentId'];
+
 const callRow = ({ edge, other }) => ({
   symbolId: other.id,
   name: other.name,
   kind: other.kind,
   filePath: other.filePath,
+  startLine: other.startLine,
   depth: 1,
   callSite: { line: edge.line },
 });
@@ -240,7 +270,8 @@ const HANDLERS = {
       .filter((s) => (!args.kind || s.kind === args.kind) && (!args.filePath || s.filePath === args.filePath))
       .slice(0, args.topK ?? 20)
       .map(present);
-    return withMeta({ symbols, tookMs: 1.4 }, 1.6, symbols.length > 0 ? ['compact'] : []);
+    if (wantsFull(args) || symbols.length === 0) return withMeta({ format: 'full', symbols, tookMs: 1.4 }, 1.6, []);
+    return withMeta({ format: 'compact', ...compactFiles(symbols, (s) => s.filePath, SYMBOL_COLUMNS, symbolRow), tookMs: 1.4 }, 1.6, ['group', 'columns', 'paths']);
   },
   get_file_structure(project, args) {
     const filePath = requireFile(project, args);
@@ -252,27 +283,40 @@ const HANDLERS = {
         top.find((s) => s.name === method.parentName)?.children.push(present(method));
       }
     }
-    return withMeta({ filePath, language: own[0].language, symbols: top, tookMs: 0.9 });
+    if (wantsFull(args)) return withMeta({ format: 'full', filePath, language: own[0].language, symbols: top, tookMs: 0.9 });
+    // Compact: one row per symbol; nested symbols follow their parent with a parentId.
+    const rows = [];
+    for (const s of top) {
+      rows.push([s.id, s.name, s.kind, s.startLine, s.endLine, s.signature, s.isExported, null]);
+      for (const child of s.children) rows.push([child.id, child.name, child.kind, child.startLine, child.endLine, child.signature, child.isExported, s.id]);
+    }
+    return withMeta({ format: 'compact', file: filePath, language: own[0].language, totalSymbols: own.length, columns: FILE_COLUMNS, rows, tookMs: 0.9 }, 1.5, ['columns']);
   },
   get_references(project, args) {
     const symbol = requireSymbol(project, args);
     const kind = args.referenceKind && args.referenceKind !== 'all' ? args.referenceKind : undefined;
     const references = related(project, symbol, 'in', kind, args.topK ?? 50).map(({ edge, other }) => ({
-      symbolId: other.id,
-      name: other.name,
-      referenceKind: edge.kind,
       filePath: other.filePath,
       line: edge.line,
+      col: 1,
+      kind: edge.kind,
+      callerSymbolId: other.id,
+      callerName: other.name,
     }));
-    return withMeta({ references, nextCursor: null, tookMs: 1.1 });
+    if (wantsFull(args)) return withMeta({ format: 'full', references, nextCursor: null, tookMs: 1.1 });
+    return withMeta({ format: 'compact', totalCount: references.length, hasMore: false, nextCursor: null, ...compactFiles(references, (r) => r.filePath, REFERENCE_COLUMNS, (r) => [r.line, r.col, r.kind, r.callerSymbolId, r.callerName]), tookMs: 1.1 }, 1.9, ['group', 'columns', 'paths']);
   },
   get_callers(project, args) {
     const symbol = requireSymbol(project, args);
-    return withMeta({ callers: related(project, symbol, 'in', 'calls', args.topK ?? 50).map(callRow), tookMs: 0.8 });
+    const callers = related(project, symbol, 'in', 'calls', args.topK ?? 50).map(callRow);
+    if (wantsFull(args)) return withMeta({ format: 'full', callers, tookMs: 0.8 });
+    return withMeta({ format: 'compact', ...compactFiles(callers, (c) => c.filePath, CALL_COLUMNS, callCompactRow), tookMs: 0.8 }, 3, ['group', 'columns', 'paths']);
   },
   get_callees(project, args) {
     const symbol = requireSymbol(project, args);
-    return withMeta({ callees: related(project, symbol, 'out', 'calls', args.topK ?? 50).map(callRow), tookMs: 0.7 });
+    const callees = related(project, symbol, 'out', 'calls', args.topK ?? 50).map(callRow);
+    if (wantsFull(args)) return withMeta({ format: 'full', callees, tookMs: 0.7 });
+    return withMeta({ format: 'compact', ...compactFiles(callees, (c) => c.filePath, CALL_COLUMNS, callCompactRow), tookMs: 0.7 }, 3, ['group', 'columns', 'paths']);
   },
   get_context(project, args) {
     const filePath = requireFile(project, args);

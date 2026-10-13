@@ -95,7 +95,7 @@ export function mount(container, ctx) {
     if (mode !== 'symbols' || signatures.has(node.id)) return;
     let found = null;
     try {
-      const data = await ctx.api.runTool('find_symbol', { name: node.name, matchMode: 'exact', filePath: node.filePath, topK: 50 });
+      const data = await ctx.api.runTool('find_symbol', { name: node.name, matchMode: 'exact', filePath: node.filePath, topK: 50, format: 'full' });
       const result = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
       const match = (result?.symbols ?? []).find((s) => s.id === node.id);
       if (match) found = { signature: match.signature ?? '', docComment: match.docComment ?? '' };
