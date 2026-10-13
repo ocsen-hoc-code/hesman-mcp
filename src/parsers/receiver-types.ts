@@ -27,6 +27,8 @@ import type { Node } from 'web-tree-sitter';
 /** Receivers that stand for the object whose member is called: never a type name. */
 export const SELF_RECEIVER_NAMES: ReadonlySet<string> = new Set(['this', 'self', '$this', 'Self', 'cls', 'super', 'base', 'parent']);
 
+/** Types that a union adds to a type without naming another one. */
+const NULLISH_TYPES: ReadonlySet<string> = new Set(['undefined', 'null', 'void', 'None']);
 /** Declared types longer than this are not read. */
 const MAX_TYPE_LENGTH = 200;
 /** `this.f` / `self.f`: the receiver of a field of the enclosing class. */
@@ -65,6 +67,12 @@ interface Declaration {
 export function declaredTypeName(node: Node): string | null {
   if (node.text.length > MAX_TYPE_LENGTH) return null;
   let text = node.text.trim().replace(/^:\s*/, '');
+  // `T | undefined` and `T | null` name T; any other union names no single type.
+  if (text.includes('|')) {
+    const members = text.split('|').map((m) => m.trim()).filter((m) => !NULLISH_TYPES.has(m));
+    if (members.length !== 1) return null;
+    text = members[0];
+  }
   // Reference, pointer and modifier markers in front of the type.
   text = text.replace(/^(?:&\s*(?:mut\s+)?|\*+\s*|dyn\s+|impl\s+|mut\s+|const\s+)+/, '');
   const generic = text.indexOf('<');

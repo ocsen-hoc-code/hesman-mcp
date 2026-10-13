@@ -39,6 +39,17 @@ async function receiverTypes(ext: string, lines: string[]): Promise<Record<strin
 }
 
 describe('the type of a receiver (M1-10)', () => {
+  it('TypeScript: a union with undefined or null names its one type; another union names none', async () => {
+    const types = await receiverTypes('.ts', [
+      'function run(a: Store | undefined, b: Store | Cache) {',
+      '  a.load();',
+      '  b.save();',
+      '}',
+    ]);
+    expect(types.load).toBe('Store');
+    expect(types.save).toBeNull();
+  });
+
   it('TypeScript: typed parameters and locals, constructor calls, a built-in type, a typed field', async () => {
     const types = await receiverTypes('.ts', [
       'class Store { load(): void {} }',
