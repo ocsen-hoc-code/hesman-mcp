@@ -117,7 +117,9 @@ describe('hesman ui (e2e)', () => {
     const { json } = await get('/api/calls');
     const calls = json.data.calls as Array<Record<string, unknown>>;
     const ok = calls.find((c) => c.tool === 'find_symbol');
-    expect(ok).toMatchObject({ ok: true, errorCode: null, argsPreview: '{"name":"tsGreet"}' });
+    // The helper adds `format: "full"` to list tools (see helpers/server.ts), so the preview starts with the name.
+    expect(ok).toMatchObject({ ok: true, errorCode: null });
+    expect(ok.argsPreview).toContain('"name":"tsGreet"');
     expect(typeof ok?.originalTokens).toBe('number');
     expect(typeof ok?.compressedTokens).toBe('number');
     expect(calls.find((c) => c.tool === 'get_context')).toMatchObject({ ok: false, errorCode: 'FILE_NOT_FOUND' });
@@ -138,7 +140,7 @@ describe('hesman ui (e2e)', () => {
     const res = await fetch(`${ui.origin}/api/tools/find_symbol`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${ui.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ args: { name: 'GoGreet' } }),
+      body: JSON.stringify({ args: { name: 'GoGreet', format: 'full' } }),
     });
     const json = (await res.json()) as Json;
     expect(res.status).toBe(200);

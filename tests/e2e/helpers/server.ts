@@ -27,6 +27,17 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /** Repository root (contains `dist/`, `src/`, `tests/`). */
+/** Tools whose default answer is the compact list shape (see `callTool`). */
+const FULL_BY_DEFAULT = new Set([
+  'find_symbol',
+  'get_references',
+  'get_callers',
+  'get_callees',
+  'get_file_structure',
+  'list_dependencies',
+  'impact_analysis',
+]);
+
 export const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 
 /** Built server entry point exercised by the harness. */
@@ -408,12 +419,19 @@ export async function startServer(options: StartServerOptions = {}): Promise<Hes
     await rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   };
 
+  /**
+   * List tools answer in the compact shape by default (M4-01). Most e2e tests check
+   * what a call finds, so they read the plain objects (`format: "full"`) unless they
+   * pass a format; `tests/e2e/response-shape.test.ts` covers the default shape.
+   */
   const callTool = async (
     name: string,
     toolArgs: Record<string, unknown> = {},
     timeoutMs = 30_000,
-  ): Promise<CallToolResult> =>
-    (await client.callTool({ name, arguments: toolArgs }, undefined, { timeout: timeoutMs })) as CallToolResult;
+  ): Promise<CallToolResult> => {
+    const args = FULL_BY_DEFAULT.has(name) && toolArgs.format === undefined ? { ...toolArgs, format: 'full' } : toolArgs;
+    return (await client.callTool({ name, arguments: args }, undefined, { timeout: timeoutMs })) as CallToolResult;
+  };
 
   const server: HesmanTestServer = {
     client,

@@ -89,7 +89,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
 
   it('find_symbol finds exported functions', async () => {
     const result = await client.callTool(
-      { name: 'find_symbol', arguments: { name: 'add', matchMode: 'exact' } },
+      { name: 'find_symbol', arguments: { format: 'full', name: 'add', matchMode: 'exact' } },
       undefined,
       { timeout: 5000 },
     );
@@ -126,7 +126,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
   it('get_file_structure returns symbols in a file', async () => {
     const utilsPath = resolve(PROJECT_DIR, 'src/utils.ts');
     const result = await client.callTool(
-      { name: 'get_file_structure', arguments: { filePath: utilsPath } },
+      { name: 'get_file_structure', arguments: { format: 'full', filePath: utilsPath } },
       undefined,
       { timeout: 5000 },
     );
@@ -166,7 +166,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     // so intra-file call relations should exist (cross-file resolution
     // is a Phase 4 feature).
     const findResult = await client.callTool(
-      { name: 'find_symbol', arguments: { name: 'formatGreeting' } },
+      { name: 'find_symbol', arguments: { format: 'full', name: 'formatGreeting' } },
       undefined,
       { timeout: 5000 },
     );
@@ -182,7 +182,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
 
     // Now call get_references with that symbolId
     const refResult = await client.callTool(
-      { name: 'get_references', arguments: { symbolId } },
+      { name: 'get_references', arguments: { format: 'full', symbolId } },
       undefined,
       { timeout: 5000 },
     );
@@ -291,7 +291,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
   it('impact_analysis returns impact for a known symbol', async () => {
     // First find a symbol
     const findResult = await client.callTool(
-      { name: 'find_symbol', arguments: { name: 'add', matchMode: 'exact' } },
+      { name: 'find_symbol', arguments: { format: 'full', name: 'add', matchMode: 'exact' } },
       undefined,
       { timeout: 5000 },
     );
@@ -308,6 +308,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
       {
         name: 'impact_analysis',
         arguments: {
+          format: 'full',
           symbolId: addSymbolId,
           changeType: 'rename',
           newName: 'addition',
@@ -335,6 +336,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
       {
         name: 'impact_analysis',
         arguments: {
+          format: 'full',
           symbolId: 'nonexistent-symbol-id',
           changeType: 'delete',
         },

@@ -53,7 +53,8 @@ describe('graph tools on languages without call extraction', () => {
   let tools: Record<'get_callers' | 'get_callees' | 'get_references' | 'impact_analysis', ToolHandler>;
 
   const ask = async (tool: keyof typeof tools, symbolId: string): Promise<Answer> => {
-    const args = tool === 'impact_analysis' ? { symbolId, changeType: 'delete' } : { symbolId };
+    // The full shape keeps the list fields these assertions read (`callers`, `references`, `impactedFiles`).
+    const args = tool === 'impact_analysis' ? { symbolId, changeType: 'delete', format: 'full' } : { symbolId, format: 'full' };
     const result = (await tools[tool](args)) as { content: Array<{ text?: string }> };
     return JSON.parse(result.content[0].text ?? '{}') as Answer;
   };
@@ -86,10 +87,10 @@ describe('graph tools on languages without call extraction', () => {
     expect(run.errors).toEqual([]);
 
     tools = {
-      get_callers: captureTool((s) => registerGetCallersTool(s, store)),
-      get_callees: captureTool((s) => registerGetCalleesTool(s, store)),
-      get_references: captureTool((s) => registerGetReferencesTool(s, store)),
-      impact_analysis: captureTool((s) => registerImpactAnalysisTool(s, store)),
+      get_callers: captureTool((s) => registerGetCallersTool(s, store, { ...defaultConfig, projectRoot: root })),
+      get_callees: captureTool((s) => registerGetCalleesTool(s, store, { ...defaultConfig, projectRoot: root })),
+      get_references: captureTool((s) => registerGetReferencesTool(s, store, { ...defaultConfig, projectRoot: root })),
+      impact_analysis: captureTool((s) => registerImpactAnalysisTool(s, store, { ...defaultConfig, projectRoot: root })),
     };
   });
 

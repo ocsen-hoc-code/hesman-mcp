@@ -540,8 +540,14 @@ describe('hesman ui server', () => {
       const { data } = res.json;
       expect(data.isError).toBe(false);
       expect(typeof data.durationMs).toBe('number');
-      expect(data.result.symbols).toHaveLength(1);
-      expect(data.result.symbols[0]).toMatchObject({ name: 'tsGreet', filePath: 'ts/greet.ts', startLine: 5 });
+      // The default answer is the compact shape: rows under named columns, grouped by file.
+      expect(data.result.format).toBe('compact');
+      expect(data.result.columns).toEqual(expect.arrayContaining(['id', 'name', 'line']));
+      const rows = data.result.files.flatMap((f: { file: string; rows: unknown[][] }) =>
+        f.rows.map((row) => Object.fromEntries(data.result.columns.map((c: string, i: number) => [c, row[i]])) as Record<string, unknown> & { file: string }).map((r) => ({ ...r, file: f.file })),
+      );
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ name: 'tsGreet', file: 'ts/greet.ts', line: 5 });
       expect(data.result._meta).toMatchObject({ originalTokens: expect.any(Number), compressedTokens: expect.any(Number) });
       expect(res.text).not.toContain(project.projectRoot);
     });

@@ -21,14 +21,14 @@ export function registerAllTools(
   config: HesmanConfig,
 ): void {
   registerFindSymbolTool(server, store, config);
-  registerGetCalleesTool(server, store);
-  registerGetCallersTool(server, store);
+  registerGetCalleesTool(server, store, config);
+  registerGetCallersTool(server, store, config);
   registerGetFileStructureTool(server, store, config);
-  registerGetReferencesTool(server, store);
+  registerGetReferencesTool(server, store, config);
   registerIndexStatusTool(server, store, zvecStore);
   registerListDependenciesTool(server, store, config);
   registerGetContextTool(server, store, config);
-  registerImpactAnalysisTool(server, store);
+  registerImpactAnalysisTool(server, store, config);
   if (zvecStore) {
     registerSemanticSearchTool(server, zvecStore, config);
   }

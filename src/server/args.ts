@@ -78,3 +78,11 @@ export function withArgValidation(handler: ToolHandler): ToolHandler {
     }
   };
 }
+
+/** The `format` argument of a list tool: `compact` (default) or `full` (the plain payload). */
+export function formatArg(args: Record<string, unknown>): 'compact' | 'full' {
+  const raw = args.format;
+  if (raw === undefined || raw === null) return 'compact';
+  if (raw === 'compact' || raw === 'full') return raw;
+  throw new InvalidArgumentError('format must be "compact" or "full"');
+}

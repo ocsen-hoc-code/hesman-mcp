@@ -4,6 +4,7 @@ import type { SqliteStore } from '../../stores/sqlite.js';
 import { ErrorCode, formatError } from '../error-codes.js';
 import type { HesmanConfig } from '../../config/schema.js';
 import { normalizeProjectPath } from '../paths.js';
+import { formatArg, withArgValidation } from '../args.js';
 
 const inputSchema = {
   type: 'object',
@@ -17,6 +18,12 @@ const inputSchema = {
       enum: ['imports', 'imported_by', 'both'],
       description: 'Direction: "imports" (default, what the file imports), "imported_by" (what imports from the file), or "both"',
     },
+    format: {
+      type: 'string',
+      enum: ['compact', 'full'],
+      description:
+        'Response shape (default "compact"): one row per dependency under the named "columns", paths relative to the project. "full" returns one object per dependency.',
+    },
   },
 };
 
@@ -29,6 +36,7 @@ export function registerListDependenciesTool(server: McpServer, store: SqliteSto
         ? normalizeProjectPath(config.projectRoot, rawPath)
         : undefined;
     const direction = (args.direction as string) || 'imports';
+    const format = formatArg(args);
 
     if (!['imports', 'imported_by', 'both'].includes(direction)) {
       return {
@@ -50,7 +58,7 @@ export function registerListDependenciesTool(server: McpServer, store: SqliteSto
       file: filePath || null,
       dependencies,
       tookMs,
-    }, { store });
+    }, { store, format, projectRoot: config.projectRoot });
     return {
       content: [
         {
@@ -65,6 +73,6 @@ export function registerListDependenciesTool(server: McpServer, store: SqliteSto
     'list_dependencies',
     'List dependencies for a file or across the project — file imports, reverse imports, or both',
     inputSchema,
-    handler,
+    withArgValidation(handler),
   );
 }

@@ -107,7 +107,7 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
     beforeAll(async () => {
       // Find the 'add' function symbol to use as target
       const findResult = await client.callTool(
-        { name: 'find_symbol', arguments: { name: 'add', matchMode: 'exact' } },
+        { name: 'find_symbol', arguments: { format: 'full', name: 'add', matchMode: 'exact' } },
         undefined,
         { timeout: 5000 },
       );
@@ -126,6 +126,7 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
         {
           name: 'impact_analysis',
           arguments: {
+            format: 'full',
             symbolId: addSymbolId,
             changeType: 'rename',
             newName: 'addition',
@@ -155,6 +156,7 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
         {
           name: 'impact_analysis',
           arguments: {
+            format: 'full',
             symbolId: 'nonexistent-symbol-id',
             changeType: 'delete',
           },
@@ -179,6 +181,7 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
           {
             name: 'impact_analysis',
             arguments: {
+              format: 'full',
               symbolId: addSymbolId,
               changeType,
             },

@@ -134,7 +134,7 @@ describe('tool path containment', () => {
   });
 
   it('find_symbol normalizes a relative filePath', async () => {
-    const result = await tools.get('find_symbol')!({ name: 'alpha', matchMode: 'exact', filePath: 'src/a.ts' });
+    const result = await tools.get('find_symbol')!({ name: 'alpha', matchMode: 'exact', filePath: 'src/a.ts', format: 'full' });
     const body = parse(result);
     expect(body.symbols.length).toBe(1);
   });
