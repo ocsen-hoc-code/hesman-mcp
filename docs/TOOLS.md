@@ -42,9 +42,11 @@ Look up symbols by name with configurable matching.
 find_symbol({ name: "Calculator", matchMode: "exact" })
 ```
 
-**Output:** Array of matching symbols with `id`, `name`, `kind`, `filePath`, `startLine`, `endLine`, `signature`, `docComment`, `isExported`, `language`.
+**Output:** the matching symbols. Compact (default): `columns` = `id`, `name`, `kind`, `line`, `endLine`, `signature`, `docComment`, `isExported`, `language`; `files: [{ file, rows }]`. Full: `symbols` with `id`, `name`, `kind`, `filePath`, `startLine`, `endLine`, `signature`, `docComment`, `isExported`, `language`.
 
-**Token reduction:** `_meta` with original/compressed token counts. FTS5 fuzzy search returns results under 5ms.
+**Response shape:** compact by default. `files` holds the rows grouped by file, each row an array under the named `columns` of the response, and paths are relative to the project. `format: "full"` returns one object per row with absolute paths (the plain payload). See [Response Structure](#response-structure).
+
+**Token reduction:** measured in [Response Structure](#response-structure). FTS5 fuzzy search returns results under 5ms.
 
 ---
 
@@ -69,9 +71,11 @@ Get the symbol structure of a file — functions, classes, methods, etc.
 get_file_structure({ filePath: "src/index.ts" })
 ```
 
-**Output:** Hierarchical symbol tree with `children` arrays for nested symbols.
+**Output:** Compact (default): `file` (project-relative), `language`, `totalSymbols`, `columns` = `id`, `name`, `kind`, `line`, `endLine`, `signature`, `isExported`, `parentId`, and `rows`, one per symbol. Nested symbols (with `includeNested`) are rows whose `parentId` is the id of their parent; top-level symbols have `parentId: null`. Full (`format: "full"`): the tree, with `children` arrays for nested symbols.
 
-**Token reduction:** none yet — summaries are not applied, so the plain payload is returned with `_meta.reduction: "0.0%"` (measured). See [Response Structure](#response-structure) and the backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md).
+**Response shape:** compact by default. `files` holds the rows grouped by file, each row an array under the named `columns` of the response, and paths are relative to the project. `format: "full"` returns one object per row with absolute paths (the plain payload). See [Response Structure](#response-structure).
+
+**Token reduction:** measured in [Response Structure](#response-structure).
 
 ---
 
@@ -101,7 +105,9 @@ Find all usages of a symbol across the codebase.
 get_references({ symbolId: "a1b2c3d4e5f6g7h8", referenceKind: "calls", topK: 10 })
 ```
 
-**Output:** `references` array with `filePath`, `line`, `col`, `kind`, `callerName`, plus `totalCount`, `hasMore`, `nextCursor` for pagination.
+**Output:** Compact (default): `totalCount`, `hasMore`, `nextCursor`, `columns` = `line`, `col`, `kind`, `callerSymbolId`, `callerName`, and `files: [{ file, rows }]`. Full: `references`, one object per reference with `filePath`, `line`, `col`, `kind`, `callerSymbolId`, `callerName`. `nextCursor` pages both shapes: pass it back as `cursor` with the same arguments.
+
+**Response shape:** compact by default. `files` holds the rows grouped by file, each row an array under the named `columns` of the response, and paths are relative to the project. `format: "full"` returns one object per row with absolute paths (the plain payload). See [Response Structure](#response-structure).
 
 **Calls outside a function:** a call made at the top level of a file, in the initializer of a module-level constant or in a callback that has no name (a test body) is listed with its file and line and `callerName: null`: no symbol makes that call. `get_callers` lists symbols only, so it does not show these call sites.
 
@@ -110,7 +116,7 @@ get_references({ symbolId: "a1b2c3d4e5f6g7h8", referenceKind: "calls", topK: 10 
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
 
-**Token reduction:** `topK` and the pagination cursor bound each page. Summaries are not applied yet, so `_meta.reduction` is `0.0%` (measured). See [Response Structure](#response-structure) and the backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md).
+**Token reduction:** `topK` and the pagination cursor bound each page; the compact shape is measured in [Response Structure](#response-structure).
 
 ---
 
@@ -136,7 +142,9 @@ Traverse the call graph upward — find who calls a symbol.
 get_callers({ symbolId: "a1b2c3d4e5f6g7h8", maxDepth: 2 })
 ```
 
-**Output:** `callers` array with `symbolId`, `name`, `kind`, `filePath`, `depth`, and `callSite`.
+**Output:** Compact (default): `columns` = `symbolId`, `name`, `kind`, `line` (the caller's definition line), `depth`, `callLine` (the call site), `callFile` (the call site's file, or `null` when the call is in the caller's own file), and `files: [{ file, rows }]` grouped by the caller's file. Full: `callers`, one object per caller with `symbolId`, `name`, `kind`, `filePath`, `startLine`, `depth`, and `callSite: { filePath, line }`.
+
+**Response shape:** compact by default. `files` holds the rows grouped by file, each row an array under the named `columns` of the response, and paths are relative to the project. `format: "full"` returns one object per row with absolute paths (the plain payload). See [Response Structure](#response-structure).
 
 **Which calls are linked:** a caller is a function, a method, a class (member initializers) or a variable whose value is a function, never a plain variable. A call is linked to a symbol the calling file can reach: a name it imports is linked through that import only (a name imported from a package or a built-in is not linked to a project symbol of the same name), a declaration that is not exported is not a target for another file, and a member call (`a.b()`) is linked to a method or a property function, not to a free function or a variable named `b`. The type of a receiver is not resolved: a member call is linked when exactly one such member is in reach, so a method named like a built-in one (`has`, `get`, `close`) can still collect calls made on other objects.
 
@@ -145,7 +153,7 @@ get_callers({ symbolId: "a1b2c3d4e5f6g7h8", maxDepth: 2 })
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
 
-**Token reduction:** none yet — call chain summaries are not applied, so the plain payload is returned with `_meta.reduction: "0.0%"` (measured). See [Response Structure](#response-structure) and the backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md).
+**Token reduction:** measured in [Response Structure](#response-structure).
 
 ---
 
@@ -171,12 +179,12 @@ Traverse the call graph downward — find what a symbol calls.
 get_callees({ symbolId: "a1b2c3d4e5f6g7h8", maxDepth: 2, topK: 100 })
 ```
 
-**Output:** `callees` array (same structure as `get_callers`), and the same `note` for a language without a call graph.
+**Output:** `callees`, with the same shapes and fields as `get_callers` (`format` included), and the same `note` for a language without a call graph.
 
 **Error Codes:**
 - `INVALID_INPUT` — missing `symbolId`
 
-**Token reduction:** none yet (same as `get_callers`).
+**Token reduction:** measured in [Response Structure](#response-structure).
 
 ---
 
@@ -300,9 +308,11 @@ List dependencies for a file or across the project.
 list_dependencies({ filePath: "src/server.ts", direction: "both" })
 ```
 
-**Output:** `file`, `dependencies` array with `target`, `kind` (`local_file` / `package` / `unresolved`), `importedSymbols`, `count`.
+**Output:** Compact (default): `file` (project-relative, or `null`), `columns` = `target`, `kind` (`local_file` / `package` / `unresolved`), `importedSymbols`, `count`, and `rows`, one per dependency. Full: `dependencies`, one object per dependency with the same fields.
 
-**Token reduction:** none yet — summaries are not applied, so `_meta.reduction` is `0.0%` (measured). See [Response Structure](#response-structure) and the backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md).
+**Response shape:** compact by default. `files` holds the rows grouped by file, each row an array under the named `columns` of the response, and paths are relative to the project. `format: "full"` returns one object per row with absolute paths (the plain payload). See [Response Structure](#response-structure).
+
+**Token reduction:** measured in [Response Structure](#response-structure).
 
 **Error Codes:**
 - `INVALID_INPUT` — invalid direction value
@@ -342,10 +352,11 @@ impact_analysis({
 ```
 
 **Output:**
-- `symbol` — the target symbol's info
+- `symbol` — the target symbol's info (`filePath` project-relative in the compact format)
 - `changeType` — the type of change
 - `_summary` — `totalFiles`, `mustFix`, `shouldReview`, `info`, `estimatedChanges`
-- `impactedFiles` — array of files with `filePath`, `severity`, `locations` (each with `line`, `col`, `kind`, `action`, `currentCode`), and `reason` string
+- Compact (default): `columns` = `line`, `col`, `kind`, `action`, `currentCode`, and `files: [{ file, severity, reason, rows }]`, one group per impacted file.
+- Full (`format: "full"`): `impactedFiles`, one object per file with `filePath`, `severity`, `reason` and `locations` (each with `line`, `col`, `kind`, `action`, `currentCode`).
 
 **Severity levels:**
 | Severity | Criteria | Description |
@@ -605,20 +616,45 @@ Every successful response (except `index_status`) includes a `_meta` block:
 ```json
 {
   "_meta": {
-    "originalTokens": 1764,
-    "compressedTokens": 178,
-    "reduction": "89.9%",
-    "compressed": false,
-    "layers": ["prune"]
+    "originalTokens": 4171,
+    "compressedTokens": 962,
+    "reduction": "76.9%",
+    "compressed": true,
+    "layers": ["group", "columns", "paths"]
   }
 }
 ```
 
-- `originalTokens` — the baseline: the plain (uncompressed) payload, or the pre-pruning size (e.g. the whole file for `get_context`) when that is larger.
+- `originalTokens` — the baseline: the plain payload (the same call with `format: "full"`), or the pre-pruning size (e.g. the whole file for `get_context`) when that is larger.
 - `compressedTokens` — the size of the payload actually returned (excluding `_meta`).
 - `reduction` — `1 - compressedTokens / originalTokens`, never negative.
-- `compressed` — `true` when the response compressor's own compaction made the payload smaller and was kept; `false` otherwise, in which case the plain payload is returned unchanged (and `reduction` is `0.0%` unless pruning saved tokens). `get_context` in compact mode reports `false` because its excerpt is already compacted by the tool.
-- `layers` — the layers that actually contributed: `compact`, `prune` (`summary` is reserved; it never appears today).
+- `compressed` — `true` when the compact shape (or `get_context`'s compaction) made the payload smaller and was kept; `false` otherwise, in which case the plain payload is returned (and `reduction` is `0.0%` unless pruning saved tokens). `get_context` in compact mode reports `false` because its excerpt is already compacted by the tool.
+- `layers` — the layers that actually contributed: `group` (rows grouped by file under `files`), `columns` (rows are arrays under the named `columns`), `paths` (paths are relative to the project), `compact` (`get_context` code compaction), `prune` (`get_context` pruning).
 - `indexing` — present **only while the initial index is running**: `{ "inProgress": true, "filesDone": 1200, "filesTotal": 6000 }`. The response was answered from a partial index, so results may be incomplete (missing symbols, callers or references); retry later or poll `index_status` until `indexing.inProgress` is `false`. The field is omitted once the index is complete, so normal responses do not grow.
 
-Hesman never returns a response larger than its uncompressed form. The response compressor builds a `_summary` (counts by kind and file) for list and call-graph tools, but it only adds to the full list, so it never makes a response smaller and is always dropped: `get_references`, `get_callers`, `get_callees`, `list_dependencies` and `get_file_structure` return their plain payload with `reduction: "0.0%"` and `compressed: false`. Replacing long lists with a summary plus the top entries is a backlog item in [`tasks/STATUS.md`](../tasks/STATUS.md). `impact_analysis` builds its own `_summary` (`totalFiles`, `mustFix`, `shouldReview`, `info`, `estimatedChanges`) as part of its payload.
+### Compact and full shapes (list tools)
+
+`find_symbol`, `get_references`, `get_callers`, `get_callees`, `get_file_structure`, `list_dependencies` and `impact_analysis` answer in the **compact** shape by default. The shape is named in the response: `"format": "compact"` or `"format": "full"`.
+
+- **Compact:** the row fields are named once in `columns`; each row is an array of values in the order of `columns`. Rows are grouped by file under `files: [{ "file": "src/a.ts", "rows": [...] }]` (`list_dependencies` and `get_file_structure` have one flat `rows` list instead). Paths are relative to the project and use `/`; they can be passed back unchanged as `filePath` to the other tools. A `symbolId` or `callerSymbolId` is passed back as `symbolId`. A `null` cell means the field is empty.
+- **Full** (`format: "full"`): the plain payload, one object per row, absolute paths, as before compact shapes existed.
+
+The compact form is used only when it is smaller than the plain payload; a list too small to shrink is returned in the full format with `"format": "full"`. Hesman never returns a list response larger than its plain payload.
+
+**Measured savings** (`npx tsx scripts/bench-responses.ts` on `tests/fixtures/response-bench`; tokens are counted with the estimator `_meta` uses, over the whole response text, `_meta` included; "before" is the response of the previous version, "after" the default compact response):
+
+| Scenario | Rows | Before | After | Saved |
+|---|---:|---:|---:|---:|
+| `find_symbol` prefix `handleItem` | 10 | 961 | 481 | 50.0% |
+| `find_symbol` prefix `step` | 20 | 1845 | 734 | 60.2% |
+| `get_references` `hub` (calls and imports) | 70 | 4482 | 962 | 78.5% |
+| `get_callers` `hub`, depth 1 | 70 | 7000 | 1143 | 83.7% |
+| `get_callers` `hub`, depth 2 | 100 | 10022 | 1584 | 84.2% |
+| `get_callees` `runAll` | 10 | 1039 | 370 | 64.4% |
+| `get_file_structure` `large.ts` | 40 | 1635 | 1028 | 37.1% |
+| `list_dependencies` `index.ts` | 10 | 334 | 223 | 33.2% |
+| `impact_analysis` `hub` rename | 70 | 2778 | 1673 | 39.8% |
+
+One small result grows: a call with no callers is 5 tokens larger than before (32 to 37), because the response now names its `format`. `get_context` and `index_status` are unchanged.
+
+Hesman never returns a response larger than its uncompressed form (see the compact and full shapes above). `impact_analysis` builds its own `_summary` (`totalFiles`, `mustFix`, `shouldReview`, `info`, `estimatedChanges`) as part of its payload.

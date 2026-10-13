@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hesman is an MCP (Model Context Protocol) server that parses, indexes, and serves code intelligence to AI agents. The system follows a pipeline architecture: file events → parse → index → query, with a 3-layer compression pipeline (compact mode and context pruning are applied today; summarization is not yet). `get_context` measured 89.9% fewer tokens than the whole file with its default ±5 context lines on a 195-line file.
+Hesman is an MCP (Model Context Protocol) server that parses, indexes, and serves code intelligence to AI agents. The system follows a pipeline architecture: file events → parse → index → query, with a 3-layer compression pipeline (compact mode, context pruning and compact list shapes are applied today; summarization is not). `get_context` measured 89.9% fewer tokens than the whole file with its default ±5 context lines on a 195-line file.
 
 ---
 
@@ -82,21 +82,9 @@ Relevance is determined by:
 
 Overlapping ranges are merged before output. The pruning uses merge-sort of intervals for O(n log n) performance.
 
-### Layer 3: Smart Summarization (not applied yet)
+### Layer 3: Compact list shapes
 
-For call chains, dependency lists, and reference lists, the response compressor builds a `_summary` block:
-
-```json
-"_summary": {
-  "totalCount": 47,
-  "byKind": { "calls": 32, "imports": 8, "extends": 7 },
-  "byFile": [{ "filePath": "src/main.ts", "count": 12 }, ...]
-}
-```
-
-For call chain tools, `_summary` also includes direct vs. transitive counts and a human-readable summary string.
-
-The `_summary` is only added next to the full list, so it never makes a response smaller. Since M0-15 the compressor keeps its changes only when they shrink the payload, so `_summary` is always dropped and these tools return their plain payload with `_meta.reduction` `0.0%` and `_meta.compressed: false`. Replacing long lists with a summary plus the top entries is a backlog item in `tasks/STATUS.md`.
+List and call-graph tools (`find_symbol`, `get_references`, `get_callers`, `get_callees`, `get_file_structure`, `list_dependencies`, `impact_analysis`) answer in a compact shape by default: rows are arrays under named `columns`, grouped by file, with project-relative paths. The response compressor (`src/server/response-compressor.ts`) builds it from the plain payload the handler produced, and keeps it only when it is smaller; otherwise the plain payload is returned with `format: "full"`. `format: "full"` on the request returns the plain payload. No summary replaces rows, so nothing is lost. The measured savings are in `docs/TOOLS.md` (Response Structure) and are reproduced by `scripts/bench-responses.ts`.
 
 Each response except `index_status` also includes `_meta` with original and compressed token counts, the reduction percentage (never negative), `compressed`, and the active `layers`.
 
@@ -146,7 +134,7 @@ src/
 ├── server/
 │   ├── mcp-server.ts                # MCP server wrapper — tool registration, stdio transport
 │   ├── error-codes.ts               # Error codes and formatError() helper
-│   ├── response-compressor.ts       # Response-level compression (adds _meta; _summary only if smaller)
+│   ├── response-compressor.ts       # Response-level compression (adds _meta; compact list shapes only if smaller)
 │   └── tools/
 │       ├── index.ts                 # Tool registration hub
 │       ├── find-symbol.ts           # find_symbol tool
