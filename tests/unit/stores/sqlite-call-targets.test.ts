@@ -185,8 +185,8 @@ describe('SqliteStore call targets', () => {
     ]);
   });
 
-  it('is at index schema 8: callers, receivers, imported names and the link rules of M1-09', () => {
-    expect(INDEX_SCHEMA_VERSION).toBe(8);
+  it('is at index schema 9: the receiver type of a call (M1-10) on top of the M1-09 link rules', () => {
+    expect(INDEX_SCHEMA_VERSION).toBe(9);
   });
 
   it('offers a definition, not its body-less declaration, as a call target (M1-07)', () => {
