@@ -16,6 +16,7 @@
 - [Features](#features)
 - [How Token Reduction Works](#how-token-reduction-works)
 - [Installation & Setup](#installation--setup)
+- [Dashboard](#dashboard)
 - [Uninstalling](#uninstalling)
 - [Tools Reference](#tools-reference)
 - [Configuration](#configuration)
@@ -328,6 +329,42 @@ One server process indexes one project. It is chosen in this order:
 4. **No project** — the server still starts and lists its tools, but every tool returns a `NO_PROJECT` error that explains how to set a root.
 
 The home directory and its parent directories are never picked automatically (steps 2 and 3), so a global MCP entry started from `~` does not crawl your disk. The index is stored in `.hesman/` inside the chosen project.
+
+---
+
+## Dashboard
+
+`hesman ui` opens a local web page for one project: what the agents asked Hesman, how fast it answered, how many tokens it saved, what the server logged, and what is in the index.
+
+```bash
+cd /path/to/project
+hesman ui                 # a free port; opens the browser
+hesman ui --no-open       # only print the URL
+hesman ui --port 4100     # a fixed port
+```
+
+The project must have an index (start the MCP server once, or run `hesman index`). The command prints a URL of the form `http://127.0.0.1:<port>/?token=<random>`; stop it with Ctrl+C.
+
+![Metrics: calls, failures, latency and tokens before and after](./docs/images/dashboard-metrics.png)
+
+| Screen | What it shows |
+|---|---|
+| **Overview** | Index state, files, symbols and relations, each language with its support tier, and what is unavailable in the dashboard |
+| **Metrics** | Tool calls recorded by the MCP server: count, failures, median and 95th-percentile latency, tokens before and after reduction, over time and per tool, with the recent calls |
+| **Logs** | The server's log, newest first, filtered by level and text, updated live |
+| **Graph** | Find a symbol and see its callers and callees as a graph, or see how files import each other; select a node to load its neighbors |
+| **Playground** | Pick a tool, fill in its arguments in a form, run it and see the exact answer an agent gets, with its token numbers |
+
+![Graph: a symbol with its callers and callees](./docs/images/dashboard-graph.png)
+
+Things to know:
+
+- **Metrics and Logs show what the MCP server recorded.** They are empty until an agent has called Hesman in that project; `hesman index` alone records no calls.
+- **It runs next to the MCP server.** The dashboard is a separate process that opens the index read-only, so both can run at once.
+- **Local only.** It listens on `127.0.0.1`, and every request needs the token from the URL, which changes on each start. Nothing is sent anywhere.
+- **Two limits.** `semantic_search` cannot be run from the Playground (the vector store allows one process, and the MCP server holds it), and the dashboard shows the index as stored, not a run in progress.
+
+All options and the HTTP API are in [docs/CLI.md](./docs/CLI.md#hesman-ui); the access rules are in [docs/SECURITY.md](./docs/SECURITY.md).
 
 ---
 

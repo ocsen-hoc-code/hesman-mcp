@@ -16,6 +16,7 @@
 - [Funcionalidades](#funcionalidades)
 - [Como funciona a redução de tokens](#como-funciona-a-redução-de-tokens)
 - [Instalação e configuração](#instalação-e-configuração)
+- [Painel](#painel)
 - [Desinstalação](#desinstalação)
 - [Referência das ferramentas](#referência-das-ferramentas)
 - [Configuração](#configuração)
@@ -328,6 +329,42 @@ Um processo do servidor indexa um único projeto. Ele é escolhido nesta ordem:
 4. **Nenhum projeto** — o servidor ainda inicia e lista suas ferramentas, mas toda ferramenta retorna um erro `NO_PROJECT` que explica como definir uma raiz.
 
 O diretório home e seus diretórios pais nunca são escolhidos automaticamente (etapas 2 e 3), de modo que uma entrada MCP global iniciada a partir de `~` não varre o seu disco. O índice fica armazenado em `.hesman/` dentro do projeto escolhido.
+
+---
+
+## Painel
+
+`hesman ui` abre uma página web local para um projeto: o que os agentes pediram ao Hesman, a rapidez com que respondeu, quantos tokens economizou, o que o servidor registrou e o que há no índice.
+
+```bash
+cd /path/to/project
+hesman ui                 # uma porta livre; abre o navegador
+hesman ui --no-open       # mostra apenas a URL
+hesman ui --port 4100     # uma porta fixa
+```
+
+O projeto precisa ter um índice (inicie o servidor MCP uma vez, ou execute `hesman index`). O comando mostra uma URL no formato `http://127.0.0.1:<port>/?token=<random>`; pare-o com Ctrl+C.
+
+![Métricas: chamadas, falhas, latência e tokens antes e depois da redução](../images/dashboard-metrics.png)
+
+| Tela | O que mostra |
+|---|---|
+| **Overview** | Estado do índice, arquivos, símbolos e relações, cada linguagem com seu nível de suporte e o que está indisponível no painel |
+| **Metrics** | Chamadas de ferramentas registradas pelo servidor MCP: quantidade, falhas, latência mediana e do percentil 95, tokens antes e depois da redução, ao longo do tempo e por ferramenta, com as chamadas recentes |
+| **Logs** | O log do servidor, do mais recente para o mais antigo, filtrado por nível e texto, atualizado ao vivo |
+| **Graph** | Encontre um símbolo e veja seus callers e callees como um grafo, ou veja como os arquivos se importam; selecione um nó para carregar seus vizinhos |
+| **Playground** | Escolha uma ferramenta, preencha seus argumentos em um formulário, execute-a e veja a resposta exata que um agente recebe, com os números de tokens |
+
+![Grafo: um símbolo com seus callers e callees](../images/dashboard-graph.png)
+
+Coisas a saber:
+
+- **Metrics e Logs mostram o que o servidor MCP registrou.** Ficam vazios até que um agente tenha chamado o Hesman naquele projeto; `hesman index` sozinho não registra chamadas.
+- **Ele roda ao lado do servidor MCP.** O painel é um processo separado que abre o índice somente leitura, então os dois podem rodar ao mesmo tempo.
+- **Somente local.** Ele escuta em `127.0.0.1`, e cada requisição precisa do token da URL, que muda a cada início. Nada é enviado para lugar nenhum.
+- **Dois limites.** `semantic_search` não pode ser executada pelo Playground (o armazenamento vetorial permite um só processo, e o servidor MCP o mantém), e o painel mostra o índice como foi guardado, não uma execução em andamento.
+
+Todas as opções e a API HTTP estão em [docs/CLI.md](../CLI.md#hesman-ui); as regras de acesso estão em [docs/SECURITY.md](../SECURITY.md).
 
 ---
 

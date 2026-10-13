@@ -16,6 +16,7 @@
 - [Tính năng](#tính-năng)
 - [Cơ chế giảm token](#cơ-chế-giảm-token)
 - [Cài đặt & Thiết lập](#cài-đặt--thiết-lập)
+- [Bảng điều khiển](#bảng-điều-khiển)
 - [Gỡ cài đặt](#gỡ-cài-đặt)
 - [Tham chiếu công cụ](#tham-chiếu-công-cụ)
 - [Cấu hình](#cấu-hình)
@@ -328,6 +329,42 @@ Một tiến trình server lập chỉ mục một dự án. Dự án được c
 4. **Không có dự án** — server vẫn khởi động và liệt kê các công cụ, nhưng mọi công cụ đều trả về lỗi `NO_PROJECT` giải thích cách đặt root.
 
 Thư mục home và các thư mục cha của nó không bao giờ được chọn tự động (bước 2 và 3), nên một mục MCP global được khởi động từ `~` sẽ không quét khắp ổ đĩa của bạn. Chỉ mục được lưu trong `.hesman/` bên trong dự án được chọn.
+
+---
+
+## Bảng điều khiển
+
+`hesman ui` mở một trang web cục bộ cho một dự án: các agent đã hỏi Hesman những gì, nó trả lời nhanh đến mức nào, đã tiết kiệm bao nhiêu token, server đã ghi những log gì, và có gì trong chỉ mục.
+
+```bash
+cd /path/to/project
+hesman ui                 # một cổng trống; mở trình duyệt
+hesman ui --no-open       # chỉ in URL
+hesman ui --port 4100     # một cổng cố định
+```
+
+Dự án phải có chỉ mục (khởi động MCP server một lần, hoặc chạy `hesman index`). Lệnh in ra một URL có dạng `http://127.0.0.1:<port>/?token=<random>`; dừng bằng Ctrl+C.
+
+![Số liệu: số lần gọi, lỗi, độ trễ và token trước và sau khi giảm](../images/dashboard-metrics.png)
+
+| Màn hình | Hiển thị gì |
+|---|---|
+| **Overview** | Trạng thái chỉ mục, số tệp, symbol và quan hệ, từng ngôn ngữ với tầng hỗ trợ của nó, và những gì không có sẵn trong dashboard |
+| **Metrics** | Các lần gọi công cụ do MCP server ghi lại: số lần, lỗi, độ trễ trung vị và phân vị thứ 95, token trước và sau khi giảm, theo thời gian và theo từng công cụ, cùng các lần gọi gần đây |
+| **Logs** | Log của server, mới nhất trước, lọc theo mức và theo văn bản, cập nhật trực tiếp |
+| **Graph** | Tìm một symbol và xem caller và callee dưới dạng đồ thị, hoặc xem các tệp import nhau thế nào; chọn một nút để tải các nút lân cận |
+| **Playground** | Chọn một công cụ, điền tham số trong biểu mẫu, chạy và xem đúng câu trả lời mà agent nhận được, cùng số liệu token |
+
+![Đồ thị: một symbol cùng caller và callee](../images/dashboard-graph.png)
+
+Điều cần biết:
+
+- **Metrics và Logs chỉ hiển thị những gì MCP server đã ghi lại.** Chúng trống cho đến khi một agent gọi Hesman trong dự án đó; riêng `hesman index` không ghi lại lần gọi nào.
+- **Nó chạy cạnh MCP server.** Dashboard là một tiến trình riêng, mở chỉ mục ở chế độ chỉ đọc, nên cả hai có thể chạy cùng lúc.
+- **Chỉ cục bộ.** Nó lắng nghe trên `127.0.0.1`, và mọi yêu cầu cần token trong URL; token này đổi mỗi lần khởi động. Không có gì được gửi đi đâu cả.
+- **Hai giới hạn.** `semantic_search` không chạy được từ Playground (vector store chỉ cho một tiến trình, và MCP server đang giữ nó), và dashboard hiển thị chỉ mục như đã lưu, không phải một lần chạy đang diễn ra.
+
+Mọi tùy chọn và HTTP API nằm trong [docs/CLI.md](../CLI.md#hesman-ui); quy tắc truy cập nằm trong [docs/SECURITY.md](../SECURITY.md).
 
 ---
 
