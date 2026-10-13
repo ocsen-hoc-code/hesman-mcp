@@ -38,7 +38,7 @@ describe('compressToolResponse', () => {
         { name: 'setup', depth: 2, filePath: 'c.ts' },
       ],
     };
-    const result = compressToolResponse('get_callers', data) as any;
+    const result = compressToolResponse('get_callers', data, { format: 'full' }) as any;
     expect(result._summary).toBeUndefined();
     expect(result.callers).toEqual(data.callers);
     expect(result._meta.compressed).toBe(false);
@@ -70,7 +70,8 @@ describe('compressToolResponse — never larger than the plain payload (M0-15)',
       callers: [{ id: 'x', name: 'GoGreet', kind: 'function', filePath: 'go/greet.go', line: 15, depth: 1 }],
     };
     const result = compressToolResponse('get_callers', data);
-    expect(withoutMeta(result)).toEqual(data);
+    // The plain payload is labelled as the full format.
+    expect(withoutMeta(result)).toEqual({ format: 'full', ...data });
     expect(result._summary).toBeUndefined();
     expect(result._meta.reduction).toBe('0.0%');
     expect(result._meta.compressed).toBe(false);
@@ -104,6 +105,10 @@ describe('compressToolResponse — never larger than the plain payload (M0-15)',
   });
 
   it('never makes any tool response larger than the plain payload', () => {
+    const listTools = new Set([
+      'find_symbol', 'get_references', 'list_dependencies', 'get_file_structure', 'get_callers',
+      'get_callees', 'impact_analysis',
+    ]);
     const tools = [
       'find_symbol', 'get_references', 'list_dependencies', 'get_file_structure', 'get_callers',
       'get_callees', 'get_context', 'impact_analysis', 'semantic_search', 'find_pattern',
@@ -118,7 +123,9 @@ describe('compressToolResponse — never larger than the plain payload (M0-15)',
     };
     for (const tool of tools) {
       const result = compressToolResponse(tool, data);
-      expect(tokens(withoutMeta(result)), tool).toBeLessThanOrEqual(tokens(data));
+      // List tools' plain payload is the full format, which carries `format: "full"`.
+      const plain = listTools.has(tool) ? { format: 'full', ...data } : data;
+      expect(tokens(withoutMeta(result)), tool).toBeLessThanOrEqual(tokens(plain));
       expect(pct(result), tool).toBeGreaterThanOrEqual(0);
     }
   });

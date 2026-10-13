@@ -4,12 +4,19 @@ import type { SqliteStore } from '../../stores/sqlite.js';
 import { ErrorCode, formatError } from '../error-codes.js';
 import type { HesmanConfig } from '../../config/schema.js';
 import { normalizeProjectPath } from '../paths.js';
+import { formatArg, withArgValidation } from '../args.js';
 
 const inputSchema = {
   type: 'object',
   properties: {
     filePath: { type: 'string', description: 'Path to the file to analyze' },
     includeNested: { type: 'boolean', description: 'Include nested symbols (methods in classes). Default: true' },
+    format: {
+      type: 'string',
+      enum: ['compact', 'full'],
+      description:
+        'Response shape (default "compact"): one row per symbol under the named "columns"; nested symbols are rows with a parentId. "full" returns the symbols as a tree of objects with "children".',
+    },
   },
   required: ['filePath'],
 };
@@ -19,6 +26,7 @@ export function registerGetFileStructureTool(server: McpServer, store: SqliteSto
     const start = performance.now();
     const rawPath = args.filePath;
     const includeNested = args.includeNested !== false;
+    const format = formatArg(args);
 
     if (!rawPath || typeof rawPath !== 'string') {
       return {
@@ -86,7 +94,7 @@ export function registerGetFileStructureTool(server: McpServer, store: SqliteSto
       symbols,
       totalSymbols: allSymbols.length,
       tookMs: Math.round((performance.now() - start) * 100) / 100,
-    }, { store });
+    }, { store, format, projectRoot: config.projectRoot });
     return {
       content: [
         {
@@ -101,6 +109,6 @@ export function registerGetFileStructureTool(server: McpServer, store: SqliteSto
     'get_file_structure',
     'Get the symbol structure of a file (functions, classes, methods, ...)',
     inputSchema,
-    handler,
+    withArgValidation(handler),
   );
 }

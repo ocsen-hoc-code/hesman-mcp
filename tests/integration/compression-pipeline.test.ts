@@ -94,7 +94,7 @@ describe('compression pipeline integration', () => {
         { filePath: 'src/utils.ts', kind: 'exports', line: 1 },
       ],
       totalCount: 2,
-    });
+    }, { format: 'full' });
     // _summary only adds tokens, so it is dropped rather than inflating the payload (M0-15)
     expect(refResult._summary).toBeUndefined();
     expect(refResult.references).toHaveLength(2);
@@ -106,7 +106,7 @@ describe('compression pipeline integration', () => {
       callers: [
         { name: 'main', depth: 1, filePath: 'src/index.ts' },
       ],
-    });
+    }, { format: 'full' });
     expect(callersResult._summary).toBeUndefined();
     expect(callersResult.callers).toHaveLength(1);
     expect(callersResult._meta.compressed).toBe(false);

@@ -120,8 +120,12 @@ function textOf(result: unknown): { text: string; isError: boolean } {
   return { text: r.content[0]?.text ?? '', isError: r.isError === true };
 }
 
-/** The count of rows a list response carries; 1 for a single-object response. */
+/** The count of rows a list response carries, in either format (0 when it has no list). */
 function rowsOf(payload: Record<string, unknown>): number {
+  if (Array.isArray(payload.rows)) return payload.rows.length;
+  if (Array.isArray(payload.files)) {
+    return (payload.files as Array<{ rows?: unknown[] }>).reduce((sum, f) => sum + (f.rows?.length ?? 0), 0);
+  }
   for (const key of ['symbols', 'references', 'callers', 'callees', 'dependencies', 'impactedFiles']) {
     const value = payload[key];
     if (Array.isArray(value)) return value.length;
