@@ -5,7 +5,7 @@
 
 🌐 **Read this in:** [English](./README.md) | [Tiếng Việt](./docs/i18n/README.vi.md) | [Русский](./docs/i18n/README.ru.md) | [Deutsch](./docs/i18n/README.de.md) | [Français](./docs/i18n/README.fr.md) | [中文](./docs/i18n/README.zh.md) | [日本語](./docs/i18n/README.ja.md) | [العربية](./docs/i18n/README.ar.md) | [Español](./docs/i18n/README.es.md) | [Português](./docs/i18n/README.pt.md)
 
-**Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — with focused code reads that cut token consumption (`get_context` returns ~90% fewer tokens than the whole file when you ask for one function's neighborhood). Everything runs on your machine: no external APIs, no LSP servers, and your code is never sent anywhere.
+**Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — with answers shaped to cost few tokens: on this repository `get_context` returns 80–96% fewer tokens than the whole file, and lists of callers or references are 66–72% smaller than plain JSON (see [Measured on this repository](#measured-on-this-repository)). Everything runs on your machine: no external APIs, no LSP servers, and your code is never sent anywhere.
 
 ---
 
@@ -37,7 +37,7 @@ Hesman solves this by:
 
 - **Serving only what the agent needs** — a focused function, its callers, its callees, or the symbols impacted by a change.
 - **Compacting and pruning code** — `get_context` strips comments and blank lines and returns only the lines around the focus location instead of the whole file.
-- **Never inflating responses** — a response is never larger than its plain payload. Summaries for long result lists are planned but not applied yet (see [Token Reduction Pipeline](#token-reduction-pipeline)).
+- **Compact lists** — callers, callees, references, symbols and file outlines come back as rows under named columns, grouped by file, with project-relative paths; no row is dropped. A response is never larger than its plain payload (see [Token Reduction Pipeline](#token-reduction-pipeline)).
 - **Running on your machine** — no API keys, no external service, no latency from one. Your code never leaves your machine. The only downloads are the embedding model on first use and the grammars of on-demand languages; both can be turned off (`--no-semantic`, `HESMAN_GRAMMARS_OFFLINE=1`).
 - **Measurable savings** — every tool response except `index_status` includes `_meta.reduction` showing exactly how many tokens were saved vs. raw output.
 
@@ -90,15 +90,15 @@ The server answers your agent immediately and indexes in the background (a few s
 
 ### Token Reduction Pipeline
 
-Hesman designs its compression pipeline in 3 layers; today the savings come from compact mode and context pruning in `get_context`. Every response reports its actual savings in `_meta.reduction`, and a response is never larger than its plain payload.
+Hesman reduces tokens in three ways. Every response reports its actual savings in `_meta.reduction`, and a response is never larger than its plain payload.
 
-| Layer | Technique | Measured savings | Status |
+| Layer | Technique | Measured savings | Applies to |
 |---|---|---|---|
-| **Compact mode** | Strips comments, blank lines, trailing whitespace | ~14–16% of a code excerpt (`get_context`, `mode: "full"` vs. `"compact"`) | Applied in `get_context` |
-| **Context pruning** | Line-range extraction around the focus location + compact mode | 89.9% with the default ±5 lines, 29.9% with ±40 lines (195-line file); 0% when the whole file is requested | Applied in `get_context` |
-| **Smart summarization** | Aggregated `_summary` blocks for long result lists | 0% — a `_summary` only added to a response, so it is dropped | Not applied yet ([backlog](tasks/STATUS.md)) |
+| **Compact mode** | Strips comments, blank lines, trailing whitespace | 0–16% of a code excerpt, depending on how many comments and blank lines it has (`mode: "full"` vs. `"compact"`) | `get_context` |
+| **Context pruning** | Returns a line range around the focus location instead of the file | 96.0% with the default ±5 lines, 79.7% with ±40 lines (514-line file); 0% when the whole file is requested | `get_context` |
+| **Compact lists** | Rows under named columns, grouped by file, project-relative paths | 66–72% for callers, callees and references; 35–41% for symbol lists, file outlines, dependencies and impact analysis | `find_symbol`, `get_references`, `get_callers`, `get_callees`, `get_file_structure`, `list_dependencies`, `impact_analysis` |
 
-List and call-graph tools (`get_references`, `get_callers`, `get_callees`, `list_dependencies`, `get_file_structure`) currently return their plain payload with `_meta.reduction: "0.0%"` and `_meta.compressed: false`. Measured on this repository's `src/` and on `tests/fixtures/polyglot-basic`. The `_meta.reduction` field in every response reports exact savings for your workload.
+`find_pattern` and `semantic_search` return their plain payload (`_meta.reduction: "0.0%"`). The numbers are from this repository; see [Measured on this repository](#measured-on-this-repository) for the full table and how to reproduce it. The `_meta.reduction` field in every response reports exact savings for your workload.
 
 ### Production Ready
 
@@ -161,27 +161,40 @@ function calculateTotal(
 
 Pruning is by line range only: it does not follow callers or callees. To read what a function calls or what calls it, ask `get_callees` / `get_callers` for the locations and then `get_context` for each.
 
-### Layer 3: Smart Summarization (not applied yet)
+### Layer 3: Compact Lists
 
-The plan is to replace long result lists with an aggregated `_summary` (counts by kind and by file) plus the top entries. The current implementation only *added* a `_summary` next to the full list, which made responses larger, so Hesman drops it and returns the plain payload: list and call-graph tools report `_meta.reduction: "0.0%"` today. Making summaries actually save tokens is tracked in the backlog ([`tasks/STATUS.md`](tasks/STATUS.md)). Long lists can already be fetched in pages via `topK` and `cursor` (`get_references`).
+A list answer repeats the same things in every row: a long file path, the field names, values that never change. The compact shape writes each of them once: the field names in `columns`, the path once per file, relative to the project. This is a real `get_callers` answer:
+
+```json
+{
+  "format": "compact",
+  "columns": ["symbolId", "name", "kind", "line", "depth", "callLine", "callFile"],
+  "files": [
+    { "file": "src/indexing/file-watcher.ts", "rows": [["a182668c09c39b47", "scan", "method", 78, 1, 79, null]] }
+  ],
+  "_meta": { "originalTokens": 101, "compressedTokens": 54, "reduction": "46.5%", "compressed": true, "layers": ["group", "columns", "paths"] }
+}
+```
+
+No row is dropped and nothing is summarized away; `symbolId`, the relative `file` and `line` can be passed straight to the other tools. `get_file_structure` and `list_dependencies` use one flat `rows` list. When the compact shape would not be smaller (an empty list, a single row), the plain payload is returned. Pass `format: "full"` to any of these tools to get the plain objects with absolute paths. Long lists are fetched in pages with `topK` and, for `get_references`, `cursor`.
 
 ### Measuring Savings
 
-Every Hesman response includes a `_meta` block with actual token savings:
+Every tool response except `index_status` includes a `_meta` block with actual token savings:
 
 ```json
 {
   "_meta": {
-    "originalTokens": 1764,
-    "compressedTokens": 178,
-    "reduction": "89.9%",
+    "originalTokens": 4782,
+    "compressedTokens": 190,
+    "reduction": "96.0%",
     "compressed": false,
     "layers": ["prune"]
   }
 }
 ```
 
-This example is a real `get_context` call (default ±5 lines, compact mode) on a 195-line file: the excerpt is already compacted by the tool, so only the `prune` layer is listed, and `compressed: false` means the response compressor had nothing further to remove. The `_meta.reduction` field measures against the original full-file token count, giving you the true end-to-end savings. Responses that would not shrink are returned as-is with `reduction: "0.0%"`; it is never negative. Audit exactly how much Hesman saves in your real workloads by checking `_meta.reduction` on any tool response.
+This example is a real `get_context` call (default ±5 lines, compact mode) on a 514-line file: the excerpt is already compacted by the tool, so only the `prune` layer is listed, and `compressed: false` means the response compressor had nothing further to remove. The `_meta.reduction` field measures against the original full-file token count, giving you the true end-to-end savings. Responses that would not shrink are returned as-is with `reduction: "0.0%"`; it is never negative. Audit exactly how much Hesman saves in your real workloads by checking `_meta.reduction` on any tool response.
 
 ---
 
@@ -560,14 +573,14 @@ Symbol kinds follow each grammar's own tags query, so some are coarser than the 
                          │       Hesman MCP Server                │
                          │              │                          │
                          │   ┌──────────┴──────────────────────┐  │
-                         │   │     3-Layer Compression Pipeline │  │
+                         │   │      Token Reduction Pipeline    │  │
                          │   │  ┌────────────────────────────┐  │  │
                          │   │  │ 1. Compact Mode            │  │  │
                          │   │  │    Strip comments/blanks    │  │  │
                          │   │  │ 2. Context Pruning         │  │  │
-                         │   │  │    Keep only relevant lines │  │  │
-                         │   │  │ 3. Smart Summarization     │  │  │
-                         │   │  │    planned, not applied     │  │  │
+                         │   │  │    A line range, not a file │  │  │
+                         │   │  │ 3. Compact Lists           │  │  │
+                         │   │  │    Columns, grouped by file │  │  │
                          │   │  └────────────────────────────┘  │  │
                          │   └───────────────────────────────────┘  │
                          │                                          │
@@ -583,7 +596,7 @@ Symbol kinds follow each grammar's own tags query, so some are coarser than the 
                          └──────────────────────────────────────────┘
 ```
 
-**Core data pipeline:** File changes (chokidar) → Tree-sitter parse (AST + symbols) → SQLite index + ZVec embeddings → Compressed MCP responses
+**Core data pipeline:** File changes (chokidar) → Tree-sitter parse (AST + symbols) → SQLite index + ZVec embeddings → compact MCP responses
 
 **Key design decisions:**
 - **No LSP dependency** — Tree-sitter provides language-agnostic parsing without running language servers
@@ -650,6 +663,38 @@ npm run test:perf         # Performance benchmarks
 | `get_references` | < 5ms |
 | Memory (after index) | < 350MB |
 
+### Measured on this repository
+
+`node scripts/measure.mjs` starts the built server over stdio, lets it index a clean export of this repository (502 files: 350 with symbols, 152 as text; 7,700 symbols, 27,372 relations) and calls each tool 100 times through MCP. Measured on 2026-10-13 on an Apple M3 Pro (11 cores, 18 GB), macOS, Node 24. Your numbers depend on the machine and the project; run the script to get them.
+
+| Startup, index and memory | Semantic search on | `--no-semantic` |
+|---|---:|---:|
+| MCP handshake answered after | 0.4 s | 0.2 s |
+| Index ready after | 70.2 s | 2.4 s |
+| Index on disk | 46.2 MB | 22.1 MB |
+| Memory at the handshake | 286 MB | 195 MB |
+| Memory right after indexing | 673 MB | 426 MB |
+| Memory at rest (35 s after the last call) | 545 MB | 303 MB |
+
+The server answers tools while it indexes; with semantic search on, almost all of the 70 seconds is spent computing 5,760 embeddings on the CPU. Memory is the process's physical footprint, the number Activity Monitor shows. Parser threads are started only while indexing (at most four by default) and released after 30 seconds of idle time.
+
+| Tool | Call | Median | Plain tokens | Returned tokens | Reduction |
+|---|---|---:|---:|---:|---:|
+| `get_context` | one function, ±5 lines | 0.39 ms | 4,782 | 190 | 96.0% |
+| `get_context` | one function, ±40 lines | 0.46 ms | 4,782 | 970 | 79.7% |
+| `get_references` | references to `indexProject` | 0.29 ms | 3,026 | 854 | 71.8% |
+| `get_callers` | callers of `indexProject` | 0.24 ms | 1,244 | 373 | 70.0% |
+| `get_callees` | callees of `indexProject` | 0.15 ms | 387 | 132 | 65.9% |
+| `find_symbol` | prefix `index`, 20 results | 0.38 ms | 2,326 | 1,369 | 41.1% |
+| `impact_analysis` | delete `indexProject` | 0.39 ms | 3,498 | 2,116 | 39.5% |
+| `get_file_structure` | one source file | 0.34 ms | 3,474 | 2,270 | 34.7% |
+| `list_dependencies` | imports of one file | 0.11 ms | 572 | 374 | 34.6% |
+| `find_symbol` | exact name, 1 result | 0.14 ms | 214 | 197 | 7.9% |
+| `find_pattern` | `console.$M($$$A)` in TypeScript | 38.4 ms | 2,112 | 2,112 | 0.0% |
+| `semantic_search` | one natural-language query | 2.75 ms | 3,880 | 3,880 | 0.0% |
+
+"Plain tokens" is the payload as plain JSON objects with absolute paths (for `get_context`, the whole file); tokens are estimated as four characters each. Latency is what the client sees for one call, including MCP framing. `semantic_search` includes embedding the query.
+
 For the full contributing guide including how to add new languages, see **[docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md)**.
 
 ---
@@ -659,8 +704,7 @@ For the full contributing guide including how to add new languages, see **[docs/
 | Resource | Minimum |
 |---|---|
 | **Node.js** | ≥ 20.0.0 |
-| **Memory (idle)** | ~100 MB |
-| **Memory (under load)** | ~350 MB |
+| **Memory** | About 300 MB at rest and 430 MB while indexing without semantic search; about 550 MB at rest and 670 MB while indexing with it (measured on a 502-file project, see [Measured on this repository](#measured-on-this-repository)) |
 | **Disk** | ~30 MB for the package (bundled grammars), ~80 MB for the embedding model (one-time download), up to 47 MB for on-demand grammars if all are installed, plus the index in `.hesman/` |
 | **Network** | For installation, for the embedding model on first use, and for the grammar of an on-demand language the first time a project contains it. None otherwise; no code or query is ever sent anywhere |
 
