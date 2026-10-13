@@ -40,7 +40,7 @@ const INFERRED_TYPE_KEYWORDS: ReadonlySet<string> = new Set(['var', 'let', 'auto
 const PARAMETER_LIST = /^(?:formal_)?parameters$|^parameter_list$/;
 /** Node types that open a scope for the declarations inside them. */
 const FUNCTION_SCOPE = /(function|method|lambda|closure|func_literal|arrow_function|constructor)/;
-const FUNCTION_SCOPE_EXCLUDED = /(invocation|call|reference|expression)/;
+const FUNCTION_SCOPE_EXCLUDED = /(invocation|call|reference|expression|parameter|argument)/;
 const CLASS_SCOPE = /(class|interface|trait|impl_item|struct_item|struct_specifier|struct_type|protocol)/;
 const CLASS_SCOPE_EXCLUDED = /(expression|literal|instance|creation)/;
 /** Values that wrap the value they construct: `&T{}` (Go), `(new T())`, `&T::new()` (Rust). */
@@ -111,6 +111,29 @@ export function constructedTypeName(value: Node): string | null {
   return null;
 }
 
+/** The first named child, after the first one, whose node type names a type (`user_type`, `type`). */
+function namedChildOfTypeKind(node: Node): Node | null {
+  for (let i = 1; i < node.namedChildCount; i++) {
+    const child = node.namedChild(i);
+    if (child && /type/.test(child.type)) return child;
+  }
+  return null;
+}
+
+/**
+ * The name a declarator declares: its `name` or `pattern`, or for a C/C++ style
+ * declarator (`Item item`, `Item *p`, `int a = 1`) the identifier found through
+ * its `declarator` field.
+ */
+function declaredName(declarator: Node): Node | null {
+  let node: Node | null = declarator;
+  for (let depth = 0; node && depth < 4; depth++) {
+    if (node.type === 'identifier') return node;
+    node = node.childForFieldName('name') ?? node.childForFieldName('pattern') ?? node.childForFieldName('declarator');
+  }
+  return null;
+}
+
 /**
  * The declarations a node introduces: a parameter, a variable, a field, an
  * assignment. Several for `a, b := x, y` (Go) and `let`-less tuples.
@@ -128,15 +151,24 @@ function declarationsOf(node: Node): Declaration[] {
   const type = node.childForFieldName('type');
   const declarator = node.childForFieldName('declarator');
   if (declarator) {
-    const name = declarator.childForFieldName('name') ?? declarator.childForFieldName('pattern');
+    const name = declaredName(declarator);
     return name ? [{ name, type, value: declarator.childForFieldName('value') }] : [];
   }
   const left = node.childForFieldName('name') ?? node.childForFieldName('pattern') ?? node.childForFieldName('left');
+  if (left && !type && !node.childForFieldName('value') && !node.childForFieldName('right')) {
+    // A declarator under its declaration (C#'s `variable_declarator`): the declaration's type, and its initializer
+    // is the child after the name, since the grammar gives it no field.
+    const parentType = node.parent?.childForFieldName('type') ?? null;
+    const initializer = left.nextNamedSibling;
+    return [{ name: left, type: parentType, value: initializer && initializer.id !== node.id ? initializer : null }];
+  }
   const right = node.childForFieldName('value') ?? node.childForFieldName('right');
   if (!left) {
-    // Python's `x: T` parameter: the name is the first child, without a field.
+    // A parameter without field names (Python's `x: T`, Kotlin's `x: T`): the
+    // name is the first child, the type a later child that names a type.
     const first = node.firstNamedChild;
-    return type && first !== null && first.type === 'identifier' ? [{ name: first, type, value: null }] : [];
+    const typed = type ?? namedChildOfTypeKind(node);
+    return typed && first !== null && /identifier$/.test(first.type) ? [{ name: first, type: typed, value: null }] : [];
   }
   if (left.type === 'expression_list') {
     const declarations: Declaration[] = [];
@@ -163,7 +195,10 @@ function keyOf(name: Node): string | null {
  * the `impl` block of a Rust method (`impl Store { fn load() }`). Null for any
  * other definition, which is a member of its enclosing class by nesting.
  */
-export function ownerTypeOf(definition: Node): string | null {
+export function ownerTypeOf(definition: Node, name?: Node): string | null {
+  // A C++ definition outside its class: `void Item::restock() {}`.
+  const qualifier = name?.parent?.type === 'qualified_identifier' ? name.parent.childForFieldName('scope') : null;
+  if (qualifier) return declaredTypeName(qualifier);
   const receiver = definition.childForFieldName('receiver');
   if (receiver) {
     const parameter = receiver.namedChild(0);

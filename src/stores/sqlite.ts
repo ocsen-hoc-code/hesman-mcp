@@ -138,7 +138,6 @@ export interface StoredImport {
 /** Kinds a call can never target (`foo(` is not a call of an interface or type). */
 const NON_CALLABLE_KINDS = ['interface', 'type', 'enum', 'namespace'];
 /** Kinds that declare a type a receiver can be declared with (M1-10). */
-const TYPE_DECLARATION_KINDS: ReadonlySet<string> = new Set(['class', 'interface', 'type', 'enum']);
 /** The kind of a symbol that `Name(...)` / `new Name(...)` instantiates. */
 const CLASS_KIND = 'class';
 const METHOD_KIND = 'method';
@@ -706,15 +705,35 @@ export class SqliteStore {
 
   /**
    * What the project says a receiver's declared type name is (M1-10):
-   * `type` when a class, interface, type or enum of that name exists;
+   * `type` when a class or enum of that name exists; `interface` when only an
+   * interface or a type alias does (its implementations are elsewhere, see
+   * `resolveTypedMember`);
    * `symbol` when only other symbols have it (a function a constructor call
    * was made of, a variable); `external` when nothing in the project has it
    * (`Map`, `dict`, a third-party class).
    */
-  typeKindOf(name: string): 'type' | 'symbol' | 'external' {
+  typeKindOf(name: string): 'type' | 'interface' | 'symbol' | 'external' {
     const rows = this.db.prepare('SELECT DISTINCT kind FROM symbols WHERE name = ?').all(name) as Array<{ kind: string }>;
     if (rows.length === 0) return 'external';
-    return rows.some((r) => TYPE_DECLARATION_KINDS.has(r.kind)) ? 'type' : 'symbol';
+    if (rows.some((r) => r.kind === 'class' || r.kind === 'enum')) return 'type';
+    // Go tags an interface as a type; a type alias is treated the same way.
+    return rows.some((r) => r.kind === 'interface' || r.kind === 'type') ? 'interface' : 'symbol';
+  }
+
+  /**
+   * True when a type named `typeName` declares a member named `memberName`
+   * without a body (an interface, protocol or abstract method, see
+   * `is_declaration`): its implementations are not in the type itself, so a
+   * call on that type cannot be decided by the type's members alone (M1-10).
+   */
+  declaresMember(typeName: string, memberName: string): boolean {
+    const row = this.db
+      .prepare(
+        `SELECT 1 AS found FROM symbols m JOIN symbols c ON c.id = m.parent_id
+          WHERE c.name = ? AND m.name = ? AND m.is_declaration = 1 AND c.kind IN ('class', 'interface', 'type', 'enum') LIMIT 1`,
+      )
+      .get(typeName, memberName);
+    return row !== undefined;
   }
 
   /**

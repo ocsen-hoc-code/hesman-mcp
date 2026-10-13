@@ -255,7 +255,7 @@ const PARENT_RECEIVERS: ReadonlySet<string> = new Set(['super', 'base', 'parent'
  * What the project says a receiver's declared type name is (`SqliteStore.typeKindOf`):
  * a type of the project, another symbol (not a type), or nothing (external).
  */
-export type ReceiverTypeKind = 'type' | 'symbol' | 'external';
+export type ReceiverTypeKind = 'type' | 'interface' | 'symbol' | 'external';
 
 /** What the resolver knows about one call besides the callee name. */
 export interface CallContext {
@@ -272,6 +272,8 @@ export interface CallContext {
   typeKind?: (name: string) => ReceiverTypeKind;
   /** The types `name` extends or implements, nearest first (see `SqliteStore.supertypeNames`). */
   supertypes?: (name: string) => string[];
+  /** True when the type declares the member without a body (see `SqliteStore.declaresMember`). */
+  declaresMember?: (typeName: string, memberName: string) => boolean;
 }
 
 /**
@@ -378,20 +380,24 @@ export function pickCallTarget(
   const receiver = call.receiver ?? null;
   const memberCall = receiver !== null;
   // Only `this` / `super` and the like reach the whole project by a member call (an inherited method).
-  const wholeProject = !memberCall || SELF_RECEIVERS.has(receiver) || PARENT_RECEIVERS.has(receiver);
-  return pickFromTiers(callerFile, narrowed.candidates, imported, memberCall, wholeProject);
+  // The project tier of an unknown receiver keeps only what the receiver names: a function of a module (`util::f()`), a member of a class.
+  const project = !memberCall || SELF_RECEIVERS.has(receiver) || PARENT_RECEIVERS.has(receiver)
+    ? () => true
+    : (c: CallTargetCandidate) => namesContainer(receiver, c);
+  return pickFromTiers(callerFile, narrowed.candidates, imported, memberCall, project);
 }
 
 /**
  * The tiers of `pickCallTarget`: the first tier with exactly one candidate
- * decides. `wholeProject` false leaves out the last tier.
+ * decides. The last tier (the whole project) takes the candidates `project`
+ * accepts; `null` leaves that tier out.
  */
 function pickFromTiers(
   callerFile: string,
   candidates: CallTargetCandidate[],
   imported: { has(file: string): boolean },
   memberCall: boolean,
-  wholeProject: boolean,
+  project: ((c: CallTargetCandidate) => boolean) | null,
 ): string | null {
   const callerDir = dirname(callerFile);
   const tiers: Array<(c: CallTargetCandidate) => boolean> = [
@@ -399,7 +405,7 @@ function pickFromTiers(
     (c) => imported.has(c.file_path) && reaches(c, callerDir, 'import', memberCall),
     (c) => dirname(c.file_path) === callerDir && reaches(c, callerDir, 'directory', memberCall),
   ];
-  if (wholeProject) tiers.push((c) => reaches(c, callerDir, 'project', memberCall));
+  if (project) tiers.push((c) => project(c) && reaches(c, callerDir, 'project', memberCall));
   for (const inTier of tiers) {
     const hits = candidates.filter(inTier);
     if (hits.length === 1) return hits[0].id;
@@ -531,7 +537,12 @@ function unique(hits: CallTargetCandidate[]): string | null {
  * project (`Map`, `dict`, `Vec`) is a built-in or a third-party type: the call
  * is external and stays unlinked (null).
  */
-function resolveTypedMember(candidates: CallTargetCandidate[], imports: FileImports, call: CallContext): string | null | undefined {
+function resolveTypedMember(
+  name: string,
+  candidates: CallTargetCandidate[],
+  imports: FileImports,
+  call: CallContext,
+): string | null | undefined {
   const type = call.receiverType;
   if (!type || !call.typeKind) return undefined;
   // A name an import binds is a module or a value of that module: the import decides (see `resolveCall`).
@@ -541,9 +552,15 @@ function resolveTypedMember(candidates: CallTargetCandidate[], imports: FileImpo
   if (kind === 'external') return null;
   for (const owner of [type, ...(call.supertypes?.(type) ?? [])]) {
     const members = candidates.filter((c) => c.member && c.container === owner);
-    if (members.length > 0) return pickFromTiers(imports.file, members, imports.files, true, true);
+    if (members.length > 0) return pickFromTiers(imports.file, members, imports.files, true, () => true);
   }
-  return null;
+  // A type that declares the method without a body (an interface, an abstract
+  // class) has implementations the store does not name (a `implements` across
+  // files is not stored): the call links to a member of that name only when the
+  // project has exactly one.
+  const abstract = kind === 'interface' || (call.declaresMember?.(type, name) ?? false);
+  if (!abstract) return null;
+  return pickFromTiers(imports.file, candidates.filter((c) => c.member), imports.files, true, () => true);
 }
 
 /**
@@ -580,7 +597,7 @@ export function resolveCall(
   const narrowed = forReceiver(candidates, call);
   if (narrowed.decided !== undefined) return narrowed.decided;
   if (receiver !== undefined && call.receiverType) {
-    const typed = resolveTypedMember(candidates, imports, call);
+    const typed = resolveTypedMember(name, candidates, imports, call);
     if (typed !== undefined) return typed;
   }
   const own = narrowed.candidates.filter((c) => c.file_path === callerFile);
@@ -627,6 +644,7 @@ export function resolveCallRelations(store: SqliteStore, scope?: CallResolutionS
     }
     return kind;
   };
+  const declaresMember = (typeName: string, memberName: string): boolean => store.declaresMember(typeName, memberName);
   const supertypes = (name: string): string[] => {
     let found = supertypesByName.get(name);
     if (!found) {
@@ -669,6 +687,7 @@ export function resolveCallRelations(store: SqliteStore, scope?: CallResolutionS
         receiverType: row.receiver_type,
         typeKind,
         supertypes,
+        declaresMember,
       };
       target = resolveCall(row.to_name, candidates, importsOf(row.file_path), call, importsOf);
     }

@@ -214,7 +214,7 @@ function extractSymbols(
       is_property:
         kind === 'function' && (isPropertyAssigned(node) || isMemberName(nameNode, node, source) || exposedAsMember.has(name)) ? 1 : 0,
       is_declaration: CALLABLE_KINDS.has(kind) && !hasBody(node) ? 1 : 0,
-      owner_type: containers.length === 0 && CALLABLE_KINDS.has(kind) ? ownerTypeOf(node) : null,
+      owner_type: containers.length === 0 && CALLABLE_KINDS.has(kind) ? ownerTypeOf(node, nameNode) : null,
     });
 
     if (CONTAINER_KINDS.has(kind)) containers.push({ id, endIndex: node.endIndex });
