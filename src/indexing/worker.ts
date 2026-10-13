@@ -28,6 +28,7 @@ interface WorkerResult {
     is_exported: number;
     is_property?: number;
     is_declaration?: number;
+    owner_type?: string | null;
   }>;
   relations: Array<{
     from_id: string;

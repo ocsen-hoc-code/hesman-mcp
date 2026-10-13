@@ -24,6 +24,9 @@
  */
 import type { Node } from 'web-tree-sitter';
 
+/** Receivers that stand for the object whose member is called: never a type name. */
+export const SELF_RECEIVER_NAMES: ReadonlySet<string> = new Set(['this', 'self', '$this', 'Self', 'cls', 'super', 'base', 'parent']);
+
 /** Declared types longer than this are not read. */
 const MAX_TYPE_LENGTH = 200;
 /** `this.f` / `self.f`: the receiver of a field of the enclosing class. */
@@ -33,6 +36,8 @@ const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 const QUALIFIED_NAME = /^[A-Za-z_$][\w$]*(?:\s*(?:::|\.|\\)\s*[A-Za-z_$][\w$]*)*$/;
 /** Declared types that say the type is inferred from the value (`var`, `let`, `auto`). */
 const INFERRED_TYPE_KEYWORDS: ReadonlySet<string> = new Set(['var', 'let', 'auto', 'val', 'const', 'final']);
+/** A parameter list (`parameters`, `formal_parameters`, `parameter_list`). */
+const PARAMETER_LIST = /^(?:formal_)?parameters$|^parameter_list$/;
 /** Node types that open a scope for the declarations inside them. */
 const FUNCTION_SCOPE = /(function|method|lambda|closure|func_literal|arrow_function|constructor)/;
 const FUNCTION_SCOPE_EXCLUDED = /(invocation|call|reference|expression)/;
@@ -111,6 +116,15 @@ export function constructedTypeName(value: Node): string | null {
  * assignment. Several for `a, b := x, y` (Go) and `let`-less tuples.
  */
 function declarationsOf(node: Node): Declaration[] {
+  // A parameter list names its parameters, which may have no type (Python's `def f(x)`).
+  if (PARAMETER_LIST.test(node.type)) {
+    const names: Declaration[] = [];
+    for (let i = 0; i < node.namedChildCount; i++) {
+      const child = node.namedChild(i);
+      if (child?.type === 'identifier') names.push({ name: child, type: null, value: null });
+    }
+    return names;
+  }
   const type = node.childForFieldName('type');
   const declarator = node.childForFieldName('declarator');
   if (declarator) {
@@ -125,10 +139,13 @@ function declarationsOf(node: Node): Declaration[] {
     return type && first !== null && first.type === 'identifier' ? [{ name: first, type, value: null }] : [];
   }
   if (left.type === 'expression_list') {
-    return left.namedChildren.map((name, i) => {
+    const declarations: Declaration[] = [];
+    left.namedChildren.forEach((name, i) => {
+      if (!name) return;
       const value = right?.type === 'expression_list' ? right.namedChild(i) : right;
-      return { name, type: null, value: value ?? null };
+      declarations.push({ name, type: null, value: value ?? null });
     });
+    return declarations;
   }
   return [{ name: left, type, value: right }];
 }
@@ -137,6 +154,27 @@ function declarationsOf(node: Node): Declaration[] {
 function keyOf(name: Node): string | null {
   const text = name.text;
   if (IDENTIFIER.test(text) || FIELD_RECEIVER.test(text)) return text;
+  return null;
+}
+
+/**
+ * The type a method is declared on when its declaration sits outside the type
+ * (M1-10): the receiver parameter of a Go method (`func (s *Store) Load()`),
+ * the `impl` block of a Rust method (`impl Store { fn load() }`). Null for any
+ * other definition, which is a member of its enclosing class by nesting.
+ */
+export function ownerTypeOf(definition: Node): string | null {
+  const receiver = definition.childForFieldName('receiver');
+  if (receiver) {
+    const parameter = receiver.namedChild(0);
+    const type = parameter?.childForFieldName('type');
+    return type ? declaredTypeName(type) : null;
+  }
+  const block = definition.parent;
+  if (block?.type === 'declaration_list' && block.parent?.type === 'impl_item') {
+    const type = block.parent.childForFieldName('type');
+    return type ? declaredTypeName(type) : null;
+  }
   return null;
 }
 
@@ -158,9 +196,14 @@ export class ReceiverTypes {
     private readonly wanted: ReadonlySet<string>,
   ) {}
 
-  /** The declared type of the receiver expression `receiver` of a call node `call`, or null. */
-  typeOf(receiver: Node, call: Node): string | null {
-    if (this.wanted.size === 0) return null;
+  /**
+   * The declared type of the receiver expression `receiver` of a call node
+   * `call`: a type name, `null` when a declaration of it gives no type, and
+   * `undefined` when no declaration of the receiver is in the file at all (for
+   * a name: a global, an imported name, a type used as `Type::new()`).
+   */
+  typeOf(receiver: Node, call: Node): string | null | undefined {
+    if (this.wanted.size === 0) return undefined;
     this.build();
     const text = receiver.text;
     const field = FIELD_RECEIVER.exec(text);
@@ -171,14 +214,14 @@ export class ReceiverTypes {
         const found = [...(entries?.get(text) ?? []), ...(entries?.get(field[1]) ?? [])];
         if (found.length > 0) return agreed(found);
       }
-      return null;
+      return undefined;
     }
-    if (!IDENTIFIER.test(text)) return null;
+    if (!IDENTIFIER.test(text)) return undefined;
     for (let scope: Node | null = call.parent; scope; scope = scope.parent) {
       const entries = this.declared.get(scope.id)?.get(text);
       if (entries) return agreed(entries);
     }
-    return null;
+    return undefined;
   }
 
   private build(): void {

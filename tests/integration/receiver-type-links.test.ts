@@ -250,6 +250,6 @@ describe('member calls linked by the declared type of the receiver (M1-10)', () 
     expect(callablesCalledBy(root, db, 'src/use.rs', 'typed')).toEqual(['load @ src/store.rs']);
     expect(callablesCalledBy(root, db, 'src/use.rs', 'constructed')).toEqual(['fill @ src/store.rs', 'new @ src/store.rs']);
     expect(callablesCalledBy(root, db, 'src/use.rs', 'builtin')).toEqual([]);
-    expect(callablesCalledBy(root, db, 'src/use.rs', 'unknown')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'src/use.rs', 'unknown')).toEqual(['make_lru @ src/use.rs']);
   });
 });

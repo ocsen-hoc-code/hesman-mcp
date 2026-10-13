@@ -24,6 +24,8 @@ export interface SymbolRow {
   is_property?: number;
   /** 1 for a function or method declared without a body (stored as 0 when absent). */
   is_declaration?: number;
+  /** The type a method is declared on when outside it (see `ExtractedSymbol.owner_type`). */
+  owner_type?: string | null;
   updated_at: number;
 }
 
@@ -245,7 +247,8 @@ const MIGRATIONS = [
     is_exported INTEGER NOT NULL DEFAULT 0,
     updated_at  INTEGER NOT NULL,
     is_property INTEGER NOT NULL DEFAULT 0,
-    is_declaration INTEGER NOT NULL DEFAULT 0
+    is_declaration INTEGER NOT NULL DEFAULT 0,
+    owner_type  TEXT
   )`,
   `CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name)`,
   `CREATE INDEX IF NOT EXISTS idx_symbols_kind ON symbols(kind)`,
@@ -428,6 +431,8 @@ export class SqliteStore {
     if (!symbolColumns.some((c) => c.name === 'is_declaration')) {
       this.db.exec('ALTER TABLE symbols ADD COLUMN is_declaration INTEGER NOT NULL DEFAULT 0');
     }
+    // `owner_type` was added in index schema 9.
+    if (!symbolColumns.some((c) => c.name === 'owner_type')) this.db.exec('ALTER TABLE symbols ADD COLUMN owner_type TEXT');
   }
 
   private ensureFtsTriggers(): void {
@@ -503,12 +508,14 @@ export class SqliteStore {
       if (symbols.length === 0) return;
       const stmt = this.db.prepare(`
         INSERT OR REPLACE INTO symbols
-          (id, name, kind, file_path, start_line, end_line, start_col, end_col, signature, doc_comment, parent_id, language, is_exported, is_property, is_declaration, updated_at)
+          (id, name, kind, file_path, start_line, end_line, start_col, end_col, signature, doc_comment, parent_id, language, is_exported, is_property, is_declaration, owner_type, updated_at)
         VALUES
-          (@id, @name, @kind, @file_path, @start_line, @end_line, @start_col, @end_col, @signature, @doc_comment, @parent_id, @language, @is_exported, @is_property, @is_declaration, @updated_at)
+          (@id, @name, @kind, @file_path, @start_line, @end_line, @start_col, @end_col, @signature, @doc_comment, @parent_id, @language, @is_exported, @is_property, @is_declaration, @owner_type, @updated_at)
       `);
       const insertMany = this.db.transaction((rows: SymbolRow[]) => {
-        for (const row of rows) stmt.run({ ...row, is_property: row.is_property ?? 0, is_declaration: row.is_declaration ?? 0 });
+        for (const row of rows) {
+          stmt.run({ ...row, is_property: row.is_property ?? 0, is_declaration: row.is_declaration ?? 0, owner_type: row.owner_type ?? null });
+        }
       });
       insertMany(symbols);
     });
@@ -760,7 +767,8 @@ export class SqliteStore {
     const placeholders = NON_CALLABLE_KINDS.map(() => '?').join(',');
     let rows = this.db.prepare(
       `SELECT s.id, s.file_path, s.kind, s.language, s.is_declaration AS declared, s.is_exported AS exported,
-              s.is_property AS property, s.parent_id, p.name AS container, p.kind AS container_kind
+              s.is_property AS property, s.parent_id, COALESCE(p.name, s.owner_type) AS container, p.kind AS container_kind,
+              s.owner_type AS owner
          FROM symbols s LEFT JOIN symbols p ON p.id = s.parent_id
         WHERE s.name = ? AND s.kind NOT IN (${placeholders}) ORDER BY s.file_path, s.start_line`,
     ).all(name, ...NON_CALLABLE_KINDS) as Array<{
@@ -774,6 +782,7 @@ export class SqliteStore {
       parent_id: string | null;
       container: string | null;
       container_kind: string | null;
+      owner: string | null;
     }>;
     if (rows.length > 1) {
       const classLanguages = new Set(rows.filter((r) => r.kind === CLASS_KIND).map((r) => r.language));
@@ -785,7 +794,7 @@ export class SqliteStore {
       const reach = r.exported ? undefined : r.property ? 'file' : CALL_REACH.get(r.language);
       if (reach) candidate.reach = reach;
       const inType = r.kind === FUNCTION_KIND && r.container_kind !== null && TYPE_KINDS.has(r.container_kind);
-      if (r.kind === METHOD_KIND || r.property || inType) candidate.member = true;
+      if (r.kind === METHOD_KIND || r.property || inType || r.owner !== null) candidate.member = true;
       if (r.kind === CLASS_KIND) candidate.type = true;
       if (r.parent_id) candidate.parent_id = r.parent_id;
       if (r.container) candidate.container = r.container;

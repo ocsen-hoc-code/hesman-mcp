@@ -534,6 +534,8 @@ function unique(hits: CallTargetCandidate[]): string | null {
 function resolveTypedMember(candidates: CallTargetCandidate[], imports: FileImports, call: CallContext): string | null | undefined {
   const type = call.receiverType;
   if (!type || !call.typeKind) return undefined;
+  // A name an import binds is a module or a value of that module: the import decides (see `resolveCall`).
+  if (call.receiver && imports.binding(call.receiver)) return undefined;
   const kind = call.typeKind(type);
   if (kind === 'symbol') return undefined;
   if (kind === 'external') return null;

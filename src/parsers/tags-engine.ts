@@ -14,7 +14,9 @@
  */
 import { Query, type Language, type Node, type QueryMatch } from 'web-tree-sitter';
 import { kindForTagSuffix } from './symbol-kinds.js';
-import { ReceiverTypes, receiverKeys } from './receiver-types.js';
+import { ReceiverTypes, SELF_RECEIVER_NAMES, receiverKeys } from './receiver-types.js';
+
+const IDENTIFIER_NAME = /^[A-Za-z_$][\w$]*$/;
 
 const DEFINITION_PREFIX = 'definition.';
 const REFERENCE_PREFIX = 'reference.';
@@ -578,7 +580,11 @@ function assignReceiverTypes(
   const types = new ReceiverTypes(root, wanted);
   for (const { call, receiver, reference } of receivers) {
     const type = types.typeOf(receiver, reference);
-    if (type !== null) call.receiverType = type;
+    if (type) call.receiverType = type;
+    // A name no declaration of the file gives is used as a type or namespace (`Vec::new()`, `Math.max()`).
+    else if (type === undefined && IDENTIFIER_NAME.test(receiver.text) && !SELF_RECEIVER_NAMES.has(receiver.text)) {
+      call.receiverType = receiver.text;
+    }
   }
 }
 
