@@ -5,7 +5,7 @@
 
 🌐 **Read this in:** [English](./README.md) | [Tiếng Việt](./docs/i18n/README.vi.md) | [Русский](./docs/i18n/README.ru.md) | [Deutsch](./docs/i18n/README.de.md) | [Français](./docs/i18n/README.fr.md) | [中文](./docs/i18n/README.zh.md) | [日本語](./docs/i18n/README.ja.md) | [العربية](./docs/i18n/README.ar.md) | [Español](./docs/i18n/README.es.md) | [Português](./docs/i18n/README.pt.md)
 
-**Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — with focused code reads that cut token consumption (`get_context` returns ~90% fewer tokens than the whole file when you ask for one function's neighborhood). Everything runs locally. No external APIs. No LSP servers.
+**Hesman** is a next-generation MCP (Model Context Protocol) server that gives AI coding agents deep understanding of your codebase — symbols, call graphs, dependencies, and semantic search — with focused code reads that cut token consumption (`get_context` returns ~90% fewer tokens than the whole file when you ask for one function's neighborhood). Everything runs on your machine: no external APIs, no LSP servers, and your code is never sent anywhere.
 
 ---
 
@@ -16,6 +16,7 @@
 - [Features](#features)
 - [How Token Reduction Works](#how-token-reduction-works)
 - [Installation & Setup](#installation--setup)
+- [Uninstalling](#uninstalling)
 - [Tools Reference](#tools-reference)
 - [Configuration](#configuration)
 - [CLI Reference](#cli-reference)
@@ -317,6 +318,59 @@ The home directory and its parent directories are never picked automatically (st
 
 ---
 
+## Uninstalling
+
+Hesman keeps data in four places. Remove them in this order, because the first two steps need the `hesman` command.
+
+**1. Take Hesman out of your AI clients**
+
+```bash
+hesman remove --dry-run        # show what would be removed, write nothing
+hesman remove                  # remove the hesman entry from every client that has one (user scope)
+hesman remove --scope project  # run inside a project that was set up with --scope project
+```
+
+`hesman remove` deletes only the `hesman` entry and, if you used `hesman setup --rules`, the block between `<!-- hesman:rules:start -->` and `<!-- hesman:rules:end -->` in the project's instruction files; everything else in those files stays as it was. Restart the clients afterwards. A `<config>.hesman.bak` file next to a client's config is the backup Hesman made before its last edit; delete it when you no longer need it.
+
+**2. Delete the index of each project**
+
+```bash
+cd /path/to/project
+hesman clean --dry-run   # show the directory and its size
+hesman clean --force     # delete .hesman/ (index, vectors, logs, tool-call log)
+```
+
+Repeat in every project Hesman was used in, or delete the project's `.hesman/` directory by hand. If you set `HESMAN_DATA_DIR` or `--data-dir`, the data is in that directory instead.
+
+**3. Delete the grammar cache**
+
+Grammars downloaded on demand are kept per user, outside any project. Delete the `hesman` directory in the first location that applies:
+
+| Setting / platform | Directory to delete |
+|---|---|
+| `HESMAN_CACHE_DIR` is set | `$HESMAN_CACHE_DIR/hesman` |
+| `XDG_CACHE_HOME` is set | `$XDG_CACHE_HOME/hesman` |
+| macOS | `~/Library/Caches/hesman` |
+| Windows | `%LOCALAPPDATA%\hesman` |
+| Linux and others | `~/.cache/hesman` |
+
+`hesman grammars list` prints the exact cache directory. If no on-demand grammar was ever downloaded, the directory does not exist.
+
+**4. Remove the program**
+
+```bash
+# installed from source
+npm unlink -g hesman-mcp   # only if you ran `npm link`
+rm -r /path/to/hesman-mcp  # the cloned repository
+
+# installed from npm (once the package is published)
+npm uninstall -g hesman-mcp
+```
+
+The embedding model is stored inside the package's own `node_modules`, so it disappears with the program. Nothing else is written outside the places above: no background service, no system-wide configuration.
+
+---
+
 ## Tools Reference
 
 Hesman exposes **11 tools** over MCP stdio transport. Every tool response except `index_status` includes a `_meta` block with its token savings (`impact_analysis` also returns its own `_summary` of affected files).
@@ -583,9 +637,11 @@ npm run test:e2e          # End-to-end tests (starts full server)
 npm run test:perf         # Performance benchmarks
 ```
 
-### Performance Targets
+### Performance Thresholds
 
-| Benchmark | Target |
+`npm run test:perf` fails when a benchmark is worse than its threshold (`tests/perf/thresholds.ts`). These are limits checked on the maintainer's macOS machine against the repository's fixtures, not guarantees for every project; `semantic_search` is timed without the embedding of the query.
+
+| Benchmark | Threshold |
 |---|---|
 | Index throughput | ≥ 500 files/sec |
 | `find_symbol` (exact) | < 1ms |
