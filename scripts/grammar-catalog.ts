@@ -142,6 +142,8 @@ export const ON_DEMAND_GRAMMARS: readonly OnDemandGrammarSpec[] = [
     sha256: '1818ae0d7343f880abb0b7932c9a815f09896ca67b3e126096a2dd7677d1477b',
     bytes: 1436984,
     abi: 14,
+    extensions: ['.ex', '.exs'],
+    tags: 'elixir/tags.scm',
   },
   {
     id: 'zig',

@@ -211,6 +211,17 @@
       "note": "Query of an on-demand grammar (grammars.json): the grammar itself is not shipped, it is downloaded into the user's cache."
     },
     {
+      "path": "elixir/tags.scm",
+      "origin": "upstream",
+      "repo": "https://github.com/elixir-lang/tree-sitter-elixir",
+      "rev": "v0.3.5",
+      "commit": "e2d9e6e0e76b0c436fa48a0b8c32a031d0cbdf49",
+      "upstreamPath": "queries/tags.scm",
+      "license": "Apache-2.0",
+      "sha256": "5456eeebf3bfcd8d13cec8bb7638a258523ba2a0e6b8d799e51d27c11e679b49",
+      "note": "Query of an on-demand grammar (grammars.json): the grammar itself is not shipped, it is downloaded into the user's cache. Apache-2.0 is accepted because the file is the grammar's own query (ADR 0001, section 10, decision 8 as amended on 2026-10-13); the license text is in NOTICE."
+    },
+    {
       "path": "typescript/hesman-tags.scm",
       "origin": "hesman",
       "license": "MIT"

@@ -370,7 +370,7 @@ The project owner approved this ADR. Where this section differs from sections 4,
 | 2. Core set and budget | The 16 proposed grammars; `parsers/` at most 30 MB unpacked, at most 3 MB added to the gzipped tarball. |
 | 6. Runtime version | **`web-tree-sitter` 0.25.10, pinned exactly** — not 0.27.1. It loads all 104 measured upstream grammars (ABI 13–15), has a year of patch releases, and still accepts legacy-`dylink` modules. Revisit when 0.27.x has matured. If 0.25.10 fails Hesman's own test suite or cannot load a core grammar, stop and report before choosing another version. |
 | 7. Meaning of "every language" | The three-tier model is accepted: 16 bundled languages, a catalog fetched on demand, and the text tier for everything else. |
-| 8. Query licenses | Only the grammar's own upstream `tags.scm` and queries written for Hesman (MIT). No Helix (MPL-2.0) or Aider (Apache-2.0) queries. Queries from the xberg bundle (MIT) may be used where upstream has none. |
+| 8. Query licenses | Only the grammar's own upstream `tags.scm` and queries written for Hesman (MIT). No Helix (MPL-2.0) or Aider (Apache-2.0) queries. Queries from the xberg bundle (MIT) may be used where upstream has none. **Amended 2026-10-13:** a grammar's own upstream `tags.scm` may be vendored under Apache-2.0 when that is the grammar's license (first case: Elixir); `NOTICE` then names the file and carries the Apache License 2.0 text. Query collections of other projects (Helix, Aider) stay excluded. |
 
 Not answered by the owner; working defaults until decided otherwise:
 

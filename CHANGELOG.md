@@ -4,6 +4,7 @@
 
 ### Added
 
+- **Elixir symbols (on demand).** `.ex` / `.exs` files now get modules, protocols, functions and macros once the Elixir grammar is cached (downloaded on first use like Scala or R; no call graph). The query is the grammar's own `tags.scm`, vendored under Apache-2.0 — the first query that is not MIT; `NOTICE` names it and carries the license text (ADR 0001, section 10, decision 8 as amended).
 - **Support tiers are visible to agents:** `get_callers`, `get_callees`, `get_references` and `impact_analysis` add a top-level `note` (for example `call graph not available for r (symbols only)`) when the symbol belongs to a language without call extraction (the on-demand languages) or when the id is a text chunk, so an empty list is no longer the only answer. Responses for `deep` languages are unchanged. `hesman setup --rules` explains the note in its guidance block (still 14 lines); run it again to refresh an existing block.
 - **`index_status` → `grammars.languages[].tier`** is now the support tier: `deep`, `structural` or `text`. **Behavior change:** a parsed language was reported as `parsed` (a value introduced earlier in this unreleased version); it is now `deep` or `structural`. No field was added, renamed or removed. The index records no parse errors, so no error count is reported.
 - **`hesman ui` → `GET /api/status`:** every entry of `index.languages` carries `tier` (`deep` or `structural`), so the dashboard shows the right tier for on-demand languages too.

@@ -49,6 +49,7 @@ const DISPLAY_NAMES: Readonly<Record<string, string>> = {
   r: 'R',
   codeql: 'CodeQL',
   arduino: 'Arduino',
+  elixir: 'Elixir',
 };
 
 /** What the tools can answer for a language of this tier. */

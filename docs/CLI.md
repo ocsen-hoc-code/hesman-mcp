@@ -218,7 +218,7 @@ Rules that hold for every path into the cache:
 
 Exit code: `0` when every requested grammar is bundled, cached or was installed; `1` when one failed (unknown language, network error, wrong hash, offline, file not found in `--from`).
 
-Six on-demand grammars come with a symbols query (`scala`, `ocaml`, `fsharp`, `r`, `codeql`, `arduino`): once cached, files of those languages are parsed and their functions, classes and modules are indexed. The other 18 are listed as `text tier`: they are pinned and installable, but no symbols query exists for them yet, so Hesman indexes their files as text and never downloads them automatically.
+Seven on-demand grammars come with a symbols query (`scala`, `ocaml`, `fsharp`, `r`, `codeql`, `arduino`, `elixir`): once cached, files of those languages are parsed and their functions, classes and modules are indexed. The other 17 are listed as `text tier`: they are pinned and installable, but no symbols query exists for them yet, so Hesman indexes their files as text and never downloads them automatically.
 
 ### `list --json` output
 

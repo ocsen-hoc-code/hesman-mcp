@@ -86,11 +86,24 @@ describe('vendored tags queries', () => {
     expect(SOURCES.map((s) => s.path).sort()).toEqual(queryFilesOnDisk(QUERIES_DIR));
   });
 
-  it('uses only queries the owner allowed: the grammar\'s own upstream repository or Hesman, all MIT', () => {
-    // ADR 0001, section 10: no Helix (MPL-2.0) or Aider (Apache-2.0) queries.
+  it('uses only queries the owner allowed: the grammar\'s own upstream repository or Hesman', () => {
+    // ADR 0001, section 10: no Helix (MPL-2.0) or Aider (Apache-2.0) query
+    // collections. A grammar's own query may be Apache-2.0 when the grammar is
+    // (decision 8 as amended on 2026-10-13); the license text is then in NOTICE.
     const grammarRepos = new Set(PINNED_URLS.map((url) => /^(https:\/\/github\.com\/[^/]+\/[^/]+)\//.exec(url)![1]));
+    const notice = readFileSync(join(QUERIES_DIR, '..', 'NOTICE'), 'utf-8');
     for (const source of SOURCES) {
-      expect(source.license).toBe('MIT');
+      if (source.origin === 'upstream') {
+        expect(['MIT', 'Apache-2.0'], `${source.path}: license ${source.license}`).toContain(source.license);
+        if (source.license === 'Apache-2.0') {
+          expect(notice, 'NOTICE must carry the Apache License 2.0 text').toContain('Apache License\n                           Version 2.0, January 2004');
+          expect(notice, `NOTICE must say ${source.path} is Apache-2.0`).toMatch(
+            new RegExp(`queries/${source.path.replace(/[./]/g, '\\$&')}\\n(?: {2}.*\\n)*? {2}License: +Apache-2\\.0`),
+          );
+        }
+      } else {
+        expect(source.license).toBe('MIT');
+      }
       if (source.origin === 'upstream') {
         expect(grammarRepos, `${source.path} must come from the repository of a pinned grammar`).toContain(source.repo);
         expect(source.rev).toMatch(/^v?\d+\.\d+\.\d+$|^[0-9a-f]{7,40}$/);

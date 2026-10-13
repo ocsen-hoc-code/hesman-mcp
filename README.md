@@ -468,6 +468,7 @@ hesman --help, -h              Show help text
 | R | `.r` | structural | on demand | Symbols only (no call graph) |
 | CodeQL | `.ql`, `.qll` | structural | on demand | Symbols only (no call graph) |
 | Arduino | `.ino` | structural | on demand | Symbols only (no call graph) |
+| Elixir | `.ex`, `.exs` | structural | on demand | Symbols only (no call graph) |
 | Everything else | any text file | text | none | Text chunks for `semantic_search`, `find_pattern` and `get_context` (no symbols) |
 <!-- hesman:language-matrix:end -->
 
@@ -479,7 +480,7 @@ The table above is generated from the language registry (`npx tsx scripts/genera
 - **Pre-fill the cache:** `hesman grammars install scala r` or `hesman grammars install --all` (46.9 MB); on a machine without network access, copy the `.wasm` files there and run `hesman grammars install --from <directory>`. `hesman grammars list` shows what is bundled, cached and available. See [docs/CLI.md](./docs/CLI.md#hesman-grammars).
 - **See what is missing:** `index_status` lists, per language, its tier (`deep`, `structural` or `text`), the number of files, and whether its grammar is bundled, cached or missing, and why.
 
-`grammars.json` also pins 18 grammars that have no symbols query yet (Haskell, Elixir, Zig, Julia, Perl, Objective-C, Odin, Luau, Starlark, HTML, CSS, JSON, YAML, TOML, XML, Markdown, HCL, Make). They can be installed with `hesman grammars install`, but Hesman does not use them yet: files of those languages are indexed as text and their grammar is never downloaded automatically.
+`grammars.json` also pins 17 grammars that have no symbols query yet (Haskell, Zig, Julia, Perl, Objective-C, Odin, Luau, Starlark, HTML, CSS, JSON, YAML, TOML, XML, Markdown, HCL, Make). They can be installed with `hesman grammars install`, but Hesman does not use them yet: files of those languages are indexed as text and their grammar is never downloaded automatically.
 
 What the tiers mean today:
 
@@ -631,6 +632,6 @@ The embedding model (`all-MiniLM-L6-v2`) is downloaded on first use and cached i
 
 The MIT license covers the code written for Hesman. Third-party software keeps its own license:
 
-- **Inside the package:** the Tree-sitter grammars and query files, all MIT; each is listed with its repository, revision and copyright in [NOTICE](./NOTICE).
+- **Inside the package:** the Tree-sitter grammars and query files, all MIT except the Elixir query (Apache-2.0, the license of its grammar); each is listed with its repository, revision and copyright in [NOTICE](./NOTICE).
 - **Installed by npm as dependencies:** all under permissive licenses (MIT, ISC, BSD, Apache-2.0); the full list is in [THIRD-PARTY-LICENSES.md](./THIRD-PARTY-LICENSES.md). The embedding library `@xenova/transformers` and the vector store `@zvec/zvec` are Apache-2.0.
 - **Downloaded at run time:** the embedding model `Xenova/all-MiniLM-L6-v2` (Apache-2.0) and on-demand grammars (MIT, except Elixir and HCL: Apache-2.0); see [NOTICE](./NOTICE). The `sharp` dependency of the embedding library installs a prebuilt libvips (LGPL-3.0-or-later) as a separate shared library.
