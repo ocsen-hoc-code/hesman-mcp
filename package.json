@@ -1,7 +1,7 @@
 {
   "name": "hesman-mcp",
   "version": "1.0.0",
-  "description": "Next-gen MCP server for deep code intelligence — 98% token reduction",
+  "description": "MCP server that gives AI coding agents code intelligence over a local codebase: symbols, call graph, impact analysis, semantic search and focused code reads",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
