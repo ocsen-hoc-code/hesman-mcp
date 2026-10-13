@@ -1,7 +1,7 @@
 # Project Context — Hesman MCP
 
 > Shared baseline for every working session (humans and AI agents). Descriptive facts only, no instructions.
-> Last updated: 2026-10-12
+> Last updated: 2026-10-13
 
 ## Name and purpose
 Hesman is an MCP server that lets AI agents query a codebase (symbol lookup, call graph, impact analysis, semantic search) with minimal token usage. Runs fully locally; installed once via Node.
@@ -16,12 +16,15 @@ Node ≥20, TypeScript (ESM), `@modelcontextprotocol/sdk` (stdio), web-tree-sitt
 
 A real Claude Code smoke test passes 9/9. Verified on macOS only: the project has no CI, so Linux and Windows are unverified.
 
-**M1, M2 and M3 are in progress on branch `rebuild/m1-m2`** (per-task status: `tasks/STATUS.md`):
-- **M1 — every programming language.** Done: grammar ADR (`docs/adr/0001-grammar-distribution.md`), a generic symbol engine driven by Tree-sitter `tags.scm` queries, a language conformance suite, the text tier for files without a grammar, 16 bundled grammars (TypeScript, TSX, JavaScript, Python, Go, Java, C#, Rust, PHP, Kotlin, Swift, Lua, C, C++, Ruby, Bash), and the extraction fixes the conformance suite found. In progress: on-demand grammar delivery, query-based call extraction for more languages. Not started: exposing support tiers to agents.
-- **M2 — install once, works in every agent.** Done: non-blocking startup, automatic project detection (MCP roots → working directory), `hesman setup | remove` for eight clients, `hesman doctor`, opt-in agent usage rules. Open: the launch-command task needs manual checks; one-click install links wait for an npm release.
-- **M3 — dashboard.** In progress: `hesman ui` (local HTTP API with logs, metrics, index graph, query playground) and its frontend.
+**M1, M3 and M4 are done; M2 is done except what needs an npm release** (per-task status: `tasks/STATUS.md`):
+- **M1 — every programming language (10/10).** A generic symbol engine driven by Tree-sitter `tags.scm` queries; 16 bundled grammars with symbols and a call graph (TypeScript, TSX, JavaScript, Python, Go, Java, C, C++, C#, Rust, PHP, Ruby, Kotlin, Swift, Bash, Lua); seven more with symbols from grammars downloaded on demand (Scala, OCaml, F#, R, CodeQL, Arduino, Elixir); every other text file indexed as text. Calls and imports are read from the syntax tree and linked by visibility, imports and the declared type of the receiver. Agents are told which tier a language is in.
+- **M2 — install once, works in every agent (5/7).** Non-blocking startup, automatic project detection (MCP roots → working directory), `hesman setup | remove` for eight clients, `hesman doctor`, opt-in agent usage rules. Open: the launch-command task needs manual checks, and one-click install links wait for an npm release.
+- **M3 — dashboard (2/2).** `hesman ui`: a local page (127.0.0.1 + token) with logs, metrics, the index as a graph and a query playground.
+- **M4 — token efficiency (1/1).** List and call-graph tools answer in a compact shape (named columns, rows grouped by file, project-relative paths); `get_context` returns a line range instead of a file.
 
-The package is **not published on npm**; publishing is postponed by the owner. Known gap: `_summary` does not reduce tokens yet; measured savings come from `get_context` pruning (~90% vs. the whole file for a ±5-line window).
+Measured on this repository on 2026-10-13 with `node scripts/measure.mjs` (Apple M3 Pro; numbers and method in the README): `get_context` returns 80–96% fewer tokens than the whole file, callers/callees/references are 66–72% smaller than plain JSON, other lists 35–41%; every tool but `find_pattern` and `semantic_search` answers in under 1 ms; the index is ready in 2.4 s without semantic search and 70 s with it; the server rests at about 300 MB (545 MB with semantic search). A smoke test with the real Claude Code CLI passes 9/9.
+
+The package is **not published on npm**; publishing is postponed by the owner. Verified on macOS only. The README is kept in English plus nine translations (`docs/i18n/`).
 
 ## Key constraints
 - M0 came first: no new feature was started until the foundation fixes were done.
@@ -35,7 +38,8 @@ The package is **not published on npm**; publishing is postponed by the owner. K
 All M0 tasks are `done`; `npm run typecheck`, `npm run lint`, `npm test` and `npm run test:e2e` pass; e2e runs the real server at the default log level against a TS + Python + Go fixture.
 
 ## Direction
-- **M1 — Support every programming language.** Every text source file is indexed at some level, through three tiers: deep (symbols + call graph), structural (symbols only), text (full-text + semantic search). Each language's tier is reported to agents and in the README.
-- **M2 — Install once, works in every agent.** `hesman setup` configures Claude Code, Claude Desktop, Codex, Cursor, Antigravity, VS Code, Gemini CLI and Windsurf with one global entry; the project is detected automatically; the server answers immediately and indexes in the background; `hesman doctor` diagnoses failures.
-- **M3 — Dashboard.** `hesman ui` serves a local page (127.0.0.1 + token) to read logs and metrics, browse the index as a graph and try queries.
+- Publish on npm (owner's decision), then finish M2-04 and M2-06.
+- Call graph: type inference beyond one file; links across `extends` / `implements` in other files.
+- Semantic search cost: the first index spends almost all its time computing embeddings on the CPU.
+- Verify on Linux and Windows.
 - Later: answer-quality eval suite; daemon + stdio-shim architecture; multi-project support; optional larger embedding model.
