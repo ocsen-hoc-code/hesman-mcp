@@ -147,6 +147,6 @@ describe('the type of a receiver (M1-10)', () => {
     expect(types.save).toBe('Cache');
     expect(types.read).toBe('Vec');
     expect(types.lift).toBe('Store');
-    expect(types.drop).toBeNull();
+    expect(types.drop).toBe('i32');
   });
 });

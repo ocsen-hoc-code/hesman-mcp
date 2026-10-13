@@ -14,6 +14,7 @@
  */
 import { Query, type Language, type Node, type QueryMatch } from 'web-tree-sitter';
 import { kindForTagSuffix } from './symbol-kinds.js';
+import { ReceiverTypes, receiverKeys } from './receiver-types.js';
 
 const DEFINITION_PREFIX = 'definition.';
 const REFERENCE_PREFIX = 'reference.';
@@ -92,6 +93,13 @@ export interface CallSite {
    * does not end in a name (`make().b()`, `list[0].b()`).
    */
   receiver?: string;
+  /**
+   * The declared type of the receiver, when the file declares it (M1-10, see
+   * `receiver-types.ts`): `Store` for `s` declared `s: Store` or built by
+   * `new Store()`. A name that is not a type of the project (`Map`, `dict`)
+   * stays a name; the resolver decides. Absent when not inferred.
+   */
+  receiverType?: string;
   /**
    * The innermost enclosing definition that can make a call: a function, a
    * method, a class (member initializers) or a variable whose value is a
@@ -359,7 +367,7 @@ export class TagsQuery {
     if (this.relationPatterns.length === 0) return { calls: [], imports: [] };
     this.relationQuery ??= this.compile(this.relationPatterns);
     const skipped = this.unevaluatedIn(this.relationQuery.query, 0);
-    return this.relationsFrom(this.relationQuery.query.matches(root), 0, skipped, definitions, source);
+    return this.relationsFrom(this.relationQuery.query.matches(root), 0, skipped, definitions, source, root);
   }
 
   /**
@@ -376,7 +384,7 @@ export class TagsQuery {
     const matches = this.combinedQuery.query.matches(root);
     const definitions = this.definitionsFrom(matches);
     const skipped = this.unevaluatedIn(this.combinedQuery.query, offset);
-    return { definitions, references: this.relationsFrom(matches, offset, skipped, definitions, source) };
+    return { definitions, references: this.relationsFrom(matches, offset, skipped, definitions, source, root) };
   }
 
   /** The relation patterns of `query` (which start at pattern `offset`) that have a property predicate. */
@@ -397,10 +405,13 @@ export class TagsQuery {
     skipped: ReadonlySet<number>,
     definitions: readonly TagDefinition[],
     source: string,
+    root: Node,
   ): ParsedReferences {
     const definitionNames = new Set(definitions.map((d) => d.nameNode.id));
     const seenCalls = new Set<number>();
     const calls: Array<CallSite & { index: number }> = [];
+    /** Receiver node and reference node of each call with a receiver, for the receiver's type. */
+    const receivers: Array<{ call: CallSite; receiver: Node; reference: Node }> = [];
     /** Imports by the node of their specifier: several patterns may describe one import. */
     const imports = new Map<number, ImportSite & { index: number; bound: Map<number, ImportedName & { index: number }> }>();
     const members = new Set<string>();
@@ -453,18 +464,22 @@ export class TagsQuery {
 
       if (!CALL_SUFFIXES.has(suffix) || seenCalls.has(nameNode.id)) continue;
       seenCalls.add(nameNode.id);
-      const receiver = receiverOf(nameNode, node, source);
-      calls.push({
+      const receiverNode = receiverNodeOf(nameNode, node, source);
+      const receiver = receiverNode ? receiverName(receiverNode, source) : undefined;
+      const call: CallSite & { index: number } = {
         name,
         line: nameNode.startPosition.row + 1,
         col: nameNode.startPosition.column,
         index: nameNode.startIndex,
         ...(receiver !== undefined ? { receiver } : {}),
-      });
+      };
+      calls.push(call);
+      if (receiverNode) receivers.push({ call, receiver: receiverNode, reference: node });
     }
 
     calls.sort((a, b) => a.index - b.index);
     assignCallers(calls, definitions);
+    assignReceiverTypes(receivers, root);
     return {
       calls: calls.map(({ index: _index, ...call }) => call),
       imports: [...imports.values()]
@@ -527,16 +542,44 @@ function receiverName(node: Node, source: string): string {
  * @param referenceNode - the node captured as `@reference.call`: the call, or
  *   its argument list (upstream JavaScript and Java)
  */
-function receiverOf(nameNode: Node, referenceNode: Node, source: string): string | undefined {
+function receiverNodeOf(nameNode: Node, referenceNode: Node, source: string): Node | undefined {
   const contains = referenceNode.startIndex <= nameNode.startIndex && referenceNode.endIndex >= nameNode.endIndex;
   const call = contains ? referenceNode : referenceNode.parent;
   for (let current: Node | null = nameNode; current && current.id !== call?.id; current = current.parent) {
     for (let before = current.previousNamedSibling; before; before = before.previousNamedSibling) {
       if (isCommentNode(before)) continue;
-      if (MEMBER_OPERATOR.test(source.slice(before.endIndex, nameNode.startIndex))) return receiverName(before, source);
+      if (MEMBER_OPERATOR.test(source.slice(before.endIndex, nameNode.startIndex))) return before;
     }
   }
   return undefined;
+}
+
+function receiverOf(nameNode: Node, referenceNode: Node, source: string): string | undefined {
+  const receiver = receiverNodeOf(nameNode, referenceNode, source);
+  return receiver ? receiverName(receiver, source) : undefined;
+}
+
+/**
+ * Sets `receiverType` on each call whose receiver has a declared type (see
+ * `receiver-types.ts`). The tree is walked at most once per file, and only
+ * when some call has a receiver the declarations can name.
+ */
+function assignReceiverTypes(
+  receivers: ReadonlyArray<{ call: CallSite; receiver: Node; reference: Node }>,
+  root: Node,
+): void {
+  if (receivers.length === 0) return;
+  const wanted = new Set<string>();
+  for (const { receiver } of receivers) {
+    const keys = receiverKeys(receiver.text);
+    if (keys) for (const key of keys) wanted.add(key);
+  }
+  if (wanted.size === 0) return;
+  const types = new ReceiverTypes(root, wanted);
+  for (const { call, receiver, reference } of receivers) {
+    const type = types.typeOf(receiver, reference);
+    if (type !== null) call.receiverType = type;
+  }
 }
 
 /**

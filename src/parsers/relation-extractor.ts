@@ -18,6 +18,11 @@ export interface RelationRow {
    * for `f()`, the receiver's last name for `a.f()`, `*` when it has none.
    */
   receiver?: string | null;
+  /**
+   * Declared type of the receiver of a `calls` relation (`CallSite.receiverType`):
+   * null when the file does not declare it. Stored as `relations.receiver_type`.
+   */
+  receiverType?: string | null;
   /** Names bound by an `imports` relation (see `encodeImportedNames`). */
   names?: string | null;
 }
@@ -130,6 +135,7 @@ export function extractRelations(
       line: call.line,
       col: call.col,
       receiver: call.receiver ?? null,
+      receiverType: call.receiverType ?? null,
     });
   }
 

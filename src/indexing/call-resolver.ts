@@ -251,12 +251,27 @@ const SELF_RECEIVERS: ReadonlySet<string> = new Set(['this', 'self', '$this', 'S
 /** Receivers that stand for the parent class: the target is not a member of the caller's own class. */
 const PARENT_RECEIVERS: ReadonlySet<string> = new Set(['super', 'base', 'parent']);
 
+/**
+ * What the project says a receiver's declared type name is (`SqliteStore.typeKindOf`):
+ * a type of the project, another symbol (not a type), or nothing (external).
+ */
+export type ReceiverTypeKind = 'type' | 'symbol' | 'external';
+
 /** What the resolver knows about one call besides the callee name. */
 export interface CallContext {
   /** `RelationRow.receiver`: absent or null for `f()`. */
   receiver?: string | null;
   /** Id of the class the calling method or function is declared in. */
   callerParent?: string | null;
+  /**
+   * The declared type name of the receiver (`RelationRow.receiver_type`), null
+   * or absent when the file does not declare it: the receiver is then unknown.
+   */
+  receiverType?: string | null;
+  /** Classifies `receiverType` in the project. Without it a declared type is unknown. */
+  typeKind?: (name: string) => ReceiverTypeKind;
+  /** The types `name` extends or implements, nearest first (see `SqliteStore.supertypeNames`). */
+  supertypes?: (name: string) => string[];
 }
 
 /**
@@ -345,8 +360,12 @@ function reaches(
  * counted in a tier it can be called from (`CallTargetCandidate.reach`, see
  * `reaches`), so a module-private symbol is never the target of a bare call
  * in another file, however unique its name is. Member calls: see `forReceiver`.
+ * A member call on a receiver of unknown type (no declared type, M1-10) stops
+ * after the imported files and the directory: a method that is only the one
+ * with its name in the project is no evidence for it.
  *
- * Calls of an imported name are decided before this by `resolveCall`.
+ * Calls of an imported name, and member calls on a receiver of known type, are
+ * decided before this by `resolveCall`.
  */
 export function pickCallTarget(
   callerFile: string,
@@ -356,16 +375,33 @@ export function pickCallTarget(
 ): string | null {
   const narrowed = forReceiver(candidates, call);
   if (narrowed.decided !== undefined) return narrowed.decided;
+  const receiver = call.receiver ?? null;
+  const memberCall = receiver !== null;
+  // Only `this` / `super` and the like reach the whole project by a member call (an inherited method).
+  const wholeProject = !memberCall || SELF_RECEIVERS.has(receiver) || PARENT_RECEIVERS.has(receiver);
+  return pickFromTiers(callerFile, narrowed.candidates, imported, memberCall, wholeProject);
+}
+
+/**
+ * The tiers of `pickCallTarget`: the first tier with exactly one candidate
+ * decides. `wholeProject` false leaves out the last tier.
+ */
+function pickFromTiers(
+  callerFile: string,
+  candidates: CallTargetCandidate[],
+  imported: { has(file: string): boolean },
+  memberCall: boolean,
+  wholeProject: boolean,
+): string | null {
   const callerDir = dirname(callerFile);
-  const memberCall = call.receiver !== undefined && call.receiver !== null;
   const tiers: Array<(c: CallTargetCandidate) => boolean> = [
     (c) => c.file_path === callerFile,
     (c) => imported.has(c.file_path) && reaches(c, callerDir, 'import', memberCall),
     (c) => dirname(c.file_path) === callerDir && reaches(c, callerDir, 'directory', memberCall),
-    (c) => reaches(c, callerDir, 'project', memberCall),
   ];
+  if (wholeProject) tiers.push((c) => reaches(c, callerDir, 'project', memberCall));
   for (const inTier of tiers) {
-    const hits = narrowed.candidates.filter(inTier);
+    const hits = candidates.filter(inTier);
     if (hits.length === 1) return hits[0].id;
     if (hits.length > 1) return null;
   }
@@ -487,6 +523,28 @@ function unique(hits: CallTargetCandidate[]): string | null {
 }
 
 /**
+ * The member a call on a receiver of declared type `call.receiverType` targets
+ * (M1-10). Undefined when the type does not decide the call, which is when the
+ * name is not a type of the project (a function, a variable): the receiver is
+ * then unknown. A type of the project: the members of that type, or of the
+ * nearest supertype that declares the method. A name that is not in the
+ * project (`Map`, `dict`, `Vec`) is a built-in or a third-party type: the call
+ * is external and stays unlinked (null).
+ */
+function resolveTypedMember(candidates: CallTargetCandidate[], imports: FileImports, call: CallContext): string | null | undefined {
+  const type = call.receiverType;
+  if (!type || !call.typeKind) return undefined;
+  const kind = call.typeKind(type);
+  if (kind === 'symbol') return undefined;
+  if (kind === 'external') return null;
+  for (const owner of [type, ...(call.supertypes?.(type) ?? [])]) {
+    const members = candidates.filter((c) => c.member && c.container === owner);
+    if (members.length > 0) return pickFromTiers(imports.file, members, imports.files, true, true);
+  }
+  return null;
+}
+
+/**
  * The symbol a call targets, or null when it stays unresolved.
  *
  * A definition in the caller's own file wins (the closest scope). Otherwise
@@ -519,6 +577,10 @@ export function resolveCall(
 
   const narrowed = forReceiver(candidates, call);
   if (narrowed.decided !== undefined) return narrowed.decided;
+  if (receiver !== undefined && call.receiverType) {
+    const typed = resolveTypedMember(candidates, imports, call);
+    if (typed !== undefined) return typed;
+  }
   const own = narrowed.candidates.filter((c) => c.file_path === callerFile);
   if (own.length > 0) return unique(own);
 
@@ -550,9 +612,27 @@ export function resolveCallRelations(store: SqliteStore, scope?: CallResolutionS
   const candidatesByName = new Map<string, CallTargetCandidate[]>();
   const importsByFile = new Map<string, FileImports>();
   const parentByCaller = new Map<string, string | null>();
+  const typeKinds = new Map<string, ReceiverTypeKind>();
+  const supertypesByName = new Map<string, string[]>();
   const goModules: GoModuleCache = new Map();
   const packageNames: PackageNameCache = new Map();
   const updates: Array<{ rowid: number; to_id: string }> = [];
+  const typeKind = (name: string): ReceiverTypeKind => {
+    let kind = typeKinds.get(name);
+    if (!kind) {
+      kind = store.typeKindOf(name);
+      typeKinds.set(name, kind);
+    }
+    return kind;
+  };
+  const supertypes = (name: string): string[] => {
+    let found = supertypesByName.get(name);
+    if (!found) {
+      found = store.supertypeNames(name);
+      supertypesByName.set(name, found);
+    }
+    return found;
+  };
 
   const importsOf: ImportLookup = (file) => {
     let imports = importsByFile.get(file);
@@ -581,7 +661,13 @@ export function resolveCallRelations(store: SqliteStore, scope?: CallResolutionS
     let target: string | null = null;
     if (candidates.length > 0) {
       const needsParent = row.receiver !== null && (SELF_RECEIVERS.has(row.receiver) || PARENT_RECEIVERS.has(row.receiver));
-      const call: CallContext = { receiver: row.receiver, callerParent: needsParent ? parentOf(row.from_id) : null };
+      const call: CallContext = {
+        receiver: row.receiver,
+        callerParent: needsParent ? parentOf(row.from_id) : null,
+        receiverType: row.receiver_type,
+        typeKind,
+        supertypes,
+      };
       target = resolveCall(row.to_name, candidates, importsOf(row.file_path), call, importsOf);
     }
     const toId = target ?? unresolvedCallId(row.to_name);

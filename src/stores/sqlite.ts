@@ -92,6 +92,8 @@ export interface RelationRow {
   to_name?: string | null;
   /** Receiver of a `calls` relation: null for `f()`, the receiver's last name for `a.f()`, `*` when it has none. */
   receiver?: string | null;
+  /** Declared type of the receiver of a `calls` relation, when the file declares it (see `receiver-types.ts`). */
+  receiverType?: string | null;
   /** Names bound by an `imports` relation, space separated; a module name is prefixed with `*`. */
   names?: string | null;
 }
@@ -121,6 +123,8 @@ export interface CallRelationToResolve {
   from_id: string;
   /** See `RelationRow.receiver`. */
   receiver: string | null;
+  /** See `RelationRow.receiverType`. */
+  receiver_type: string | null;
 }
 
 /** An import of a file: the module specifier and the names it binds (see `RelationRow.names`). */
@@ -131,6 +135,8 @@ export interface StoredImport {
 
 /** Kinds a call can never target (`foo(` is not a call of an interface or type). */
 const NON_CALLABLE_KINDS = ['interface', 'type', 'enum', 'namespace'];
+/** Kinds that declare a type a receiver can be declared with (M1-10). */
+const TYPE_DECLARATION_KINDS: ReadonlySet<string> = new Set(['class', 'interface', 'type', 'enum']);
 /** The kind of a symbol that `Name(...)` / `new Name(...)` instantiates. */
 const CLASS_KIND = 'class';
 const METHOD_KIND = 'method';
@@ -207,8 +213,13 @@ export interface DependencyResult {
  *       class or the module (`module:<file>`), never by a plain variable;
  *       calls carry their `receiver` and imports the `names` they bind; other
  *       links (visibility, imports, member calls).
+ *   9 — call-link by receiver type (M1-10): a call records the declared type of
+ *       its receiver (`receiver_type`); a member call on a type of the project
+ *       links to that type's members, on a built-in or external type it does not
+ *       link, and an unknown receiver links only in its own file, an imported
+ *       file or its directory.
  */
-export const INDEX_SCHEMA_VERSION = 8;
+export const INDEX_SCHEMA_VERSION = 9;
 
 const INDEX_SCHEMA_VERSION_KEY = 'index_schema_version';
 /**
@@ -404,6 +415,8 @@ export class SqliteStore {
     // `receiver` and `names` were added in index schema 8.
     if (!columns.some((c) => c.name === 'receiver')) this.db.exec('ALTER TABLE relations ADD COLUMN receiver TEXT');
     if (!columns.some((c) => c.name === 'names')) this.db.exec('ALTER TABLE relations ADD COLUMN names TEXT');
+    // `receiver_type` was added in index schema 9.
+    if (!columns.some((c) => c.name === 'receiver_type')) this.db.exec('ALTER TABLE relations ADD COLUMN receiver_type TEXT');
     // Relations are replaced, and imports read, one file at a time (M1-09 stores more of them).
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_relations_file ON relations(file_path, kind)');
     // `is_property` was added in index schema 6; older databases lack the column.
@@ -639,8 +652,8 @@ export class SqliteStore {
     withRetry(() => {
       if (relations.length === 0) return;
       const stmt = this.db.prepare(
-        `INSERT OR REPLACE INTO relations (from_id, to_id, kind, file_path, line, col, to_name, receiver, names)
-         VALUES (@from_id, @to_id, @kind, @file_path, @line, @col, @to_name, @receiver, @names)`,
+        `INSERT OR REPLACE INTO relations (from_id, to_id, kind, file_path, line, col, to_name, receiver, receiver_type, names)
+         VALUES (@from_id, @to_id, @kind, @file_path, @line, @col, @to_name, @receiver, @receiver_type, @names)`,
       );
       const insertMany = this.db.transaction((rows: RelationRow[]) => {
         for (const row of rows) {
@@ -653,6 +666,7 @@ export class SqliteStore {
             col: row.col,
             to_name: row.to_name ?? null,
             receiver: row.receiver ?? null,
+            receiver_type: row.receiverType ?? null,
             names: row.names ?? null,
           });
         }
@@ -667,7 +681,7 @@ export class SqliteStore {
    * name is in `names` (the set of candidate symbols for that name changed).
    */
   getCallRelationsToResolve(scope?: { files: string[]; names: string[] }): CallRelationToResolve[] {
-    const base = 'SELECT rowid, file_path, to_name, to_id, from_id, receiver FROM relations WHERE kind = \'calls\' AND to_name IS NOT NULL';
+    const base = 'SELECT rowid, file_path, to_name, to_id, from_id, receiver, receiver_type FROM relations WHERE kind = \'calls\' AND to_name IS NOT NULL';
     if (!scope) {
       return this.db.prepare(`${base} ORDER BY rowid`).all() as CallRelationToResolve[];
     }
@@ -681,6 +695,49 @@ export class SqliteStore {
     collect('file_path', scope.files);
     collect('to_name', scope.names);
     return [...rows.values()].sort((a, b) => a.rowid - b.rowid);
+  }
+
+  /**
+   * What the project says a receiver's declared type name is (M1-10):
+   * `type` when a class, interface, type or enum of that name exists;
+   * `symbol` when only other symbols have it (a function a constructor call
+   * was made of, a variable); `external` when nothing in the project has it
+   * (`Map`, `dict`, a third-party class).
+   */
+  typeKindOf(name: string): 'type' | 'symbol' | 'external' {
+    const rows = this.db.prepare('SELECT DISTINCT kind FROM symbols WHERE name = ?').all(name) as Array<{ kind: string }>;
+    if (rows.length === 0) return 'external';
+    return rows.some((r) => TYPE_DECLARATION_KINDS.has(r.kind)) ? 'type' : 'symbol';
+  }
+
+  /**
+   * The names of the types that the types named `name` extend or implement,
+   * transitively and nearest first, up to a few levels. Only the relations
+   * the extractor stores (both declarations in one file) are followed.
+   */
+  supertypeNames(name: string, maxDepth = 3): string[] {
+    const stmt = this.db.prepare(
+      `SELECT DISTINCT p.name AS name FROM symbols c
+         JOIN relations r ON r.from_id = c.id AND r.kind IN ('extends', 'implements')
+         JOIN symbols p ON p.id = r.to_id
+        WHERE c.name = ?`,
+    );
+    const found: string[] = [];
+    const seen = new Set<string>([name]);
+    let level = [name];
+    for (let depth = 0; depth < maxDepth && level.length > 0; depth++) {
+      const next: string[] = [];
+      for (const current of level) {
+        for (const row of stmt.all(current) as Array<{ name: string }>) {
+          if (seen.has(row.name)) continue;
+          seen.add(row.name);
+          found.push(row.name);
+          next.push(row.name);
+        }
+      }
+      level = next;
+    }
+    return found;
   }
 
   /**

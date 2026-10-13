@@ -47,14 +47,14 @@ async function indexed(files: Record<string, string[]>): Promise<{ root: string;
   return { root, db: store };
 }
 
-/** `name @ file` of every method the function `caller` of `file` calls, sorted. */
-function methodsCalledBy(root: string, db: SqliteStore, file: string, caller: string): string[] {
+/** `name @ file` of every callable (not a class) the function `caller` of `file` calls, sorted. */
+function callablesCalledBy(root: string, db: SqliteStore, file: string, caller: string): string[] {
   const path = join(root, file);
   const fromId = caller === '<module>' ? moduleCallerId(path) : db.getSymbolsByFile(path).find((s) => s.name === caller)?.id;
   if (!fromId) throw new Error(`symbol ${caller} not indexed in ${file}`);
   return db
     .getCallees(fromId)
-    .filter((c) => c.kind === 'method')
+    .filter((c) => c.kind !== 'class')
     .map((c) => `${c.name} @ ${relative(root, c.filePath)}`)
     .sort();
 }
@@ -91,10 +91,10 @@ describe('member calls linked by the declared type of the receiver (M1-10)', () 
         '}',
       ],
     });
-    expect(methodsCalledBy(root, db, 'src/use.ts', 'typed')).toEqual(['load @ src/store.ts']);
-    expect(methodsCalledBy(root, db, 'src/use.ts', 'constructed')).toEqual(['fill @ src/store.ts']);
-    expect(methodsCalledBy(root, db, 'src/use.ts', 'builtin')).toEqual([]);
-    expect(methodsCalledBy(root, db, 'src/use.ts', 'unknown')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'src/use.ts', 'typed')).toEqual(['load @ src/store.ts']);
+    expect(callablesCalledBy(root, db, 'src/use.ts', 'constructed')).toEqual(['fill @ src/store.ts']);
+    expect(callablesCalledBy(root, db, 'src/use.ts', 'builtin')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'src/use.ts', 'unknown')).toEqual([]);
   });
 
   it('Python: annotated, constructed, built-in and unknown receivers', async () => {
@@ -130,10 +130,10 @@ describe('member calls linked by the declared type of the receiver (M1-10)', () 
         '    return x.size()',
       ],
     });
-    expect(methodsCalledBy(root, db, 'src/use.py', 'typed')).toEqual(['load @ src/store.py']);
-    expect(methodsCalledBy(root, db, 'src/use.py', 'constructed')).toEqual(['fill @ src/store.py']);
-    expect(methodsCalledBy(root, db, 'src/use.py', 'builtin')).toEqual([]);
-    expect(methodsCalledBy(root, db, 'src/use.py', 'unknown')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'src/use.py', 'typed')).toEqual(['load @ src/store.py']);
+    expect(callablesCalledBy(root, db, 'src/use.py', 'constructed')).toEqual(['fill @ src/store.py']);
+    expect(callablesCalledBy(root, db, 'src/use.py', 'builtin')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'src/use.py', 'unknown')).toEqual([]);
   });
 
   it('Go: pointer, constructed, qualified built-in and unknown receivers', async () => {
@@ -179,10 +179,10 @@ describe('member calls linked by the declared type of the receiver (M1-10)', () 
         '}',
       ],
     });
-    expect(methodsCalledBy(root, db, 'use/use.go', 'Typed')).toEqual(['Load @ store/store.go']);
-    expect(methodsCalledBy(root, db, 'use/use.go', 'Constructed')).toEqual(['Fill @ store/store.go']);
-    expect(methodsCalledBy(root, db, 'use/use.go', 'Builtin')).toEqual([]);
-    expect(methodsCalledBy(root, db, 'use/use.go', 'Unknown')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'use/use.go', 'Typed')).toEqual(['Load @ store/store.go']);
+    expect(callablesCalledBy(root, db, 'use/use.go', 'Constructed')).toEqual(['Fill @ store/store.go']);
+    expect(callablesCalledBy(root, db, 'use/use.go', 'Builtin')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'use/use.go', 'Unknown')).toEqual([]);
   });
 
   it('Java: typed, constructed, built-in and unknown receivers', async () => {
@@ -201,10 +201,10 @@ describe('member calls linked by the declared type of the receiver (M1-10)', () 
         '}',
       ],
     });
-    expect(methodsCalledBy(root, db, 'src/Use.java', 'typed')).toEqual(['load @ src/Store.java']);
-    expect(methodsCalledBy(root, db, 'src/Use.java', 'constructed')).toEqual(['fill @ src/Store.java']);
-    expect(methodsCalledBy(root, db, 'src/Use.java', 'builtin')).toEqual([]);
-    expect(methodsCalledBy(root, db, 'src/Use.java', 'unknown')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'src/Use.java', 'typed')).toEqual(['load @ src/Store.java']);
+    expect(callablesCalledBy(root, db, 'src/Use.java', 'constructed')).toEqual(['fill @ src/Store.java']);
+    expect(callablesCalledBy(root, db, 'src/Use.java', 'builtin')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'src/Use.java', 'unknown')).toEqual(['makeLru @ src/Use.java']);
   });
 
   it('Rust: reference, `Type::new()`, built-in and unknown receivers', async () => {
@@ -247,9 +247,9 @@ describe('member calls linked by the declared type of the receiver (M1-10)', () 
         '}',
       ],
     });
-    expect(methodsCalledBy(root, db, 'src/use.rs', 'typed')).toEqual(['load @ src/store.rs']);
-    expect(methodsCalledBy(root, db, 'src/use.rs', 'constructed')).toEqual(['fill @ src/store.rs', 'new @ src/store.rs']);
-    expect(methodsCalledBy(root, db, 'src/use.rs', 'builtin')).toEqual([]);
-    expect(methodsCalledBy(root, db, 'src/use.rs', 'unknown')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'src/use.rs', 'typed')).toEqual(['load @ src/store.rs']);
+    expect(callablesCalledBy(root, db, 'src/use.rs', 'constructed')).toEqual(['fill @ src/store.rs', 'new @ src/store.rs']);
+    expect(callablesCalledBy(root, db, 'src/use.rs', 'builtin')).toEqual([]);
+    expect(callablesCalledBy(root, db, 'src/use.rs', 'unknown')).toEqual([]);
   });
 });
