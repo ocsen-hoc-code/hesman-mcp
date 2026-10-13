@@ -1,0 +1,34 @@
+{
+  "files": {
+    "inventory.c": {
+      "symbolCount": { "min": 3, "max": 3 },
+      "symbols": [
+        { "name": "clamp", "kind": "function", "line": 4, "isExported": false, "doc": "Keeps a count inside the allowed range." },
+        { "name": "item_restock", "kind": "function", "line": 13, "isExported": true, "doc": "Adds stock to an item, capped at MAX_ITEMS." },
+        { "name": "item_name", "kind": "function", "line": 20, "isExported": true, "doc": "Name of an item, or a placeholder." }
+      ],
+      "calls": [
+        { "from": "item_restock", "to": "clamp" }
+      ]
+    },
+    "inventory.h": {
+      "symbolCount": { "min": 5, "max": 5 },
+      "symbols": [
+        { "name": "MAX_ITEMS", "kind": "constant", "line": 5, "isExported": true, "doc": "Largest count an item may have." },
+        { "name": "item", "kind": "class", "line": 8, "isExported": true, "doc": "One stock item." },
+        { "name": "status", "kind": "type", "line": 14, "isExported": true, "doc": "Status of an item." },
+        { "name": "item_t", "kind": "type", "line": 16, "isExported": true },
+        { "name": "item_restock", "kind": "function", "line": 19, "isExported": true, "doc": "Adds stock to an item, capped at MAX_ITEMS." }
+      ]
+    },
+    "report.c": {
+      "symbolCount": { "min": 1, "max": 1 },
+      "symbols": [
+        { "name": "report_double", "kind": "function", "line": 4, "isExported": true, "doc": "Restocks an item twice and returns the new count." }
+      ],
+      "calls": [
+        { "from": "report_double", "to": "item_restock" }
+      ]
+    }
+  }
+}

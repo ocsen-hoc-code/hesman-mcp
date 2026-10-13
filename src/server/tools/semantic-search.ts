@@ -3,21 +3,60 @@ import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { ZVecStore } from '../../stores/zvec.js';
 import type { HesmanConfig } from '../../config/schema.js';
 import { embedText, isEmbeddingReady } from '../../stores/embedding.js';
+import { indexState } from '../../indexing/index-state.js';
 import { compactCode } from '../../parsers/compact-mode.js';
 import { ErrorCode, formatError } from '../error-codes.js';
+import { InvalidArgumentError, intArg, numberArg, withArgValidation } from '../args.js';
+import { LANGUAGE_IDS, isLanguageId } from '../../parsers/languages.js';
+import { SYMBOL_KINDS, isSymbolKind } from '../../parsers/symbol-kinds.js';
+import { TEXT_CHUNK_KIND } from '../../parsers/text-chunker.js';
+import { TEXT_LANGUAGE_FALLBACK, isTextLanguageLabel } from '../../parsers/text-languages.js';
+
+/** Kinds accepted by the `kind` filter: every symbol kind, plus text-tier chunks. */
+const SEARCH_KINDS: readonly string[] = [...SYMBOL_KINDS, TEXT_CHUNK_KIND];
+const isSearchKind = (kind: string): boolean => isSymbolKind(kind) || kind === TEXT_CHUNK_KIND;
+/** A language with a grammar, or a text-tier label (files without a grammar). */
+const isSearchLanguage = (language: string): boolean => isLanguageId(language) || isTextLanguageLabel(language);
 
 const inputSchema = {
   type: 'object',
   properties: {
     query: { type: 'string', description: 'Natural language query to search for' },
-    topK: { type: 'number', description: 'Max results (default 10, max 50)' },
+    topK: { type: 'integer', minimum: 1, maximum: 50, description: 'Max results (default 10, max 50)' },
     filePattern: { type: 'string', description: 'Glob filter, e.g. "src/**/*.ts"' },
-    language: { type: 'string', description: 'Filter by language: typescript, python, ...' },
-    kind: { type: 'string', description: 'Filter by symbol kind: function, class, method, ...' },
-    minScore: { type: 'number', description: 'Minimum score threshold (0-1, default 0.0)' },
+    language: {
+      type: 'string',
+      description:
+        `Filter by language: ${LANGUAGE_IDS.join(', ')} (symbols), or the label of a language without a grammar ` +
+        `such as "sql", "yaml", "zig", "dockerfile" or "${TEXT_LANGUAGE_FALLBACK}" (text chunks)`,
+    },
+    kind: {
+      type: 'string',
+      enum: [...SEARCH_KINDS],
+      description: `Filter by symbol kind; "${TEXT_CHUNK_KIND}" selects chunks of files without a grammar`,
+    },
+    minScore: { type: 'number', minimum: 0, maximum: 1, description: 'Minimum score threshold (0-1, default 0.0). Scores are similarities, not probabilities: relevant matches typically score 0.3-0.6, so thresholds above 0.5 often return nothing. Prefer ranking by order.' },
   },
   required: ['query'],
 };
+
+/**
+ * Read an optional string argument that must be one of a fixed set of values.
+ * These values end up in a ZVec filter, so anything else is rejected outright.
+ */
+function enumArg(
+  args: Record<string, unknown>,
+  name: string,
+  isValid: (value: string) => boolean,
+  allowed: readonly string[],
+): string | undefined {
+  const raw = args[name];
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== 'string' || !isValid(raw)) {
+    throw new InvalidArgumentError(`${name} must be one of: ${allowed.join(', ')}`);
+  }
+  return raw;
+}
 
 export function registerSemanticSearchTool(
   server: McpServer,
@@ -26,11 +65,15 @@ export function registerSemanticSearchTool(
 ): void {
   const handler: ToolHandler = async (args) => {
     const query = args.query as string;
-    const topK = (args.topK as number) ?? config.semanticSearch.defaultTopK;
+    const topK = intArg(args, 'topK', {
+      default: config.semanticSearch.defaultTopK,
+      min: 1,
+      max: config.semanticSearch.maxTopK,
+    });
     const filePattern = args.filePattern as string | undefined;
-    const language = args.language as string | undefined;
-    const kind = args.kind as string | undefined;
-    const minScore = (args.minScore as number) ?? config.semanticSearch.minScore;
+    const language = enumArg(args, 'language', isSearchLanguage, [...LANGUAGE_IDS, 'a text-tier language label']);
+    const kind = enumArg(args, 'kind', isSearchKind, SEARCH_KINDS);
+    const minScore = numberArg(args, 'minScore', { default: config.semanticSearch.minScore, min: 0, max: 1 });
 
     // Validate
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
@@ -48,14 +91,20 @@ export function registerSemanticSearchTool(
     }
 
     if (!isEmbeddingReady()) {
+      // The model loads in the background after the MCP handshake: tell the
+      // agent whether to retry (still loading) or give up (load failed).
+      const { phase, modelError } = indexState.snapshot();
+      let message = 'Embedding model not loaded. Run once with internet to download.';
+      if (modelError) {
+        message = `Embedding model failed to load: ${modelError}. Run once with internet to download it.`;
+      } else if (phase === 'loading-model') {
+        message = 'Embedding model is still loading (the first run downloads it). Retry shortly; index_status reports progress.';
+      }
       return {
-        content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.INDEX_NOT_READY, 'Embedding model not loaded. Run once with internet to download.')) }],
+        content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.INDEX_NOT_READY, message)) }],
         isError: true,
       };
     }
-
-    const maxTopK = config.semanticSearch.maxTopK;
-    const effectiveTopK = Math.min(Math.max(1, topK), maxTopK);
 
     const embedStart = Date.now();
 
@@ -75,7 +124,8 @@ export function registerSemanticSearchTool(
     const searchStart = Date.now();
     let results = zvecStore.search({
       queryVector,
-      topK: effectiveTopK,
+      queryText: query,
+      topK,
       filePattern,
       language,
       kind,
@@ -87,7 +137,8 @@ export function registerSemanticSearchTool(
       .filter(r => r.score >= minScore)
       .map(r => ({
         ...r,
-        snippet: compactCode(r.snippet),
+        // Compact mode assumes C-like comments; text chunks are returned verbatim.
+        snippet: r.precision === 'text' ? r.snippet : compactCode(r.snippet),
       }));
 
     const compressed = compressToolResponse('semantic_search', {
@@ -106,8 +157,9 @@ export function registerSemanticSearchTool(
 
   server.registerTool(
     'semantic_search',
-    'Search code by natural language description using AI embeddings',
+    'Search code by natural language description using AI embeddings. Results are symbols; files without a grammar ' +
+      'contribute line-range chunks marked kind: "text" and precision: "text" (not symbol-accurate: use get_context on their lines).',
     inputSchema,
-    handler,
+    withArgValidation(handler),
   );
 }

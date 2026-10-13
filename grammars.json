@@ -1,0 +1,811 @@
+{
+  "abi": {
+    "min": 13,
+    "max": 15
+  },
+  "grammars": {
+    "typescript": {
+      "bundled": true,
+      "file": "tree-sitter-typescript.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-typescript.wasm",
+      "sha256": "778025db5a8be0e70f8ccc3671e486dfeddd048c25d9e8a70c26de2e1bf6f97d",
+      "bytes": 1413849,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-typescript",
+        "rev": "v0.23.2",
+        "commit": "f975a621f4e7f532fe322e13c4f79495e0a7b2e7",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".ts",
+        ".mts",
+        ".cts"
+      ],
+      "queries": {
+        "tags": [
+          "queries/javascript/tags.scm",
+          "queries/typescript/tags.scm",
+          "queries/typescript/hesman-tags.scm",
+          "queries/javascript/hesman-relations.scm"
+        ]
+      }
+    },
+    "tsx": {
+      "bundled": true,
+      "file": "tree-sitter-tsx.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-typescript/releases/download/v0.23.2/tree-sitter-tsx.wasm",
+      "sha256": "79e5da75ea62855a0cd67177685f0164eac87d5f630b3cbe1e0a099751ad30f8",
+      "bytes": 1445638,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-typescript",
+        "rev": "v0.23.2",
+        "commit": "f975a621f4e7f532fe322e13c4f79495e0a7b2e7",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".tsx"
+      ],
+      "queries": {
+        "tags": [
+          "queries/javascript/tags.scm",
+          "queries/typescript/tags.scm",
+          "queries/typescript/hesman-tags.scm",
+          "queries/javascript/hesman-relations.scm"
+        ]
+      }
+    },
+    "javascript": {
+      "bundled": true,
+      "file": "tree-sitter-javascript.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-javascript/releases/download/v0.23.1/tree-sitter-javascript.wasm",
+      "sha256": "4a378293fe7853cbee2836023be072dafa0e53b3b5edb245920838ca834ed121",
+      "bytes": 358909,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-javascript",
+        "rev": "v0.23.1",
+        "commit": "3a837b6f3658ca3618f2022f8707e29739c91364",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs"
+      ],
+      "queries": {
+        "tags": [
+          "queries/javascript/tags.scm",
+          "queries/javascript/hesman-tags.scm",
+          "queries/javascript/hesman-relations.scm"
+        ]
+      }
+    },
+    "python": {
+      "bundled": true,
+      "file": "tree-sitter-python.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-python/releases/download/v0.23.6/tree-sitter-python.wasm",
+      "sha256": "8c93692fb368e288a5824cee55773c9b3602804f513bda48c97661e52e9c2da2",
+      "bytes": 457796,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-python",
+        "rev": "v0.23.6",
+        "commit": "bffb65a8cfe4e46290331dfef0dbf0ef3679de11",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".py",
+        ".pyw",
+        ".pyi"
+      ],
+      "queries": {
+        "tags": [
+          "queries/python/tags.scm",
+          "queries/python/hesman-tags.scm",
+          "queries/python/hesman-relations.scm"
+        ]
+      }
+    },
+    "go": {
+      "bundled": true,
+      "file": "tree-sitter-go.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-go/releases/download/v0.23.4/tree-sitter-go.wasm",
+      "sha256": "6dfc8eacdad0a54d0cad0d888851bd19cdd14d82582f110f888bbf6f9e5e2d64",
+      "bytes": 209980,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-go",
+        "rev": "v0.23.4",
+        "commit": "3c3775faa968158a8b4ac190a7fda867fd5fb748",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".go"
+      ],
+      "queries": {
+        "tags": [
+          "queries/go/tags.scm",
+          "queries/go/hesman-tags.scm",
+          "queries/go/hesman-relations.scm"
+        ]
+      }
+    },
+    "java": {
+      "bundled": true,
+      "file": "tree-sitter-java.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-java/releases/download/v0.23.5/tree-sitter-java.wasm",
+      "sha256": "4fdeac4ca6ca089f06c6f7e562abcac1733cd465728cc7031ebb73c2019122c4",
+      "bytes": 414641,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-java",
+        "rev": "v0.23.5",
+        "commit": "94703d5a6bed02b98e438d7cad1136c01a60ba2c",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".java"
+      ],
+      "queries": {
+        "tags": [
+          "queries/java/tags.scm",
+          "queries/java/hesman-tags.scm",
+          "queries/java/hesman-relations.scm"
+        ]
+      }
+    },
+    "c": {
+      "bundled": true,
+      "file": "tree-sitter-c.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-c/releases/download/v0.24.2/tree-sitter-c.wasm",
+      "sha256": "83e8d7902b9d7f8c7c5cd4bd9acb5c7eb5faf42c09f85546b183964d3b5f48f9",
+      "bytes": 645157,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-c",
+        "rev": "v0.24.2",
+        "commit": "b780e47fc780ddc8da13afa35a3f4ed5c157823d",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".c",
+        ".h"
+      ],
+      "queries": {
+        "tags": [
+          "queries/c/hesman-overrides.scm",
+          "queries/c/tags.scm",
+          "queries/c/hesman-tags.scm",
+          "queries/c/hesman-relations.scm"
+        ]
+      }
+    },
+    "cpp": {
+      "bundled": true,
+      "file": "tree-sitter-cpp.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-cpp/releases/download/v0.23.4/tree-sitter-cpp.wasm",
+      "sha256": "174eb0deb75b2ec7881bcacda9f995648d8e683956e5c2267e69ab6dc503fcbf",
+      "bytes": 3434931,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-cpp",
+        "rev": "v0.23.4",
+        "commit": "f41e1a044c8a84ea9fa8577fdd2eab92ec96de02",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".cpp",
+        ".cc",
+        ".cxx",
+        ".hpp",
+        ".hh",
+        ".hxx",
+        ".ipp",
+        ".tpp"
+      ],
+      "queries": {
+        "tags": [
+          "queries/cpp/hesman-overrides.scm",
+          "queries/cpp/tags.scm",
+          "queries/cpp/hesman-tags.scm",
+          "queries/cpp/hesman-relations.scm"
+        ]
+      }
+    },
+    "csharp": {
+      "bundled": true,
+      "file": "tree-sitter-c_sharp.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-c-sharp/releases/download/v0.23.5/tree-sitter-c_sharp.wasm",
+      "sha256": "6f69e1cae44e1c32c1eccc170dc5a9778fb94ff716f71113fe1f8c4299aa2f40",
+      "bytes": 5350581,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-c-sharp",
+        "rev": "v0.23.5",
+        "commit": "cac6d5fb595f5811a076336682d5d595ac1c9e85",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".cs",
+        ".csx"
+      ],
+      "queries": {
+        "tags": [
+          "queries/csharp/tags.scm",
+          "queries/csharp/hesman-tags.scm",
+          "queries/csharp/hesman-relations.scm"
+        ]
+      }
+    },
+    "rust": {
+      "bundled": true,
+      "file": "tree-sitter-rust.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-rust/releases/download/v0.24.2/tree-sitter-rust.wasm",
+      "sha256": "24c89bd9252255e4aebbcbd7d2d308bd92c86dd95a130fdc80efa49577b8d738",
+      "bytes": 1118099,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-rust",
+        "rev": "v0.24.2",
+        "commit": "77a3747266f4d621d0757825e6b11edcbf991ca5",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".rs"
+      ],
+      "queries": {
+        "tags": [
+          "queries/rust/tags.scm",
+          "queries/rust/hesman-tags.scm",
+          "queries/rust/hesman-relations.scm"
+        ]
+      }
+    },
+    "php": {
+      "bundled": true,
+      "file": "tree-sitter-php.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-php/releases/download/v0.25.1/tree-sitter-php.wasm",
+      "sha256": "bd5e2bf8d42306b7aa32e6b7e39ae9fd9543c62a875ad8b2bc3d488242f72817",
+      "bytes": 1081285,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-php",
+        "rev": "v0.25.1",
+        "commit": "58d5643086ae60e93a3746cca648363ee97c8761",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".php",
+        ".phtml"
+      ],
+      "queries": {
+        "tags": [
+          "queries/php/tags.scm",
+          "queries/php/hesman-tags.scm",
+          "queries/php/hesman-relations.scm"
+        ]
+      }
+    },
+    "ruby": {
+      "bundled": true,
+      "file": "tree-sitter-ruby.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-ruby/releases/download/v0.23.1/tree-sitter-ruby.wasm",
+      "sha256": "09a96427d7c72f0613ed470cd9812223fc4a91d6a9c025c0235cc6bd59ff96f4",
+      "bytes": 2106352,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-ruby",
+        "rev": "v0.23.1",
+        "commit": "71bd32fb7607035768799732addba884a37a6210",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".rb",
+        ".rake",
+        ".gemspec",
+        ".ru",
+        ".podspec"
+      ],
+      "queries": {
+        "tags": [
+          "queries/ruby/tags.scm",
+          "queries/ruby/hesman-tags.scm",
+          "queries/ruby/hesman-relations.scm"
+        ]
+      }
+    },
+    "kotlin": {
+      "bundled": true,
+      "file": "tree-sitter-kotlin.wasm",
+      "url": "https://github.com/fwcd/tree-sitter-kotlin/releases/download/0.3.8/tree-sitter-kotlin.wasm",
+      "sha256": "c624e7443b371c28adc5d81674e73067564c12555ebe3ed96a6c8db814b7602d",
+      "bytes": 4052625,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/fwcd/tree-sitter-kotlin",
+        "rev": "0.3.8",
+        "commit": "e1a2d5ad1f61f5740677183cd4125bb071cd2f30",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".kt",
+        ".kts"
+      ],
+      "queries": {
+        "tags": [
+          "queries/kotlin/tags.scm"
+        ]
+      }
+    },
+    "swift": {
+      "bundled": true,
+      "file": "tree-sitter-swift.wasm",
+      "url": "https://github.com/alex-pinkus/tree-sitter-swift/releases/download/0.7.3/tree-sitter-swift.wasm",
+      "sha256": "0258a7ef17303a8079ffe0748b3583d59656b5c3e8653fca7b6451b3e6689eb2",
+      "bytes": 3825025,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/alex-pinkus/tree-sitter-swift",
+        "rev": "0.7.3",
+        "commit": "b8b22bffbb3441780e6471665bacfb263741c86a",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".swift"
+      ],
+      "queries": {
+        "tags": [
+          "queries/swift/hesman-overrides.scm",
+          "queries/swift/tags.scm",
+          "queries/swift/hesman-relations.scm"
+        ]
+      }
+    },
+    "bash": {
+      "bundled": true,
+      "file": "tree-sitter-bash.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-bash/releases/download/v0.25.1/tree-sitter-bash.wasm",
+      "sha256": "8292919c88a0f7d3fb31d0cd0253ca5a9531bc1ede82b0537f2c63dd8abe6a7a",
+      "bytes": 1358224,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-bash",
+        "rev": "v0.25.1",
+        "commit": "a06c2e4415e9bc0346c6b86d401879ffb44058f7",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".sh",
+        ".bash"
+      ],
+      "queries": {
+        "tags": [
+          "queries/bash/hesman-tags.scm"
+        ]
+      }
+    },
+    "lua": {
+      "bundled": true,
+      "file": "tree-sitter-lua.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-lua/releases/download/v0.5.0/tree-sitter-lua.wasm",
+      "sha256": "df08a1704e504c70b8dba4a3e6f8e0c99a4fb94e1b1693d2969f53141d09f0d4",
+      "bytes": 54603,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-lua",
+        "rev": "v0.5.0",
+        "commit": "10fe0054734eec83049514ea2e718b2a56acd0c9",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".lua"
+      ],
+      "queries": {
+        "tags": [
+          "queries/lua/tags.scm"
+        ]
+      }
+    },
+    "scala": {
+      "bundled": false,
+      "file": "tree-sitter-scala.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-scala/releases/download/v0.26.2/tree-sitter-scala.wasm",
+      "sha256": "37d7fe5a91ca98941dc05493b0c05a0df0f36df5035890fa00b02497c68aaac3",
+      "bytes": 3973559,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-scala",
+        "rev": "v0.26.2",
+        "commit": "b931fcc338390925eb893d70ad070033f5856ccf",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".scala",
+        ".sc",
+        ".sbt"
+      ],
+      "queries": {
+        "tags": [
+          "queries/scala/tags.scm"
+        ]
+      }
+    },
+    "ocaml": {
+      "bundled": false,
+      "file": "tree-sitter-ocaml.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-ocaml/releases/download/v0.26.0/tree-sitter-ocaml.wasm",
+      "sha256": "bfa3eef92b9d3cc1117aa486d46ecb06c98a3a28c1747660aaa5851df5e4530c",
+      "bytes": 4808294,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-ocaml",
+        "rev": "v0.26.0",
+        "commit": "e3c9cf368f68bffd2f81188229aefa7b434eda65",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".ml"
+      ],
+      "queries": {
+        "tags": [
+          "queries/ocaml/tags.scm"
+        ]
+      }
+    },
+    "fsharp": {
+      "bundled": false,
+      "file": "tree-sitter-fsharp.wasm",
+      "url": "https://github.com/ionide/tree-sitter-fsharp/releases/download/0.3.12/tree-sitter-fsharp.wasm",
+      "sha256": "ff1a927387fec25e184d120d9e18ec7cd5271b30f6380f02d494d3548a99f7b7",
+      "bytes": 11430318,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/ionide/tree-sitter-fsharp",
+        "rev": "0.3.12",
+        "commit": "aefd0c8741bdf3aeb827a228aa4a996a6536697e",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".fs",
+        ".fsx"
+      ],
+      "queries": {
+        "tags": [
+          "queries/fsharp/hesman-overrides.scm",
+          "queries/fsharp/tags.scm"
+        ]
+      }
+    },
+    "r": {
+      "bundled": false,
+      "file": "tree-sitter-r.wasm",
+      "url": "https://github.com/r-lib/tree-sitter-r/releases/download/v1.3.0/tree-sitter-r.wasm",
+      "sha256": "3e406e27cec05a60ba3281e2da021187200b83d152d9eb0dcf0a731cbfbcc28d",
+      "bytes": 487039,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/r-lib/tree-sitter-r",
+        "rev": "v1.3.0",
+        "commit": "346d3707b8c9301f1051e8f6e32666e67529f7d2",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".r"
+      ],
+      "queries": {
+        "tags": [
+          "queries/r/tags.scm"
+        ]
+      }
+    },
+    "codeql": {
+      "bundled": false,
+      "file": "tree-sitter-ql.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-ql/releases/download/v0.23.1/tree-sitter-ql.wasm",
+      "sha256": "f7f01c27f942a76ffceb30cb194fe669f81a21971126a57d9bf876bdaffa85dc",
+      "bytes": 312209,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-ql",
+        "rev": "v0.23.1",
+        "commit": "1fd627a4e8bff8c24c11987474bd33112bead857",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".ql",
+        ".qll"
+      ],
+      "queries": {
+        "tags": [
+          "queries/codeql/tags.scm"
+        ]
+      }
+    },
+    "arduino": {
+      "bundled": false,
+      "file": "tree-sitter-arduino.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-arduino/releases/download/v0.24.0/tree-sitter-arduino.wasm",
+      "sha256": "905a6e00a8c6baa9a2159a6a92f844a9baba8eebad5601ab7da8a2ee9713725c",
+      "bytes": 3504674,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-arduino",
+        "rev": "v0.24.0",
+        "commit": "2f0c1223c50aa4b754136db544204c6fc99ffc77",
+        "license": "MIT"
+      },
+      "extensions": [
+        ".ino"
+      ],
+      "queries": {
+        "tags": [
+          "queries/arduino/tags.scm"
+        ]
+      }
+    },
+    "haskell": {
+      "bundled": false,
+      "file": "tree-sitter-haskell.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-haskell/releases/download/v0.24.1/tree-sitter-haskell.wasm",
+      "sha256": "ea89cb1199b1ca2102e273b27239e795baff17248128a9bcd3c3825ac17d8cc0",
+      "bytes": 3840677,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-haskell",
+        "rev": "v0.24.1",
+        "commit": "97288e585b0bd44199720280d067fa35bacd81ff",
+        "license": "MIT"
+      }
+    },
+    "elixir": {
+      "bundled": false,
+      "file": "tree-sitter-elixir.wasm",
+      "url": "https://github.com/elixir-lang/tree-sitter-elixir/releases/download/v0.3.5/tree-sitter-elixir.wasm",
+      "sha256": "1818ae0d7343f880abb0b7932c9a815f09896ca67b3e126096a2dd7677d1477b",
+      "bytes": 1436984,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/elixir-lang/tree-sitter-elixir",
+        "rev": "v0.3.5",
+        "commit": "e2d9e6e0e76b0c436fa48a0b8c32a031d0cbdf49",
+        "license": "Apache-2.0"
+      },
+      "extensions": [
+        ".ex",
+        ".exs"
+      ],
+      "queries": {
+        "tags": [
+          "queries/elixir/tags.scm"
+        ]
+      }
+    },
+    "zig": {
+      "bundled": false,
+      "file": "tree-sitter-zig.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-zig/releases/download/v1.1.2/tree-sitter-zig.wasm",
+      "sha256": "54b3b83dd9c62da5815f06132bc3fc914d9dcc780370b32416446a0b7969e8c6",
+      "bytes": 691726,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-zig",
+        "rev": "v1.1.2",
+        "commit": "b670c8df85a1568f498aa5c8cae42f51a90473c0",
+        "license": "MIT"
+      }
+    },
+    "julia": {
+      "bundled": false,
+      "file": "tree-sitter-julia.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-julia/releases/download/v0.25.0/tree-sitter-julia.wasm",
+      "sha256": "b20da9dc7d7334e2cae034ca4974dd09c94be8c0a524df1fc194b545bc2f49f5",
+      "bytes": 2636367,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-julia",
+        "rev": "v0.25.0",
+        "commit": "e0f9dcd180fdcfcfa8d79a3531e11d99e79321d3",
+        "license": "MIT"
+      }
+    },
+    "perl": {
+      "bundled": false,
+      "file": "tree-sitter-perl.wasm",
+      "url": "https://github.com/tree-sitter-perl/tree-sitter-perl/releases/download/v2.0.0/tree-sitter-perl.wasm",
+      "sha256": "7d4ad86813db08e2edc69b42d18d7a6c52a0770cba61365b7932f7d6b56ee36f",
+      "bytes": 4739417,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter-perl/tree-sitter-perl",
+        "rev": "v2.0.0",
+        "commit": "50904961d6a87c5191e611276aa2ecb9d66ca4ff",
+        "license": "MIT"
+      }
+    },
+    "objective-c": {
+      "bundled": false,
+      "file": "tree-sitter-objc.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-objc/releases/download/v3.0.2/tree-sitter-objc.wasm",
+      "sha256": "155bf61fc94941fa9d07c86cd46895f14dfb2549fb7f646faeb83765af05c970",
+      "bytes": 5317155,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-objc",
+        "rev": "v3.0.2",
+        "commit": "18802acf31d0b5c1c1d50bdbc9eb0e1636cab9ed",
+        "license": "MIT"
+      }
+    },
+    "odin": {
+      "bundled": false,
+      "file": "tree-sitter-odin.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-odin/releases/download/v1.3.0/tree-sitter-odin.wasm",
+      "sha256": "4a3c9f50ac2356d2284d26e92322c554b276ad6bf6bce87a8594cff95d2ed6f1",
+      "bytes": 2215305,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-odin",
+        "rev": "v1.3.0",
+        "commit": "e8adc739b78409a99f8c31313f0bb54cc538cf73",
+        "license": "MIT"
+      }
+    },
+    "luau": {
+      "bundled": false,
+      "file": "tree-sitter-luau.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-luau/releases/download/v1.2.0/tree-sitter-luau.wasm",
+      "sha256": "f1647052518f2bdfae8e8c0b033ffdeca1193d69d11c78ba20f84c8374fd0fe3",
+      "bytes": 94204,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-luau",
+        "rev": "v1.2.0",
+        "commit": "a8914d6c1fc5131f8e1c13f769fa704c9f5eb02f",
+        "license": "MIT"
+      }
+    },
+    "starlark": {
+      "bundled": false,
+      "file": "tree-sitter-starlark.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-starlark/releases/download/v1.3.0/tree-sitter-starlark.wasm",
+      "sha256": "fbc8daea386fbd963b198e7942d9a020b8c74d4d875d1c075af540f2b6b3278d",
+      "bytes": 329934,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-starlark",
+        "rev": "v1.3.0",
+        "commit": "a453dbf3ba433db0e5ec621a38a7e59d72e4dc69",
+        "license": "MIT"
+      }
+    },
+    "html": {
+      "bundled": false,
+      "file": "tree-sitter-html.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-html/releases/download/v0.23.2/tree-sitter-html.wasm",
+      "sha256": "c48fcd82c7ea8bf943180088ba7f28c48b2bb5287874179168bf9d31e394cf85",
+      "bytes": 18385,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-html",
+        "rev": "v0.23.2",
+        "commit": "5a5ca8551a179998360b4a4ca2c0f366a35acc03",
+        "license": "MIT"
+      }
+    },
+    "css": {
+      "bundled": false,
+      "file": "tree-sitter-css.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-css/releases/download/v0.25.0/tree-sitter-css.wasm",
+      "sha256": "8a23977fe271357cce6f254ef88c9bebf3854602d8046605aef6a45c02135c59",
+      "bytes": 128668,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-css",
+        "rev": "v0.25.0",
+        "commit": "dda5cfc5722c429eaba1c910ca32c2c0c5bb1a3f",
+        "license": "MIT"
+      }
+    },
+    "json": {
+      "bundled": false,
+      "file": "tree-sitter-json.wasm",
+      "url": "https://github.com/tree-sitter/tree-sitter-json/releases/download/v0.24.8/tree-sitter-json.wasm",
+      "sha256": "d2119fb98d5912719b13f9458574f8608d2d29dfbe45f6be1f860ea1fe2a2405",
+      "bytes": 5596,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter/tree-sitter-json",
+        "rev": "v0.24.8",
+        "commit": "ee35a6ebefcef0c5c416c0d1ccec7370cfca5a24",
+        "license": "MIT"
+      }
+    },
+    "yaml": {
+      "bundled": false,
+      "file": "tree-sitter-yaml.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-yaml/releases/download/v0.7.2/tree-sitter-yaml.wasm",
+      "sha256": "0a0e5ebcfeb0b2bf272d071396eeed107b2c4b2617b69d5959b13f78b357a4d6",
+      "bytes": 189197,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-yaml",
+        "rev": "v0.7.2",
+        "commit": "7708026449bed86239b1cd5bce6e3c34dbca6415",
+        "license": "MIT"
+      }
+    },
+    "toml": {
+      "bundled": false,
+      "file": "tree-sitter-toml.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-toml/releases/download/v0.7.0/tree-sitter-toml.wasm",
+      "sha256": "1ac6a83826c35a68857f8325e00c78f6bcbef4eb6db3931a6cf3041f76e5e09f",
+      "bytes": 24040,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-toml",
+        "rev": "v0.7.0",
+        "commit": "64b56832c2cffe41758f28e05c756a3a98d16f41",
+        "license": "MIT"
+      }
+    },
+    "xml": {
+      "bundled": false,
+      "file": "tree-sitter-xml.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-xml/releases/download/v0.7.0/tree-sitter-xml.wasm",
+      "sha256": "9950327f8542a3d563fe4192aa05986a53e6fd6adca518cbb1a1699cbc8970ad",
+      "bytes": 47032,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-xml",
+        "rev": "v0.7.0",
+        "commit": "4b64dd3a03ec002258d6268d712fd93716d6ab57",
+        "license": "MIT"
+      }
+    },
+    "markdown": {
+      "bundled": false,
+      "file": "tree-sitter-markdown.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-markdown/releases/download/v0.5.3/tree-sitter-markdown.wasm",
+      "sha256": "dd9fc12ac2804d7c7da787e4774125b32e4fb3c244e5e7031a77cb7dd8036020",
+      "bytes": 421574,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-markdown",
+        "rev": "v0.5.3",
+        "commit": "f969cd3ae3f9fbd4e43205431d0ae286014c05b5",
+        "license": "MIT"
+      }
+    },
+    "hcl": {
+      "bundled": false,
+      "file": "tree-sitter-hcl.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-hcl/releases/download/v1.2.0/tree-sitter-hcl.wasm",
+      "sha256": "2f9acf63e7c263215f283e2cf0f4ebbb9bfa77f58e18fa42b91094be201372a7",
+      "bytes": 93854,
+      "abi": 15,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-hcl",
+        "rev": "v1.2.0",
+        "commit": "fad991865fee927dd1de5e172fb3f08ac674d914",
+        "license": "Apache-2.0"
+      }
+    },
+    "makefile": {
+      "bundled": false,
+      "file": "tree-sitter-make.wasm",
+      "url": "https://github.com/tree-sitter-grammars/tree-sitter-make/releases/download/v1.1.1/tree-sitter-make.wasm",
+      "sha256": "1254d1e5787be8bb944d55d1f6552b6b2b7908272ed498013bfdc07bd7d042dd",
+      "bytes": 147061,
+      "abi": 14,
+      "source": {
+        "repo": "https://github.com/tree-sitter-grammars/tree-sitter-make",
+        "rev": "v1.1.1",
+        "commit": "5e9e8f8ff3387b0edcaa90f46ddf3629f4cfeb1d",
+        "license": "MIT"
+      }
+    }
+  }
+}

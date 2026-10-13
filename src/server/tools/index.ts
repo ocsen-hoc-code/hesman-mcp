@@ -17,22 +17,20 @@ import { registerImpactAnalysisTool } from './impact-analysis.js';
 export function registerAllTools(
   server: McpServer,
   store: SqliteStore,
-  zvecStore?: ZVecStore,
-  config?: HesmanConfig,
+  zvecStore: ZVecStore | undefined,
+  config: HesmanConfig,
 ): void {
-  registerFindSymbolTool(server, store);
-  registerGetCalleesTool(server, store);
-  registerGetCallersTool(server, store);
-  registerGetFileStructureTool(server, store);
-  registerGetReferencesTool(server, store);
+  registerFindSymbolTool(server, store, config);
+  registerGetCalleesTool(server, store, config);
+  registerGetCallersTool(server, store, config);
+  registerGetFileStructureTool(server, store, config);
+  registerGetReferencesTool(server, store, config);
   registerIndexStatusTool(server, store, zvecStore);
-  registerListDependenciesTool(server, store);
-  registerGetContextTool(server, store);
-  registerImpactAnalysisTool(server, store);
-  if (zvecStore && config) {
+  registerListDependenciesTool(server, store, config);
+  registerGetContextTool(server, store, config);
+  registerImpactAnalysisTool(server, store, config);
+  if (zvecStore) {
     registerSemanticSearchTool(server, zvecStore, config);
   }
-  if (config) {
-    registerFindPatternTool(server, config);
-  }
+  registerFindPatternTool(server, config);
 }

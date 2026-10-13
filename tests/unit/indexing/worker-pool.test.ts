@@ -27,6 +27,41 @@ describe('WorkerPool', () => {
     pool.terminate();
   });
 
+  it('caps the automatic size at four workers and starts none until there is work', async () => {
+    const pool = new WorkerPool(0);
+    expect(pool.maxWorkers).toBeGreaterThanOrEqual(1);
+    expect(pool.maxWorkers).toBeLessThanOrEqual(4);
+    expect(pool.workerCount).toBe(0);
+    await pool.terminate();
+  });
+
+  it('starts only as many workers as there are tasks, up to its size', async () => {
+    const pool = new WorkerPool(3);
+    const file = resolve(FIXTURE_DIR, 'src', 'index.ts');
+    await pool.dispatch([{ filePath: file, language: 'typescript' }]);
+    expect(pool.workerCount).toBe(1);
+    await pool.dispatch(Array.from({ length: 6 }, () => ({ filePath: file, language: 'typescript' })));
+    expect(pool.workerCount).toBeLessThanOrEqual(3);
+    await pool.terminate();
+  });
+
+  it('releases idle workers after the idle time and starts one again for later work', async () => {
+    const pool = new WorkerPool(2, { idleReleaseMs: 150 });
+    const file = resolve(FIXTURE_DIR, 'src', 'index.ts');
+    await pool.dispatch([
+      { filePath: file, language: 'typescript' },
+      { filePath: file, language: 'typescript' },
+    ]);
+    expect(pool.workerCount).toBeGreaterThanOrEqual(1);
+    await new Promise((r) => setTimeout(r, 600));
+    expect(pool.workerCount).toBe(0);
+
+    const again = await pool.dispatch([{ filePath: file, language: 'typescript' }]);
+    expect(again[0].symbols.length).toBeGreaterThan(0);
+    expect(pool.workerCount).toBe(1);
+    await pool.terminate();
+  });
+
   it('dispatches single task and gets result', async () => {
     const pool = new WorkerPool(2);
     const tasks = [{

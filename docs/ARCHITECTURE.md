@@ -2,7 +2,7 @@
 
 ## Overview
 
-Hesman is an MCP (Model Context Protocol) server that parses, indexes, and serves code intelligence to AI agents. The system follows a pipeline architecture: file events → parse → index → query, with a 3-layer compression pipeline reducing token usage by up to 98%.
+Hesman is an MCP (Model Context Protocol) server that parses, indexes, and serves code intelligence to AI agents. The system follows a pipeline architecture: file events → parse → index → query, with a 3-layer compression pipeline (compact mode, context pruning and compact list shapes are applied today; summarization is not). `get_context` measured 89.9% fewer tokens than the whole file with its default ±5 context lines on a 195-line file.
 
 ---
 
@@ -82,21 +82,11 @@ Relevance is determined by:
 
 Overlapping ranges are merged before output. The pruning uses merge-sort of intervals for O(n log n) performance.
 
-### Layer 3: Smart Summarization
+### Layer 3: Compact list shapes
 
-For call chains, dependency lists, and reference lists, a `_summary` block is appended:
+List and call-graph tools (`find_symbol`, `get_references`, `get_callers`, `get_callees`, `get_file_structure`, `list_dependencies`, `impact_analysis`) answer in a compact shape by default: rows are arrays under named `columns`, grouped by file, with project-relative paths. The response compressor (`src/server/response-compressor.ts`) builds it from the plain payload the handler produced, and keeps it only when it is smaller; otherwise the plain payload is returned with `format: "full"`. `format: "full"` on the request returns the plain payload. No summary replaces rows, so nothing is lost. The measured savings are in `docs/TOOLS.md` (Response Structure) and are reproduced by `scripts/bench-responses.ts`.
 
-```json
-"_summary": {
-  "totalCount": 47,
-  "byKind": { "calls": 32, "imports": 8, "extends": 7 },
-  "byFile": [{ "filePath": "src/main.ts", "count": 12 }, ...]
-}
-```
-
-For call chain tools, `_summary` also includes direct vs. transitive counts and a human-readable summary string.
-
-Each response also includes `_meta` with original and compressed token counts and the reduction percentage.
+Each response except `index_status` also includes `_meta` with original and compressed token counts, the reduction percentage (never negative), `compressed`, and the active `layers`.
 
 ---
 
@@ -122,7 +112,7 @@ src/
 │   ├── context-pruner.ts            # Layer 2: context pruning
 │   ├── summarizer.ts                # Layer 3: symbol summaries, call chain compression
 │   ├── chunker.ts                   # Symbol chunker for embedding
-│   ├── relation-extractor.ts        # Regex-based relation extraction (calls, imports, extends, implements)
+│   ├── relation-extractor.ts        # Relations: calls and imports from the syntax tree, extends/implements by regex
 │   └── profiles/
 │       ├── typescript.ts            # TypeScript/JavaScript language profile
 │       ├── python.ts                # Python language profile
@@ -130,6 +120,7 @@ src/
 │
 ├── indexing/
 │   ├── index-coordinator.ts         # Index orchestration — scan, dispatch workers, update stores
+│   ├── index-state.ts               # Progress of the background initial index (read by tools)
 │   ├── project-scanner.ts           # File discovery with glob/exclusion filtering
 │   ├── worker-pool.ts               # Worker thread pool with dispatch/drain/terminate
 │   ├── worker.ts                    # Worker thread — parse + extract relations
@@ -143,7 +134,7 @@ src/
 ├── server/
 │   ├── mcp-server.ts                # MCP server wrapper — tool registration, stdio transport
 │   ├── error-codes.ts               # Error codes and formatError() helper
-│   ├── response-compressor.ts       # Response-level compression (adds _summary, _meta)
+│   ├── response-compressor.ts       # Response-level compression (adds _meta; compact list shapes only if smaller)
 │   └── tools/
 │       ├── index.ts                 # Tool registration hub
 │       ├── find-symbol.ts           # find_symbol tool
@@ -178,10 +169,12 @@ src/
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
 | `symbols` | Extracted symbols | `id` (PK), `name`, `kind`, `file_path`, `start_line`, `end_line`, `signature`, `parent_id`, `is_exported`, `language` |
-| `relations` | Symbol relations | `from_id`, `to_id`, `kind` (calls/imports/extends/...), `file_path`, `line`, `col` |
+| `relations` | Symbol relations | `from_id` (a symbol id, or `module:<hash>` for a call made outside every function), `to_id`, `kind` (calls/imports/extends/...), `file_path`, `line`, `col`, `to_name` (callee name), `receiver` (of a call: null for `f()`, the receiver's last name for `a.f()`), `receiver_type` (of a call: the declared type of the receiver, when the file declares it), `names` (bound by an import; a module name is prefixed with `*`) |
 | `file_hashes` | Content-based change detection | `file_path` (PK), `sha256`, `updated_at` |
 | `fts_symbols` | FTS5 full-text search index | Virtual table over `symbols(name, signature, doc_comment)` |
 | `metadata` | Index stats | `key`, `value` — stores `total_files`, `total_symbols`, `last_index_time` |
+
+A `symbols.db` that SQLite reports as corrupt is moved aside as `symbols.db.corrupt` (one generation is kept) and the index is rebuilt from the project files, at server start and by `hesman index`; `hesman ui` opens the index read-only and only reports the problem.
 
 ### ZVec (`zvec/` directory)
 
@@ -252,7 +245,7 @@ After all packages are indexed, cross-package relations are discovered by resolv
 ## Key Design Decisions
 
 1. **No LSP dependency** — Tree-sitter provides language-agnostic parsing without starting language servers
-2. **Regex-based relation extraction** — Simpler than full Tree-sitter query matching for the initial version; Tree-sitter queries saved in profiles for future migration
+2. **Query-based call and import extraction** — calls and imports are the `@reference.call` / `@reference.import` matches of each language's query layers (`TagsQuery.relations`), attributed to the innermost enclosing function, method, class or function-valued variable (otherwise to the module) and linked by name after indexing (`call-resolver.ts`): own file → the import that binds the name → imported files → same directory → unique in the project, restricted by visibility (a symbol another file cannot reach is no cross-file target) and by the receiver: a member call on a receiver of a project type (its declared type, read from the tree by `receiver-types.ts`) targets a member of that type or of its supertypes; on a built-in or external type it targets nothing; on a receiver of unknown type it targets only the candidates of its own file, its imported files or its directory, never the whole project by name alone. An interface or abstract method is reached by a unique member of that name. An ambiguous call stays unresolved. `extends` / `implements` are still matched by regex
 3. **Response-level compression** — Applied per-response rather than at the parser level so the original data is always available for non-MCP use
 4. **Content-hash incremental indexing** — Files are re-parsed only when their SHA-256 hash changes, detected during scanning
 5. **Single SQLite store for all packages** — In monorepo mode, all packages share one database; package isolation is achieved via the `file_path` column

@@ -1,24 +1,20 @@
 import { watch, type FSWatcher } from 'chokidar';
 import { readFileSync } from 'node:fs';
+import { relative, sep } from 'node:path';
 import { createHash } from 'node:crypto';
-import { extname } from 'node:path';
 import type { WorkerPool } from './worker-pool.js';
 import type { SqliteStore } from '../stores/sqlite.js';
 import type { ZVecStore } from '../stores/zvec.js';
 import { chunkSymbols } from '../parsers/chunker.js';
 import { embedBatch } from '../stores/embedding.js';
 import { createLogger } from '../utils/logger.js';
+import { languageForPath } from '../parsers/languages.js';
+import { resolveCallRelations } from './call-resolver.js';
+import { isAlwaysSkipped, scanFile } from './project-scanner.js';
+import { indexTextFile, removeTextFile, storedTextChunkIds } from './text-indexer.js';
+import { defaultConfig } from '../config/defaults.js';
 
 const log = createLogger('file-watcher');
-
-const EXT_TO_LANG: Record<string, string> = {
-  '.ts': 'typescript',
-  '.tsx': 'typescript',
-  '.js': 'typescript',
-  '.jsx': 'typescript',
-  '.mjs': 'typescript',
-  '.cjs': 'typescript',
-};
 
 export interface FileWatcherConfig {
   projectRoot: string;
@@ -26,6 +22,10 @@ export interface FileWatcherConfig {
   store: SqliteStore;
   pool: WorkerPool;
   zvecStore?: ZVecStore;
+  /** Size limit applied to text-tier files (default: the config default, 2 MB). */
+  maxFileSizeBytes?: number;
+  /** Language filter applied to text-tier files (default: every language). */
+  languages?: string[];
 }
 
 export class FileWatcher {
@@ -39,17 +39,23 @@ export class FileWatcher {
   }
 
   async start(): Promise<void> {
-    const ignored = [
-      '**/node_modules/**',
-      '**/.git/**',
-      '**/dist/**',
-      '**/.hesman/**',
-      ...this.config.ignore,
-    ];
+    // chokidar 4+ no longer understands glob strings, so the directories the
+    // scanner never enters are matched by path segment here. This only keeps
+    // the OS watcher out of them; whether a changed file is indexed is decided
+    // by `scanFile` in `handleChange`, with the scanner's full rule set.
+    const root = this.config.projectRoot;
+    const ignored = (path: string): boolean => {
+      const rel = relative(root, path);
+      if (rel === '' || rel.startsWith('..')) return false;
+      return rel.split(sep).some(isAlwaysSkipped);
+    };
 
     this.watcher = watch(this.config.projectRoot, {
       ignored,
       ignoreInitial: true,
+      // Never follow symlinks: they can loop back into the project or expose
+      // files outside it. Matches the scanner, which skips symlinks entirely.
+      followSymlinks: false,
       awaitWriteFinish: {
         stabilityThreshold: 100,
         pollInterval: 20,
@@ -63,9 +69,60 @@ export class FileWatcher {
     log.info({ projectRoot: this.config.projectRoot }, 'File watcher started');
   }
 
+  /**
+   * Text tier: a changed file without a grammar is re-chunked, provided the
+   * scanner would list it (same ignore, size, binary and bulk-file rules).
+   * A file that no longer qualifies loses what the text tier stored for it.
+   */
+  /** The scanner's verdict on one path: `null` when a full scan would not list it. */
+  private scan(filePath: string): ReturnType<typeof scanFile> {
+    return scanFile(this.config.projectRoot, filePath, {
+      ...defaultConfig,
+      ignore: this.config.ignore,
+      maxFileSizeBytes: this.config.maxFileSizeBytes ?? defaultConfig.maxFileSizeBytes,
+      languages: this.config.languages ?? ['*'],
+    });
+  }
+
+  private async handleTextChange(filePath: string): Promise<void> {
+    const { store, zvecStore } = this.config;
+    const scanned = this.scan(filePath);
+    if (!scanned || scanned.tier !== 'text') {
+      if (store.getTextFile(filePath)) {
+        removeTextFile(store, zvecStore, filePath);
+        store.deleteFileHash(filePath);
+      }
+      return;
+    }
+
+    const now = Date.now();
+    const lastChange = this.changeTimestamps.get(filePath) || 0;
+    if (now - lastChange < 2000) return; // rate limit: 2s per file
+    this.changeTimestamps.set(filePath, now);
+
+    if (this.pending.has(filePath)) return;
+    this.pending.add(filePath);
+    try {
+      const content = readFileSync(filePath, 'utf-8');
+      const sha256 = createHash('sha256').update(content).digest('hex');
+      if (store.getFileHash(filePath) === sha256 && store.getTextFile(filePath)) return;
+      await indexTextFile(store, zvecStore, { filePath, language: scanned.language, content });
+      store.upsertFileHash(filePath, sha256);
+      log.debug({ file: filePath }, 'Text file re-indexed');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.warn({ file: filePath, error: message }, 'Error handling text file change');
+    } finally {
+      this.pending.delete(filePath);
+    }
+  }
+
   private async handleChange(filePath: string): Promise<void> {
-    const lang = EXT_TO_LANG[extname(filePath)];
-    if (!lang) return;
+    const lang = languageForPath(filePath);
+    if (!lang) return this.handleTextChange(filePath);
+    // Same rules as a full scan: an ignored directory, a .gitignore entry, a
+    // symlink or an oversized file is not indexed just because it changed.
+    if (!this.scan(filePath)) return;
 
     const now = Date.now();
     const lastChange = this.changeTimestamps.get(filePath) || 0;
@@ -94,7 +151,12 @@ export class FileWatcher {
         return;
       }
 
-      // Update stores
+      // The file was a text-tier file until its grammar arrived (M1-05): drop its chunks.
+      if (this.config.store.getTextFile(filePath)) removeTextFile(this.config.store, this.config.zvecStore, filePath);
+
+      // Update stores (vectors first: their ids come from the SQLite rows)
+      const oldSymbols = this.config.store.getSymbolsByFile(filePath);
+      this.config.zvecStore?.deleteByFile(filePath, oldSymbols.map((s) => s.id));
       this.config.store.clearSymbols(filePath);
       this.config.store.clearRelations(filePath);
 
@@ -107,6 +169,13 @@ export class FileWatcher {
       if (result.relations.length > 0) {
         this.config.store.upsertRelations(result.relations);
       }
+
+      // Symbol ids embed the start line, so calls from other files into this
+      // one must be re-linked; so must this file's own calls.
+      resolveCallRelations(this.config.store, {
+        files: [filePath],
+        names: [...oldSymbols, ...result.symbols].map((s) => s.name),
+      });
 
       if (this.config.zvecStore) {
         const sourceLines = content.split('\n');
@@ -122,7 +191,7 @@ export class FileWatcher {
               startLine: c.symbol.start_line,
               endLine: c.symbol.end_line,
               signature: c.symbol.signature,
-              code: sourceLines.slice(c.symbol.start_line, c.symbol.end_line + 1).join('\n'),
+              code: sourceLines.slice(c.symbol.start_line - 1, c.symbol.end_line).join('\n'),
               docComment: c.symbol.doc_comment,
               language: c.symbol.language,
             }));
@@ -144,8 +213,22 @@ export class FileWatcher {
   }
 
   private handleDelete(filePath: string): void {
+    const oldSymbols = this.config.store.getSymbolsByFile(filePath);
+    try {
+      this.config.zvecStore?.deleteByFile(filePath, [
+        ...oldSymbols.map((s) => s.id),
+        ...storedTextChunkIds(this.config.store, filePath),
+      ]);
+    } catch {
+      log.warn({ file: filePath }, 'Failed to remove file from vector index');
+    }
+    this.config.store.clearTextFile(filePath);
     this.config.store.clearSymbols(filePath);
     this.config.store.clearRelations(filePath);
+    // Forget the hash too, or re-adding the same content would be skipped as unchanged.
+    this.config.store.deleteFileHash(filePath);
+    // Calls into the removed symbols fall back to another definition or become unresolved.
+    resolveCallRelations(this.config.store, { files: [], names: oldSymbols.map((s) => s.name) });
     log.debug({ file: filePath }, 'File removed from index');
   }
 

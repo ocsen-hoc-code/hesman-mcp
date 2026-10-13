@@ -3,8 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { initParser, parseFile } from '../parsers/core.js';
 import { extractRelations } from '../parsers/relation-extractor.js';
-import { tsProfile } from '../parsers/profiles/typescript.js';
-import type { LanguageProfile } from '../parsers/language-profile.js';
+import { profileFor } from '../parsers/languages.js';
 
 interface WorkerTask {
   filePath: string;
@@ -27,6 +26,9 @@ interface WorkerResult {
     parent_id: string | null;
     language: string;
     is_exported: number;
+    is_property?: number;
+    is_declaration?: number;
+    owner_type?: string | null;
   }>;
   relations: Array<{
     from_id: string;
@@ -35,21 +37,21 @@ interface WorkerResult {
     file_path: string;
     line: number;
     col: number;
+    to_name: string | null;
+    receiver: string | null;
+    receiverType: string | null;
+    names: string | null;
   }>;
   contentHash: string;
   error?: string;
 }
-
-const PROFILE_BY_LANG: Record<string, LanguageProfile> = {
-  typescript: tsProfile,
-};
 
 // Initialize parser on worker startup
 let initialized = false;
 
 async function ensureInit(language: string): Promise<void> {
   if (initialized) return;
-  const profile = PROFILE_BY_LANG[language];
+  const profile = profileFor(language);
   if (profile) {
     await initParser(profile);
     initialized = true;
@@ -63,7 +65,7 @@ if (!parentPort) {
 parentPort.on('message', async (task: WorkerTask) => {
   try {
     await ensureInit(task.language);
-    const profile = PROFILE_BY_LANG[task.language];
+    const profile = profileFor(task.language);
     if (!profile) {
       throw new Error(`Unsupported language: ${task.language}`);
     }
@@ -74,7 +76,7 @@ parentPort.on('message', async (task: WorkerTask) => {
 
     let relations: WorkerResult['relations'] = [];
     if (profile.relationQueries) {
-      const rawRelations = extractRelations(result.symbols, content, task.filePath, profile);
+      const rawRelations = extractRelations(result.symbols, content, task.filePath, profile, result.references);
       relations = rawRelations.map(r => ({
         from_id: r.from_id,
         to_id: r.to_id,
@@ -82,6 +84,10 @@ parentPort.on('message', async (task: WorkerTask) => {
         file_path: r.file_path,
         line: r.line,
         col: r.col,
+        to_name: r.to_name ?? null,
+        receiver: r.receiver ?? null,
+        receiverType: r.receiverType ?? null,
+        names: r.names ?? null,
       }));
     }
 

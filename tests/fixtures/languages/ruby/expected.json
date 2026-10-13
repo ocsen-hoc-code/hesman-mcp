@@ -1,0 +1,25 @@
+{
+  "files": {
+    "inventory.rb": {
+      "symbolCount": { "min": 11, "max": 11 },
+      "symbols": [
+        { "name": "Inventory", "kind": "namespace", "line": 4, "isExported": true, "doc": "Ruby fixture of the language conformance suite." },
+        { "name": "MAX_ITEMS", "kind": "constant", "line": 6, "isExported": true, "doc": "Largest count an item may have." },
+        { "name": "clamp", "kind": "method", "line": 9, "isExported": true, "doc": "Keeps a count inside the allowed range." },
+        { "name": "Item", "kind": "class", "line": 14, "isExported": true, "doc": "One stock item." },
+        { "name": "initialize", "kind": "method", "line": 18, "isExported": true, "doc": "Creates an item with a normalized name." },
+        { "name": "restock", "kind": "method", "line": 25, "isExported": true, "doc": "Adds stock, capped at MAX_ITEMS." },
+        { "name": "empty?", "kind": "method", "line": 31, "isExported": true },
+        { "name": "record", "kind": "method", "line": 37, "isExported": false },
+        { "name": "normalize", "kind": "method", "line": 41, "isExported": false },
+        { "name": "Perishable", "kind": "class", "line": 47, "isExported": true, "doc": "An item that expires." },
+        { "name": "expired?", "kind": "method", "line": 48, "isExported": true }
+      ],
+      "calls": [
+        { "from": "initialize", "to": "normalize" },
+        { "from": "restock", "to": "clamp" },
+        { "from": "restock", "to": "record" }
+      ]
+    }
+  }
+}

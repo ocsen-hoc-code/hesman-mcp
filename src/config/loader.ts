@@ -26,26 +26,6 @@ export function findConfigFile(startDir: string): string | null {
   }
 }
 
-/**
- * Auto-detect project root by walking up from startPath.
- * Looks for marker files: .git, package.json, Cargo.toml, go.mod, pyproject.toml
- */
-export function detectProjectRoot(startPath: string): string {
-  let dir = resolve(startPath);
-
-  while (true) {
-    if (existsSync(join(dir, '.git'))) return dir;
-    if (existsSync(join(dir, 'package.json'))) return dir;
-    if (existsSync(join(dir, 'Cargo.toml'))) return dir;
-    if (existsSync(join(dir, 'go.mod'))) return dir;
-    if (existsSync(join(dir, 'pyproject.toml'))) return dir;
-
-    const parent = dirname(dir);
-    if (parent === dir) return startPath; // reached root, return original
-    dir = parent;
-  }
-}
-
 function applyEnvOverrides(raw: Record<string, unknown>): Record<string, unknown> {
   const result = { ...raw };
 
@@ -64,6 +44,10 @@ function applyEnvOverrides(raw: Record<string, unknown>): Record<string, unknown
   if (process.env.HESMAN_WATCH_MODE) {
     result.watchMode = process.env.HESMAN_WATCH_MODE === 'true' || process.env.HESMAN_WATCH_MODE === '1';
   }
+  if (process.env.HESMAN_GRAMMARS_OFFLINE) {
+    const offline = process.env.HESMAN_GRAMMARS_OFFLINE === 'true' || process.env.HESMAN_GRAMMARS_OFFLINE === '1';
+    result.grammars = { ...(result.grammars as object | undefined), offline };
+  }
 
   return result;
 }
@@ -73,7 +57,9 @@ function parseCliFlagsToOverrides(args: string[]): Partial<HesmanConfig> {
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--workers' && args[i + 1]) {
+    if (arg === '--project-root' && args[i + 1]) {
+      overrides.projectRoot = args[++i];
+    } else if (arg === '--workers' && args[i + 1]) {
       overrides.workers = parseInt(args[++i], 10);
     } else if (arg === '--log-level' && args[i + 1]) {
       overrides.logLevel = args[++i];

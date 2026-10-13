@@ -1,0 +1,29 @@
+{
+  "files": {
+    "shapes.ts": {
+      "symbolCount": { "min": 16, "max": 16 },
+      "symbols": [
+        { "name": "MAX_RADIUS", "kind": "variable", "line": 4, "isExported": true, "doc": "Largest radius a circle may have." },
+        { "name": "defaultUnit", "kind": "variable", "line": 6, "isExported": false },
+        { "name": "defaultScale", "kind": "variable", "line": 6, "isExported": false },
+        { "name": "ShapeId", "kind": "type", "line": 9, "isExported": true, "doc": "Identifier of a shape." },
+        { "name": "Shape", "kind": "interface", "line": 12, "isExported": true, "doc": "Anything that has an area." },
+        { "name": "Color", "kind": "enum", "line": 18, "isExported": true, "doc": "Colors a shape can be drawn in." },
+        { "name": "clampRadius", "kind": "function", "line": 24, "isExported": false, "doc": "Clamps a radius into the allowed range." },
+        { "name": "Circle", "kind": "class", "line": 29, "isExported": true, "doc": "A circle that announces when it is resized." },
+        { "name": "constructor", "kind": "method", "line": 32, "isExported": true },
+        { "name": "area", "kind": "method", "line": 41, "isExported": true, "doc": "Area of the circle in square units." },
+        { "name": "describe", "kind": "method", "line": 45, "isExported": false },
+        { "name": "totalArea", "kind": "function", "line": 51, "isExported": true, "doc": "Sums the areas of the given shapes." },
+        { "name": "addArea", "kind": "function", "line": 53, "isExported": false, "doc": "Adds the area of one shape to the running sum." },
+        { "name": "makeCircle", "kind": "function", "line": 60, "isExported": true, "doc": "Builds a circle with a radius inside the allowed range." },
+        { "name": "Units", "kind": "namespace", "line": 63, "isExported": true, "doc": "Unit conversions." },
+        { "name": "toMeters", "kind": "function", "line": 65, "isExported": true, "doc": "Converts centimeters to meters." }
+      ],
+      "calls": [
+        { "from": "constructor", "to": "clampRadius" },
+        { "from": "makeCircle", "to": "clampRadius" }
+      ]
+    }
+  }
+}

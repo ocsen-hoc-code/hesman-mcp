@@ -2,22 +2,33 @@ import { compressToolResponse } from '../response-compressor.js';
 import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
 import { ErrorCode, formatError } from '../error-codes.js';
+import type { HesmanConfig } from '../../config/schema.js';
+import { normalizeProjectPath } from '../paths.js';
+import { formatArg, withArgValidation } from '../args.js';
 
 const inputSchema = {
   type: 'object',
   properties: {
     filePath: { type: 'string', description: 'Path to the file to analyze' },
     includeNested: { type: 'boolean', description: 'Include nested symbols (methods in classes). Default: true' },
+    format: {
+      type: 'string',
+      enum: ['compact', 'full'],
+      description:
+        'Response shape (default "compact"): one row per symbol under the named "columns"; nested symbols are rows with a parentId. "full" returns the symbols as a tree of objects with "children".',
+    },
   },
   required: ['filePath'],
 };
 
-export function registerGetFileStructureTool(server: McpServer, store: SqliteStore): void {
+export function registerGetFileStructureTool(server: McpServer, store: SqliteStore, config: HesmanConfig): void {
   const handler: ToolHandler = async (args) => {
-    const filePath = args.filePath as string;
+    const start = performance.now();
+    const rawPath = args.filePath;
     const includeNested = args.includeNested !== false;
+    const format = formatArg(args);
 
-    if (!filePath || typeof filePath !== 'string') {
+    if (!rawPath || typeof rawPath !== 'string') {
       return {
         content: [
           { type: 'text', text: JSON.stringify(formatError(ErrorCode.INVALID_INPUT, 'filePath is required')) },
@@ -26,6 +37,8 @@ export function registerGetFileStructureTool(server: McpServer, store: SqliteSto
       };
     }
 
+    // The index keys files by absolute path; resolve relative input against the root.
+    const filePath = normalizeProjectPath(config.projectRoot, rawPath);
     const allSymbols = store.getSymbolsByFile(filePath);
 
     if (allSymbols.length === 0) {
@@ -80,8 +93,8 @@ export function registerGetFileStructureTool(server: McpServer, store: SqliteSto
       language,
       symbols,
       totalSymbols: allSymbols.length,
-      tookMs: 0,
-    }, { store });
+      tookMs: Math.round((performance.now() - start) * 100) / 100,
+    }, { store, format, projectRoot: config.projectRoot });
     return {
       content: [
         {
@@ -96,6 +109,6 @@ export function registerGetFileStructureTool(server: McpServer, store: SqliteSto
     'get_file_structure',
     'Get the symbol structure of a file (functions, classes, methods, ...)',
     inputSchema,
-    handler,
+    withArgValidation(handler),
   );
 }

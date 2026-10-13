@@ -1,0 +1,346 @@
+/**
+ * The declared type of a call's receiver (M1-10), read from the syntax tree of
+ * the file without a type checker.
+ *
+ * A receiver `x` in `x.m()` is typed by the declaration of `x` that is nearest
+ * to the call: a typed declaration or parameter (`x: T`, `T x`, `x *T`,
+ * `var x T`, `x: &T`), or a value that constructs one (`new T()`, `T()`,
+ * `T::new()`, `T{}`, `&T{}`). A receiver `this.f` / `self.f` is typed by a
+ * typed field of the enclosing class or by an assignment of `this.f` in one of
+ * its methods. A declaration without a type gives `null`. A capitalized name
+ * that no declaration of the file gives is a static reference to a type or a
+ * namespace (`Vec::new()`, `Math.max()`): its type is the name itself, and the
+ * project's symbols decide at link time what it is. Other undeclared names
+ * (globals, imports, which the import rule handles) have no recorded type.
+ *
+ * The declarations are found by the grammar's field names, which are shared by
+ * the grammars Hesman parses (`name` / `pattern` / `left`, `type`, `value` /
+ * `right`, `declarator`, `operand`, `constructor`, `function`), not by a rule
+ * per language. A type is the name its declaration gives, with its generic
+ * arguments and its reference or pointer markers removed; a qualified name
+ * keeps its last segment. `T | undefined` and `T | null` name `T`. A type that
+ * is not a plain name (`Store[]`, `A | B`, `Optional[T]`, `interface{}`) is not
+ * read, so it is not a type.
+ *
+ * Two declarations of the receiver in the same scope that do not give the same
+ * type make the receiver untyped. A constructed value is recorded as the name
+ * it was built from, which may be a function (`make()`): the resolver checks it
+ * against the symbols of the project.
+ */
+import type { Node } from 'web-tree-sitter';
+
+/** Receivers that stand for the object whose member is called: never a type name. */
+export const SELF_RECEIVER_NAMES: ReadonlySet<string> = new Set(['this', 'self', '$this', 'Self', 'cls', 'super', 'base', 'parent']);
+
+/** Types that a union adds to a type without naming another one. */
+const NULLISH_TYPES: ReadonlySet<string> = new Set(['undefined', 'null', 'void', 'None']);
+/** Declared types longer than this are not read. */
+const MAX_TYPE_LENGTH = 200;
+/** `this.f` / `self.f`: the receiver of a field of the enclosing class. */
+const FIELD_RECEIVER = /^(?:this|self)\.([A-Za-z_$][\w$]*)$/;
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+/** A plain name, optionally qualified (`pkg.Name`, `ns::Name`, `a\B`). */
+const QUALIFIED_NAME = /^[A-Za-z_$][\w$]*(?:\s*(?:::|\.|\\)\s*[A-Za-z_$][\w$]*)*$/;
+/** Declared types that say the type is inferred from the value (`var`, `let`, `auto`). */
+const INFERRED_TYPE_KEYWORDS: ReadonlySet<string> = new Set(['var', 'let', 'auto', 'val', 'const', 'final']);
+/** A parameter list (`parameters`, `formal_parameters`, `parameter_list`). */
+const PARAMETER_LIST = /^(?:formal_)?parameters$|^parameter_list$/;
+/**
+ * Node types that can introduce a declaration in the grammars Hesman parses
+ * (`variable_declarator`, `required_parameter`, `assignment`, Go's `var_spec`,
+ * `public_field_definition`). Other nodes are only walked into.
+ */
+const DECLARATION_NODE = /declar|parameter|assignment|_spec$|field/;
+/** Node types that open a scope for the declarations inside them. */
+const FUNCTION_SCOPE = /(function|method|lambda|closure|func_literal|arrow_function|constructor)/;
+const FUNCTION_SCOPE_EXCLUDED = /(invocation|call|reference|expression|parameter|argument)/;
+const CLASS_SCOPE = /(class|interface|trait|impl_item|struct_item|struct_specifier|struct_type|protocol)/;
+const CLASS_SCOPE_EXCLUDED = /(expression|literal|instance|creation)/;
+/** Values that wrap the value they construct: `&T{}` (Go), `(new T())`, `&T::new()` (Rust). */
+const WRAPPER_VALUE = /^(?:unary_expression|reference_expression|parenthesized_expression)$/;
+/** Values that construct an object: `new T()` (TypeScript, JavaScript), `new T()` (Java, C#). */
+const CREATION_VALUE = /(^|_)(new_expression|object_creation_expression)$/;
+/** Values that build a value of a struct or class: `T{...}` (Go), `T { ... }` (Rust). */
+const LITERAL_VALUE = /^(?:composite_literal|struct_expression)$/;
+/** Calls: `f()`, `T()` (Python, TypeScript) and `T::new()` (Rust, through the callee). */
+const CALL_VALUE = /^(?:call|call_expression)$/;
+/** A callee with a qualifier: `T::new`, `T.new`, `pkg.New`. */
+const QUALIFIED_CALLEE = /(scoped_identifier|member_expression|attribute|selector_expression|field_expression)$/;
+
+/** A declaration found in a scope, before its type is read. */
+interface Declaration {
+  name: Node;
+  type: Node | null;
+  value: Node | null;
+}
+
+/** The declared type of `node` (a type annotation or a type node), or null. */
+export function declaredTypeName(node: Node): string | null {
+  if (node.text.length > MAX_TYPE_LENGTH) return null;
+  let text = node.text.trim().replace(/^:\s*/, '');
+  // `T | undefined` and `T | null` name T; any other union names no single type.
+  if (text.includes('|')) {
+    const members = text.split('|').map((m) => m.trim()).filter((m) => !NULLISH_TYPES.has(m));
+    if (members.length !== 1) return null;
+    text = members[0];
+  }
+  // Reference, pointer and modifier markers in front of the type.
+  text = text.replace(/^(?:&\s*(?:mut\s+)?|\*+\s*|dyn\s+|impl\s+|mut\s+|const\s+)+/, '');
+  const generic = text.indexOf('<');
+  let head = (generic >= 0 ? text.slice(0, generic) : text).trim();
+  head = head.replace(/\?$/, '').trim();
+  if (INFERRED_TYPE_KEYWORDS.has(head)) return null;
+  return plainName(head);
+}
+
+/** The last segment of a qualified name (`java.util.List` → `List`), or null when `text` is not a name. */
+function plainName(text: string): string | null {
+  if (!QUALIFIED_NAME.test(text)) return null;
+  const segments = text.split(/::|\.|\\/).map((s) => s.trim());
+  return segments[segments.length - 1] || null;
+}
+
+/** The type a value constructs (`new T()`, `T{}`, `T()`, `T::new()`), or null. */
+export function constructedTypeName(value: Node): string | null {
+  let node = value;
+  for (let depth = 0; depth < 4 && WRAPPER_VALUE.test(node.type); depth++) {
+    const inner = node.childForFieldName('operand') ?? node.namedChild(0);
+    if (!inner) return null;
+    node = inner;
+  }
+  if (CREATION_VALUE.test(node.type)) {
+    const callee = node.childForFieldName('constructor') ?? node.childForFieldName('type') ?? node.namedChild(0);
+    return callee ? plainName(callee.text) : null;
+  }
+  if (LITERAL_VALUE.test(node.type)) {
+    const type = node.childForFieldName('type') ?? node.childForFieldName('name');
+    return type ? plainName(type.text) : null;
+  }
+  if (CALL_VALUE.test(node.type)) {
+    const callee = node.childForFieldName('function') ?? node.namedChild(0);
+    if (!callee) return null;
+    if (IDENTIFIER.test(callee.text) || callee.type === 'identifier' || callee.type === 'type_identifier') return plainName(callee.text);
+    if (QUALIFIED_CALLEE.test(callee.type)) {
+      const member = callee.childForFieldName('name') ?? callee.childForFieldName('attribute') ?? callee.childForFieldName('field') ?? callee.childForFieldName('property');
+      if (member?.text !== 'new') return null;
+      const qualifier = callee.childForFieldName('path') ?? callee.childForFieldName('object') ?? callee.childForFieldName('operand') ?? callee.namedChild(0);
+      return qualifier ? plainName(qualifier.text) : null;
+    }
+  }
+  return null;
+}
+
+/** The first named child, after the first one, whose node type names a type (`user_type`, `type`). */
+function namedChildOfTypeKind(node: Node): Node | null {
+  for (let i = 1; i < node.namedChildCount; i++) {
+    const child = node.namedChild(i);
+    if (child && /type/.test(child.type)) return child;
+  }
+  return null;
+}
+
+/**
+ * The name a declarator declares: its `name` or `pattern`, or for a C/C++ style
+ * declarator (`Item item`, `Item *p`, `int a = 1`) the identifier found through
+ * its `declarator` field.
+ */
+function declaredName(declarator: Node): Node | null {
+  let node: Node | null = declarator;
+  for (let depth = 0; node && depth < 4; depth++) {
+    if (node.type === 'identifier') return node;
+    node = node.childForFieldName('name') ?? node.childForFieldName('pattern') ?? node.childForFieldName('declarator');
+  }
+  return null;
+}
+
+/**
+ * The declarations a node introduces: a parameter, a variable, a field, an
+ * assignment. Several for `a, b := x, y` (Go) and `let`-less tuples.
+ */
+function declarationsOf(node: Node): Declaration[] {
+  // A parameter list names its parameters, which may have no type (Python's `def f(x)`).
+  if (PARAMETER_LIST.test(node.type)) {
+    const names: Declaration[] = [];
+    for (let i = 0; i < node.namedChildCount; i++) {
+      const child = node.namedChild(i);
+      if (child?.type === 'identifier') names.push({ name: child, type: null, value: null });
+    }
+    return names;
+  }
+  const type = node.childForFieldName('type');
+  const declarator = node.childForFieldName('declarator');
+  if (declarator) {
+    const name = declaredName(declarator);
+    return name ? [{ name, type, value: declarator.childForFieldName('value') }] : [];
+  }
+  const left = node.childForFieldName('name') ?? node.childForFieldName('pattern') ?? node.childForFieldName('left');
+  if (left && !type && !node.childForFieldName('value') && !node.childForFieldName('right')) {
+    // A declarator under its declaration (C#'s `variable_declarator`): the declaration's type, and its initializer
+    // is the child after the name, since the grammar gives it no field.
+    const parentType = node.parent?.childForFieldName('type') ?? null;
+    const initializer = left.nextNamedSibling;
+    return [{ name: left, type: parentType, value: initializer && initializer.id !== node.id ? initializer : null }];
+  }
+  const right = node.childForFieldName('value') ?? node.childForFieldName('right');
+  if (!left) {
+    // A parameter without field names (Python's `x: T`, Kotlin's `x: T`): the
+    // name is the first child, the type a later child that names a type.
+    const first = node.firstNamedChild;
+    const typed = type ?? namedChildOfTypeKind(node);
+    return typed && first !== null && /identifier$/.test(first.type) ? [{ name: first, type: typed, value: null }] : [];
+  }
+  if (left.type === 'expression_list') {
+    const declarations: Declaration[] = [];
+    left.namedChildren.forEach((name, i) => {
+      if (!name) return;
+      const value = right?.type === 'expression_list' ? right.namedChild(i) : right;
+      declarations.push({ name, type: null, value: value ?? null });
+    });
+    return declarations;
+  }
+  return [{ name: left, type, value: right }];
+}
+
+/** The key a declaration is looked up by: a name, or `this.f` / `self.f` for an assignment to a field. */
+function keyOf(name: Node): string | null {
+  const text = name.text;
+  if (IDENTIFIER.test(text) || FIELD_RECEIVER.test(text)) return text;
+  return null;
+}
+
+/**
+ * The type a method is declared on when its declaration sits outside the type
+ * (M1-10): the receiver parameter of a Go method (`func (s *Store) Load()`),
+ * the `impl` block of a Rust method (`impl Store { fn load() }`). Null for any
+ * other definition, which is a member of its enclosing class by nesting.
+ */
+export function ownerTypeOf(definition: Node, name?: Node): string | null {
+  // A C++ definition outside its class: `void Item::restock() {}`.
+  const qualifier = name?.parent?.type === 'qualified_identifier' ? name.parent.childForFieldName('scope') : null;
+  if (qualifier) return declaredTypeName(qualifier);
+  const receiver = definition.childForFieldName('receiver');
+  if (receiver) {
+    const parameter = receiver.namedChild(0);
+    const type = parameter?.childForFieldName('type');
+    return type ? declaredTypeName(type) : null;
+  }
+  const block = definition.parent;
+  if (block?.type === 'declaration_list' && block.parent?.type === 'impl_item') {
+    const type = block.parent.childForFieldName('type');
+    return type ? declaredTypeName(type) : null;
+  }
+  return null;
+}
+
+/** The types the receivers of one file are declared with, read on the first lookup. */
+export class ReceiverTypes {
+  /** Scope node id → receiver key → the declared type of each declaration (null: not read). */
+  private readonly declared = new Map<number, Map<string, Array<string | null>>>();
+  /** Ids of the class-like scopes, where the fields of `this.f` are declared. */
+  private readonly classScopes = new Set<number>();
+  private built = false;
+
+  /**
+   * @param root - the root of the file's tree
+   * @param wanted - the receiver keys to read: a receiver name, or `this.f` / `self.f`
+   *   together with the field `f` (a class field is declared as `f`)
+   */
+  constructor(
+    private readonly root: Node,
+    private readonly wanted: ReadonlySet<string>,
+  ) {}
+
+  /**
+   * The declared type of the receiver expression `receiver` of a call node
+   * `call`: a type name, `null` when a declaration of it gives no type, and
+   * `undefined` when no declaration of the receiver is in the file at all (for
+   * a name: a global, an imported name, a type used as `Type::new()`).
+   */
+  typeOf(receiver: Node, call: Node): string | null | undefined {
+    if (this.wanted.size === 0) return undefined;
+    this.build();
+    const text = receiver.text;
+    const field = FIELD_RECEIVER.exec(text);
+    if (field) {
+      for (let scope: Node | null = call.parent; scope; scope = scope.parent) {
+        if (!this.classScopes.has(scope.id)) continue;
+        const entries = this.declared.get(scope.id);
+        const found = [...(entries?.get(text) ?? []), ...(entries?.get(field[1]) ?? [])];
+        if (found.length > 0) return agreed(found);
+      }
+      return undefined;
+    }
+    if (!IDENTIFIER.test(text)) return undefined;
+    for (let scope: Node | null = call.parent; scope; scope = scope.parent) {
+      const entries = this.declared.get(scope.id)?.get(text);
+      if (entries) return agreed(entries);
+    }
+    return undefined;
+  }
+
+  private build(): void {
+    if (this.built) return;
+    this.built = true;
+    this.visit(this.root, this.root, null);
+  }
+
+  /**
+   * @param declarator - `node` is the `declarator` of its parent, which already
+   *   gave the declaration (a Java `variable_declarator` under its declaration)
+   */
+  private visit(node: Node, scope: Node, classScope: Node | null, declarator = false): void {
+    let inner = scope;
+    let innerClass = classScope;
+    if (CLASS_SCOPE.test(node.type) && !CLASS_SCOPE_EXCLUDED.test(node.type)) {
+      inner = node;
+      innerClass = node;
+      this.classScopes.add(node.id);
+    } else if (FUNCTION_SCOPE.test(node.type) && !FUNCTION_SCOPE_EXCLUDED.test(node.type)) {
+      inner = node;
+    }
+    // A leaf (an identifier, a literal) declares nothing.
+    const children = node.namedChildren;
+    if (children.length === 0) return;
+    if (!declarator && DECLARATION_NODE.test(node.type)) {
+      for (const declaration of declarationsOf(node)) this.record(declaration, inner, innerClass);
+    }
+    const declaratorChild = DECLARATION_NODE.test(node.type) ? node.childForFieldName('declarator') : null;
+    for (const child of children) {
+      if (child) this.visit(child, inner, innerClass, declaratorChild !== null && child.id === declaratorChild.id);
+    }
+  }
+
+  private record(declaration: Declaration, scope: Node, classScope: Node | null): void {
+    const key = keyOf(declaration.name);
+    if (key === null || !this.wanted.has(key)) return;
+    const owner = FIELD_RECEIVER.test(key) ? classScope : scope;
+    if (!owner) return;
+    const declared = declaration.type ? declaredTypeName(declaration.type) : null;
+    const type = declared ?? (declaration.value ? constructedTypeName(declaration.value) : null);
+    let entries = this.declared.get(owner.id);
+    if (!entries) {
+      entries = new Map();
+      this.declared.set(owner.id, entries);
+    }
+    const list = entries.get(key);
+    if (list) list.push(type);
+    else entries.set(key, [type]);
+  }
+}
+
+/** The one type all declarations give, or null when they disagree or one gives none. */
+function agreed(types: Array<string | null>): string | null {
+  const first = types[0];
+  if (first === null || first === undefined) return null;
+  return types.every((t) => t === first) ? first : null;
+}
+
+/**
+ * The receiver keys `typeOf` needs for a receiver expression: its name, or
+ * `this.f` / `self.f` with the field name `f`. Null when it has no key.
+ */
+export function receiverKeys(receiverText: string): string[] | null {
+  if (IDENTIFIER.test(receiverText)) return [receiverText];
+  const field = FIELD_RECEIVER.exec(receiverText);
+  return field ? [receiverText, field[1]] : null;
+}

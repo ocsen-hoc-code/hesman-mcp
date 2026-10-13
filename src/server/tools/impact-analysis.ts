@@ -2,6 +2,9 @@ import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
 import { compressToolResponse } from '../response-compressor.js';
 import { ErrorCode, formatError } from '../error-codes.js';
+import { formatArg, intArg, withArgValidation } from '../args.js';
+import type { HesmanConfig } from '../../config/schema.js';
+import { tierNote, tierNoteField } from '../tier-note.js';
 
 const inputSchema = {
   type: 'object',
@@ -11,7 +14,13 @@ const inputSchema = {
     newName: { type: 'string', description: 'New name (if rename)' },
     newSignature: { type: 'string', description: 'New signature (if change_signature)' },
     newReturnType: { type: 'string', description: 'New return type (if change_return_type)' },
-    maxFiles: { type: 'number', description: 'Max impacted files in output (default 20)' },
+    maxFiles: { type: 'integer', minimum: 1, maximum: 200, description: 'Max impacted files in output (default 20, max 200)' },
+    format: {
+      type: 'string',
+      enum: ['compact', 'full'],
+      description:
+        'Response shape (default "compact"): impacted files with their locations as rows under the named "columns", paths relative to the project. "full" returns one object per location with absolute paths.',
+    },
   },
   required: ['symbolId', 'changeType'],
 };
@@ -46,19 +55,36 @@ function suggestAction(changeType: string, kind: string, oldName: string, newNam
   }
 }
 
-export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore): void {
+/** "1 call", "3 calls", "2 imports": the count of one file's locations in plain words. */
+export function countLabel(count: number, kind: string | undefined): string {
+  const nouns: Record<string, [string, string]> = {
+    calls: ['call', 'calls'],
+    import: ['import', 'imports'],
+    extends: ['subclass', 'subclasses'],
+    implements: ['implementation', 'implementations'],
+    type_ref: ['type reference', 'type references'],
+  };
+  const [one, many] = nouns[kind ?? ''] ?? ['reference', 'references'];
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore, config: HesmanConfig): void {
   const handler: ToolHandler = async (args) => {
     const symbolId = args.symbolId as string;
     const changeType = args.changeType as string;
     const newName = args.newName as string | undefined;
     const newSignature = args.newSignature as string | undefined;
     const newReturnType = args.newReturnType as string | undefined;
-    const maxFiles = (args.maxFiles as number) || 20;
+    const maxFiles = intArg(args, 'maxFiles', { default: 20, min: 1, max: 200 });
+    const format = formatArg(args);
 
     // Get symbol info
     const symbol = store.getSymbolById(symbolId);
     if (!symbol) {
-      return { content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.SYMBOL_NOT_FOUND, `Symbol not found: ${symbolId}`)) }], isError: true };
+      // The id of a text chunk (from `semantic_search`) is no symbol: say why.
+      const note = typeof symbolId === 'string' ? tierNote(store, symbolId, 'call graph') : undefined;
+      const message = `Symbol not found: ${symbolId}${note ? ` (${note})` : ''}`;
+      return { content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.SYMBOL_NOT_FOUND, message)) }], isError: true };
     }
 
     // Get all references
@@ -68,7 +94,6 @@ export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore
     const fileMap = new Map<string, {
       filePath: string;
       severity: 'must_fix' | 'should_review' | 'info';
-      reasons: string[];
       locations: any[];
     }>();
 
@@ -76,7 +101,7 @@ export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore
       const severity = classifySeverity(ref.kind);
       let entry = fileMap.get(ref.filePath);
       if (!entry) {
-        entry = { filePath: ref.filePath, severity, reasons: [], locations: [] };
+        entry = { filePath: ref.filePath, severity, locations: [] };
         fileMap.set(ref.filePath, entry);
       }
       // Upgrade severity if any location is higher
@@ -104,7 +129,7 @@ export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore
       .slice(0, maxFiles)
       .map(f => ({
         ...f,
-        reason: `${f.locations.length} ${f.locations[0]?.kind || 'reference'}(s) — ${f.severity === 'must_fix' ? 'will break' : f.severity === 'should_review' ? 'may need update' : 'FYI'}`,
+        reason: `${countLabel(f.locations.length, f.locations[0]?.kind)} — ${f.severity === 'must_fix' ? 'will break' : f.severity === 'should_review' ? 'may need update' : 'FYI'}`,
       }));
 
     const mustFix = impactedFiles.filter(f => f.severity === 'must_fix').length;
@@ -122,12 +147,13 @@ export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore
         estimatedChanges: refs.length,
       },
       impactedFiles,
+      ...tierNoteField(store, symbolId, 'call graph'),
     };
-    const compressed = compressToolResponse('impact_analysis', result, { store });
+    const compressed = compressToolResponse('impact_analysis', result, { store, format, projectRoot: config.projectRoot });
     return {
       content: [{ type: 'text', text: JSON.stringify(compressed) }],
     };
   };
 
-  server.registerTool('impact_analysis', 'Analyze what breaks if a symbol changes — categorized by severity with suggested actions', inputSchema, handler);
+  server.registerTool('impact_analysis', 'Analyze what breaks if a symbol changes — categorized by severity with suggested actions', inputSchema, withArgValidation(handler));
 }

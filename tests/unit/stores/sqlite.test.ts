@@ -111,4 +111,24 @@ describe('SqliteStore', () => {
     expect(stats.totalFiles).toBe(2);
     expect(stats.totalSymbols).toBe(3);
   });
+
+  it('reports per-language file and symbol counts, most files first', () => {
+    store.upsertSymbols([
+      makeSymbol({ id: 's1', file_path: 'a.ts', language: 'typescript' }),
+      makeSymbol({ id: 's2', file_path: 'a.ts', language: 'typescript' }),
+      makeSymbol({ id: 's3', file_path: 'b.go', language: 'go' }),
+      makeSymbol({ id: 's4', file_path: 'c.go', language: 'go' }),
+      makeSymbol({ id: 's5', file_path: 'd.py', language: 'python' }),
+    ]);
+
+    expect(store.getLanguageStats()).toEqual([
+      { language: 'go', files: 2, symbols: 2 },
+      { language: 'python', files: 1, symbols: 1 },
+      { language: 'typescript', files: 1, symbols: 2 },
+    ]);
+  });
+
+  it('reports no languages for an empty index', () => {
+    expect(store.getLanguageStats()).toEqual([]);
+  });
 });

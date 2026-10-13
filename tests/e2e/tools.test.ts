@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rmSync, existsSync } from 'node:fs';
 import type { ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
+import { waitForIndexReady } from './helpers/server.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -48,9 +49,9 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     );
     await client.connect(transport);
 
-    // Wait for server startup — includes embedding model loading on first run
-    // (Xenova/all-MiniLM-L6-v2 can take 10-30s to download + load)
-    await new Promise((r) => setTimeout(r, 3000));
+    // The server answers right away and indexes in the background (which
+    // includes loading the embedding model), so wait for the index, not a fixed delay.
+    await waitForIndexReady(client);
 
     // Use the high-level listTools() method instead of raw client.request
     const result = await client.listTools({}, { timeout: 5000 });
@@ -88,7 +89,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
 
   it('find_symbol finds exported functions', async () => {
     const result = await client.callTool(
-      { name: 'find_symbol', arguments: { name: 'add', matchMode: 'exact' } },
+      { name: 'find_symbol', arguments: { format: 'full', name: 'add', matchMode: 'exact' } },
       undefined,
       { timeout: 5000 },
     );
@@ -125,7 +126,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
   it('get_file_structure returns symbols in a file', async () => {
     const utilsPath = resolve(PROJECT_DIR, 'src/utils.ts');
     const result = await client.callTool(
-      { name: 'get_file_structure', arguments: { filePath: utilsPath } },
+      { name: 'get_file_structure', arguments: { format: 'full', filePath: utilsPath } },
       undefined,
       { timeout: 5000 },
     );
@@ -165,7 +166,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
     // so intra-file call relations should exist (cross-file resolution
     // is a Phase 4 feature).
     const findResult = await client.callTool(
-      { name: 'find_symbol', arguments: { name: 'formatGreeting' } },
+      { name: 'find_symbol', arguments: { format: 'full', name: 'formatGreeting' } },
       undefined,
       { timeout: 5000 },
     );
@@ -181,7 +182,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
 
     // Now call get_references with that symbolId
     const refResult = await client.callTool(
-      { name: 'get_references', arguments: { symbolId } },
+      { name: 'get_references', arguments: { format: 'full', symbolId } },
       undefined,
       { timeout: 5000 },
     );
@@ -272,7 +273,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
 
   it('get_context returns error for nonexistent file', async () => {
     const result = await client.callTool(
-      { name: 'get_context', arguments: { filePath: '/nonexistent/path.ts', startLine: 1 } },
+      { name: 'get_context', arguments: { filePath: resolve(PROJECT_DIR, 'nonexistent/path.ts'), startLine: 1 } },
       undefined,
       { timeout: 5000 },
     );
@@ -290,7 +291,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
   it('impact_analysis returns impact for a known symbol', async () => {
     // First find a symbol
     const findResult = await client.callTool(
-      { name: 'find_symbol', arguments: { name: 'add', matchMode: 'exact' } },
+      { name: 'find_symbol', arguments: { format: 'full', name: 'add', matchMode: 'exact' } },
       undefined,
       { timeout: 5000 },
     );
@@ -307,6 +308,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
       {
         name: 'impact_analysis',
         arguments: {
+          format: 'full',
           symbolId: addSymbolId,
           changeType: 'rename',
           newName: 'addition',
@@ -334,6 +336,7 @@ describe('Hesman E2E — MCP tools via stdio', () => {
       {
         name: 'impact_analysis',
         arguments: {
+          format: 'full',
           symbolId: 'nonexistent-symbol-id',
           changeType: 'delete',
         },

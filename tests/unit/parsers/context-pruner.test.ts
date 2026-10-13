@@ -76,6 +76,16 @@ describe('context pruner', () => {
     expect(result.content).toContain('Main entry'); // JSDoc preserved
   });
 
+  it('keeps exactly the doc comment lines above the focus symbol (1-based lines)', async () => {
+    const source = readFileSync(join(TEST_DIR, 'test.ts'), 'utf-8');
+    const result = await pruneContext(source, join(TEST_DIR, 'test.ts'), 'main', store, {
+      includeCallers: false,
+      includeCallees: false,
+    });
+    const kept = result.content.split('\n').filter((l) => !l.startsWith('// ...'));
+    expect(kept[0]).toBe('/** Main entry */');
+  });
+
   it('keeps direct callee signatures', async () => {
     const source = readFileSync(join(TEST_DIR, 'test.ts'), 'utf-8');
     const result = await pruneContext(source, join(TEST_DIR, 'test.ts'), 'main', store);

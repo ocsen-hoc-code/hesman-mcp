@@ -1,0 +1,16 @@
+[
+  ["main.go","VERSION","constant",5,5,1],
+  ["main.go","add","function",9,11,0],
+  ["main.go","count","variable",7,7,0],
+  ["main.go","main","function",13,16,0],
+  ["server.go","NewServer","function",12,14,1],
+  ["server.go","Server","type",6,9,1],
+  ["server.go","Start","method",17,19,1],
+  ["server.go","Stop","method",22,24,1],
+  ["types.go","Circle","type",9,11,1],
+  ["types.go","DefaultRadius","variable",20,20,1],
+  ["types.go","Eps","constant",18,18,1],
+  ["types.go","MyInt","type",14,14,1],
+  ["types.go","Pi","constant",16,16,1],
+  ["types.go","Shape","type",4,6,1]
+]

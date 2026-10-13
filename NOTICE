@@ -1,0 +1,567 @@
+Hesman MCP
+Copyright (c) 2026 Minh Do
+
+This product is licensed under the MIT License (see LICENSE). That license
+covers the code written for Hesman. Third-party software reaches a user in three
+ways, and each keeps its own license:
+
+1. Inside this package: Tree-sitter grammars (parsers/*.wasm) and query files
+   (queries/). They are listed one by one below.
+2. Installed next to this package by npm: the dependencies. They are not part
+   of this package; see "Software installed with this package" below and
+   THIRD-PARTY-LICENSES.md for the full list.
+3. Downloaded at run time: the embedding model, on-demand grammars and the
+   prebuilt image library of a dependency. See "Downloaded at run time" below.
+
+This file is maintained by hand until `scripts/update-grammars.ts` generates it
+(ADR 0001, section 4.4); the machine-readable source for the query files is
+queries/SOURCES.json.
+
+================================================================================
+Bundled Tree-sitter grammars (parsers/*.wasm)
+================================================================================
+
+Each file is the `.wasm` asset of the release named below, unmodified (URL and
+sha256 are pinned in scripts/download-parsers.ts).
+
+parsers/tree-sitter-typescript.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-typescript
+  Revision:   v0.23.2 (f975a621f4e7f532fe322e13c4f79495e0a7b2e7)
+  License:    MIT
+  Copyright (c) 2017 Max Brunsfeld
+
+parsers/tree-sitter-tsx.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-typescript
+  Revision:   v0.23.2 (f975a621f4e7f532fe322e13c4f79495e0a7b2e7)
+  License:    MIT
+  Copyright (c) 2017 Max Brunsfeld
+
+parsers/tree-sitter-javascript.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-javascript
+  Revision:   v0.23.1 (3a837b6f3658ca3618f2022f8707e29739c91364)
+  License:    MIT
+  Copyright (c) 2014 Max Brunsfeld
+
+parsers/tree-sitter-python.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-python
+  Revision:   v0.23.6 (bffb65a8cfe4e46290331dfef0dbf0ef3679de11)
+  License:    MIT
+  Copyright (c) 2016 Max Brunsfeld
+
+parsers/tree-sitter-go.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-go
+  Revision:   v0.23.4 (3c3775faa968158a8b4ac190a7fda867fd5fb748)
+  License:    MIT
+  Copyright (c) 2014 Max Brunsfeld
+
+parsers/tree-sitter-java.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-java
+  Revision:   v0.23.5 (94703d5a6bed02b98e438d7cad1136c01a60ba2c)
+  License:    MIT
+  Copyright (c) 2017 Ayman Nadeem
+
+parsers/tree-sitter-c.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-c
+  Revision:   v0.24.2 (b780e47fc780ddc8da13afa35a3f4ed5c157823d)
+  License:    MIT
+  Copyright (c) 2014 Max Brunsfeld
+
+parsers/tree-sitter-cpp.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-cpp
+  Revision:   v0.23.4 (f41e1a044c8a84ea9fa8577fdd2eab92ec96de02)
+  License:    MIT
+  Copyright (c) 2014 Max Brunsfeld
+
+parsers/tree-sitter-c_sharp.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-c-sharp
+  Revision:   v0.23.5 (cac6d5fb595f5811a076336682d5d595ac1c9e85)
+  License:    MIT
+  Copyright (c) 2014-2023 Max Brunsfeld, Damien Guard, Amaan Qureshi, and contributors.
+
+parsers/tree-sitter-rust.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-rust
+  Revision:   v0.24.2 (77a3747266f4d621d0757825e6b11edcbf991ca5)
+  License:    MIT
+  Copyright (c) 2017 Maxim Sokolov
+
+parsers/tree-sitter-php.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-php
+  Revision:   v0.25.1 (58d5643086ae60e93a3746cca648363ee97c8761)
+  License:    MIT
+  Copyright (c) 2017 Josh Vera, GitHub
+
+parsers/tree-sitter-ruby.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-ruby
+  Revision:   v0.23.1 (71bd32fb7607035768799732addba884a37a6210)
+  License:    MIT
+  Copyright (c) 2016 Rob Rix
+
+parsers/tree-sitter-kotlin.wasm
+  Repository: https://github.com/fwcd/tree-sitter-kotlin
+  Revision:   0.3.8 (e1a2d5ad1f61f5740677183cd4125bb071cd2f30)
+  License:    MIT
+  Copyright (c) 2019 fwcd
+
+parsers/tree-sitter-swift.wasm
+  Repository: https://github.com/alex-pinkus/tree-sitter-swift
+  Revision:   0.7.3 (b8b22bffbb3441780e6471665bacfb263741c86a)
+  License:    MIT
+  Copyright (c) 2021 alex-pinkus
+
+parsers/tree-sitter-bash.wasm
+  Repository: https://github.com/tree-sitter/tree-sitter-bash
+  Revision:   v0.25.1 (a06c2e4415e9bc0346c6b86d401879ffb44058f7)
+  License:    MIT
+  Copyright (c) 2017 Max Brunsfeld
+
+parsers/tree-sitter-lua.wasm
+  Repository: https://github.com/tree-sitter-grammars/tree-sitter-lua
+  Revision:   v0.5.0 (10fe0054734eec83049514ea2e718b2a56acd0c9)
+  License:    MIT
+  Copyright (c) 2021 Munif Tanjim
+
+================================================================================
+Vendored Tree-sitter queries (queries/)
+================================================================================
+
+queries/javascript/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-javascript
+  Revision:   v0.23.1 (3a837b6f3658ca3618f2022f8707e29739c91364)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2014 Max Brunsfeld
+
+queries/typescript/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-typescript
+  Revision:   v0.23.2 (f975a621f4e7f532fe322e13c4f79495e0a7b2e7)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2017 Max Brunsfeld
+
+queries/python/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-python
+  Revision:   v0.23.6 (bffb65a8cfe4e46290331dfef0dbf0ef3679de11)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2016 Max Brunsfeld
+
+queries/go/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-go
+  Revision:   v0.23.4 (3c3775faa968158a8b4ac190a7fda867fd5fb748)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2014 Max Brunsfeld
+
+queries/java/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-java
+  Revision:   v0.23.5 (94703d5a6bed02b98e438d7cad1136c01a60ba2c)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2017 Ayman Nadeem
+
+queries/c/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-c
+  Revision:   v0.24.2 (b780e47fc780ddc8da13afa35a3f4ed5c157823d)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2014 Max Brunsfeld
+
+queries/cpp/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-cpp
+  Revision:   v0.23.4 (f41e1a044c8a84ea9fa8577fdd2eab92ec96de02)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2014 Max Brunsfeld
+
+queries/csharp/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-c-sharp
+  Revision:   v0.23.5 (cac6d5fb595f5811a076336682d5d595ac1c9e85)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2014-2023 Max Brunsfeld, Damien Guard, Amaan Qureshi, and contributors.
+
+queries/rust/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-rust
+  Revision:   v0.24.2 (77a3747266f4d621d0757825e6b11edcbf991ca5)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2017 Maxim Sokolov
+
+queries/php/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-php
+  Revision:   v0.25.1 (58d5643086ae60e93a3746cca648363ee97c8761)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2017 Josh Vera, GitHub
+
+queries/ruby/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-ruby
+  Revision:   v0.23.1 (71bd32fb7607035768799732addba884a37a6210)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2016 Rob Rix
+
+queries/kotlin/tags.scm
+  Repository: https://github.com/fwcd/tree-sitter-kotlin
+  Revision:   b4cc392cba88 (b4cc392cba8812a9a0b9335fdc593ddcade3ce93)
+  Source:     queries/tags.scm, unmodified. Added upstream after the grammar tag
+              0.3.8, which has no tags query; the same file ships in the xberg
+              tree-sitter-language-pack sources bundle 1.21.3 (MIT).
+  License:    MIT
+  Copyright (c) 2019 fwcd
+
+queries/swift/tags.scm
+  Repository: https://github.com/alex-pinkus/tree-sitter-swift
+  Revision:   0.7.3 (b8b22bffbb3441780e6471665bacfb263741c86a)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2021 alex-pinkus
+
+queries/lua/tags.scm
+  Repository: https://github.com/tree-sitter-grammars/tree-sitter-lua
+  Revision:   v0.5.0 (10fe0054734eec83049514ea2e718b2a56acd0c9)
+  Source:     queries/tags.scm, unmodified
+  License:    MIT
+  Copyright (c) 2021 Munif Tanjim
+
+queries/elixir/tags.scm
+  Repository: https://github.com/elixir-lang/tree-sitter-elixir
+  Revision:   v0.3.5 (e2d9e6e0e76b0c436fa48a0b8c32a031d0cbdf49)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    Apache-2.0 (full text at the end of this file)
+  Copyright 2021 The Elixir Team
+
+queries/scala/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-scala
+  Revision:   v0.26.2 (b931fcc338390925eb893d70ad070033f5856ccf)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2018 Max Brunsfeld and GitHub
+
+queries/ocaml/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-ocaml
+  Revision:   v0.26.0 (e3c9cf368f68bffd2f81188229aefa7b434eda65)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2020 Max Brunsfeld and Pieter Goetschalckx
+
+queries/fsharp/tags.scm
+  Repository: https://github.com/ionide/tree-sitter-fsharp
+  Revision:   0.3.12 (aefd0c8741bdf3aeb827a228aa4a996a6536697e)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2023 Nikolaj Sidorenco
+
+queries/r/tags.scm
+  Repository: https://github.com/r-lib/tree-sitter-r
+  Revision:   v1.3.0 (346d3707b8c9301f1051e8f6e32666e67529f7d2)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2025 tree-sitter-r authors
+
+queries/codeql/tags.scm
+  Repository: https://github.com/tree-sitter/tree-sitter-ql
+  Revision:   v0.23.1 (1fd627a4e8bff8c24c11987474bd33112bead857)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2019-2024 GitHub, Inc.
+
+queries/arduino/tags.scm
+  Repository: https://github.com/tree-sitter-grammars/tree-sitter-arduino
+  Revision:   v0.24.0 (2f0c1223c50aa4b754136db544204c6fc99ffc77)
+  Source:     queries/tags.scm, unmodified. The grammar is not bundled: it is
+              downloaded on demand (grammars.json).
+  License:    MIT
+  Copyright (c) 2022 ObserverOfTime
+
+queries/typescript/hesman-tags.scm
+queries/javascript/hesman-tags.scm
+queries/go/hesman-tags.scm
+queries/python/hesman-tags.scm
+queries/java/hesman-tags.scm
+queries/c/hesman-overrides.scm
+queries/c/hesman-tags.scm
+queries/cpp/hesman-overrides.scm
+queries/cpp/hesman-tags.scm
+queries/csharp/hesman-tags.scm
+queries/rust/hesman-tags.scm
+queries/php/hesman-tags.scm
+queries/ruby/hesman-tags.scm
+queries/swift/hesman-overrides.scm
+queries/bash/hesman-tags.scm
+queries/javascript/hesman-relations.scm
+queries/python/hesman-relations.scm
+queries/go/hesman-relations.scm
+queries/java/hesman-relations.scm
+queries/c/hesman-relations.scm
+queries/cpp/hesman-relations.scm
+queries/csharp/hesman-relations.scm
+queries/rust/hesman-relations.scm
+queries/php/hesman-relations.scm
+queries/ruby/hesman-relations.scm
+queries/swift/hesman-relations.scm
+queries/fsharp/hesman-overrides.scm
+  Written for Hesman. License: MIT, Copyright (c) 2026 Minh Do (see LICENSE).
+
+================================================================================
+Software installed with this package (npm dependencies)
+================================================================================
+
+npm installs these packages next to Hesman; none of their code is copied into
+this package. Each is used under its own license and ships its own license text
+in its package directory. THIRD-PARTY-LICENSES.md lists every production
+dependency, direct and transitive, with its license (generated from
+package-lock.json). All of them are under permissive licenses: MIT, ISC,
+BSD-2-Clause, BSD-3-Clause or Apache-2.0.
+
+Direct dependencies that are not under the MIT License:
+
+@xenova/transformers
+  Repository: https://github.com/xenova/transformers.js
+  License:    Apache-2.0
+
+@zvec/zvec (and its platform package @zvec/bindings-<platform>)
+  Repository: https://github.com/zvec-ai/zvec-node
+  License:    Apache-2.0
+
+================================================================================
+Downloaded at run time (not part of this package)
+================================================================================
+
+Embedding model Xenova/all-MiniLM-L6-v2
+  Source:  https://huggingface.co/Xenova/all-MiniLM-L6-v2
+  License: Apache-2.0
+  Fetched by @xenova/transformers the first time semantic search is used and
+  kept in that library's cache. Not fetched when semantic search is disabled.
+
+On-demand Tree-sitter grammars
+  Hesman downloads a grammar the first time a project contains files of that
+  language, unless downloads are turned off (HESMAN_GRAMMARS_OFFLINE=1). Every
+  grammar is the `.wasm` asset of the grammar's own upstream release, pinned by
+  URL and sha256 in grammars.json, which also records its repository, revision
+  and license. Hesman writes a NOTICE.txt with that information next to the
+  downloaded files in the grammar cache. The pinned grammars are under the MIT
+  License, except:
+
+  https://github.com/elixir-lang/tree-sitter-elixir (Apache-2.0)
+  https://github.com/tree-sitter-grammars/tree-sitter-hcl (Apache-2.0)
+
+libvips (through the `sharp` dependency of @xenova/transformers)
+  `sharp` (Apache-2.0) downloads a prebuilt copy of the libvips image library
+  when it is installed. libvips is under LGPL-3.0-or-later and is loaded as a
+  separate shared library; its own third-party notices are installed with it
+  (node_modules/sharp/vendor/<version>/<platform>/THIRD-PARTY-NOTICES.md).
+  Hesman does not call it: it is present only because the embedding library
+  depends on `sharp`.
+
+================================================================================
+MIT License (applies to every bundled grammar and query file above, each under its own
+copyright line, except queries/elixir/tags.scm: Apache License 2.0, below)
+================================================================================
+
+The MIT License (MIT)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+Apache License 2.0 (applies to queries/elixir/tags.scm)
+================================================================================
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS

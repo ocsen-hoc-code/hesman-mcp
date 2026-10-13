@@ -1,7 +1,7 @@
 {
   "name": "hesman-mcp",
   "version": "1.0.0",
-  "description": "Next-gen MCP server for deep code intelligence — 98% token reduction",
+  "description": "MCP server that gives AI coding agents code intelligence over a local codebase: symbols, call graph, impact analysis, semantic search and focused code reads",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -24,14 +24,18 @@
   "files": [
     "dist/",
     "parsers/*.wasm",
+    "queries/",
+    "grammars.json",
     "README.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE",
+    "THIRD-PARTY-LICENSES.md"
   ],
   "homepage": "https://github.com/ocsen-hoc-code/hesman-mcp#readme",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsc",
+    "build": "tsc && node --input-type=module -e \"import { cpSync } from 'node:fs'; cpSync('src/ui/public', 'dist/ui', { recursive: true });\"",
     "start": "node dist/index.js",
     "pretest": "npm run build",
     "test": "vitest run",
@@ -39,11 +43,14 @@
     "test:perf": "vitest bench --run",
     "test:perf:ci": "vitest bench --run",
     "test:e2e": "vitest run tests/e2e/ --reporter=verbose --testTimeout=120000",
+    "pretest:conformance": "npm run build",
+    "test:conformance": "vitest run tests/conformance/ tests/integration/language-conformance.test.ts",
     "prepublishOnly": "npm test && npm run typecheck && npm run lint && npm run build",
     "lint": "eslint src/ tests/",
     "format": "prettier --write 'src/**/*.ts' 'tests/**/*.ts'",
     "typecheck": "tsc --noEmit",
-    "download:parsers": "tsx scripts/download-parsers.ts"
+    "download:parsers": "tsx scripts/download-parsers.ts",
+    "pretest:e2e": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.13.0",
@@ -54,7 +61,7 @@
     "picomatch": "^4.0.2",
     "pino": "^9.7.0",
     "pino-pretty": "^13.1.0",
-    "web-tree-sitter": "^0.22.6",
+    "web-tree-sitter": "0.25.10",
     "zod": "^3.24.0"
   },
   "devDependencies": {

@@ -38,6 +38,11 @@ export interface WorkerResult {
     file_path: string;
     line: number;
     col: number;
+    /** Callee name of a `calls` relation (see `resolveCallRelations`). */
+    to_name?: string | null;
+receiver?: string | null;
+receiverType?: string | null;
+names?: string | null;
   }>;
   contentHash: string;
   error?: string;
@@ -49,18 +54,46 @@ interface PendingTask {
   reject: (err: Error) => void;
 }
 
+/** Above this, more parser threads no longer shorten an index run but each costs memory. */
+export const MAX_AUTO_WORKERS = 4;
+
+/** An idle worker is stopped after this long, so its parsers do not stay in memory between runs. */
+export const IDLE_RELEASE_MS = 30_000;
+
+export interface WorkerPoolOptions {
+  /** Idle time before a worker is stopped; defaults to `IDLE_RELEASE_MS`. */
+  idleReleaseMs?: number;
+}
+
+/**
+ * Parser threads, started on demand and stopped again when idle.
+ *
+ * A worker holds its own V8 isolate and its own Tree-sitter grammars, tens of
+ * megabytes each, and the server needs them only while it indexes. So no
+ * worker exists until a task arrives, at most `maxWorkers` run at once, and a
+ * worker that has had nothing to do for `idleReleaseMs` is terminated; the
+ * next task starts a new one.
+ */
 export class WorkerPool {
-  private workers: Worker[];
+  /** One slot per possible worker; `null` while that worker is not running. */
+  private workers: Array<Worker | null>;
   private taskQueue: PendingTask[] = [];
   private busyWorkers: Set<number> = new Set();
   private workerTasks: Map<number, PendingTask> = new Map();
+  private idleTimers: Map<number, NodeJS.Timeout> = new Map();
+  /** Workers this pool stopped on purpose: their exit is not a crash. */
+  private retired: WeakSet<Worker> = new WeakSet();
   private paused = false;
   private shuttingDown = false;
   private workerPath: string;
+  private idleReleaseMs: number;
 
-  constructor(size: number) {
-    const workerCount = size === 0 ? Math.max(1, cpus().length - 1) : Math.max(1, size);
-    this.workers = [];
+  readonly maxWorkers: number;
+
+  constructor(size: number, options: WorkerPoolOptions = {}) {
+    this.maxWorkers = size === 0 ? Math.min(MAX_AUTO_WORKERS, Math.max(1, cpus().length - 1)) : Math.max(1, size);
+    this.workers = new Array<Worker | null>(this.maxWorkers).fill(null);
+    this.idleReleaseMs = options.idleReleaseMs ?? IDLE_RELEASE_MS;
 
     // Primary: compiled worker next to this file (production, dist/)
     const primaryPath = resolve(__dirname, 'worker.js');
@@ -74,12 +107,18 @@ export class WorkerPool {
       );
     }
     this.workerPath = workerPath;
+  }
 
-    for (let i = 0; i < workerCount; i++) {
-      const worker = new Worker(workerPath);
-      this.setupWorker(worker, i);
-      this.workers.push(worker);
-    }
+  /** Worker threads running right now. */
+  get workerCount(): number {
+    return this.workers.filter((worker) => worker !== null).length;
+  }
+
+  private startWorker(index: number): Worker {
+    const worker = new Worker(this.workerPath);
+    this.setupWorker(worker, index);
+    this.workers[index] = worker;
+    return worker;
   }
 
   private setupWorker(worker: Worker, index: number): void {
@@ -93,6 +132,7 @@ export class WorkerPool {
       this.busyWorkers.delete(index);
       // Process next task from queue
       this.flushQueue();
+      if (!this.busyWorkers.has(index)) this.scheduleRelease(index);
     });
 
     worker.on('error', (err) => {
@@ -106,27 +146,62 @@ export class WorkerPool {
     });
 
     worker.on('exit', (code) => {
+      if (this.retired.has(worker)) return;
+      if (this.workers[index] === worker) this.workers[index] = null;
       if (code !== 0 && !this.shuttingDown) {
         log.warn({ index, code }, 'Worker exited unexpectedly, restarting...');
         this.busyWorkers.delete(index);
-        const newWorker = new Worker(this.workerPath);
-        this.setupWorker(newWorker, index);
-        this.workers[index] = newWorker;
+        this.startWorker(index);
+        this.flushQueue();
       }
     });
   }
 
+  /** Stop the worker in this slot once it has been idle for `idleReleaseMs`. */
+  private scheduleRelease(index: number): void {
+    this.cancelRelease(index);
+    const timer = setTimeout(() => {
+      this.idleTimers.delete(index);
+      const worker = this.workers[index];
+      if (!worker || this.busyWorkers.has(index) || this.shuttingDown) return;
+      this.retired.add(worker);
+      this.workers[index] = null;
+      void worker.terminate();
+      log.debug({ index }, 'Idle worker released');
+    }, this.idleReleaseMs);
+    // A pending release must not keep the process alive.
+    timer.unref();
+    this.idleTimers.set(index, timer);
+  }
+
+  private cancelRelease(index: number): void {
+    const timer = this.idleTimers.get(index);
+    if (timer) {
+      clearTimeout(timer);
+      this.idleTimers.delete(index);
+    }
+  }
+
+  /** A slot that can take a task: a running idle worker first, else an empty slot. */
+  private freeSlot(): number {
+    const idle = this.workers.findIndex((worker, i) => worker !== null && !this.busyWorkers.has(i));
+    if (idle !== -1) return idle;
+    return this.workers.findIndex((worker) => worker === null);
+  }
+
   private flushQueue(): void {
     if (this.taskQueue.length === 0) return;
-    if (this.paused) return;
+    if (this.paused || this.shuttingDown) return;
 
-    const idleIndex = this.workers.findIndex((_, i) => !this.busyWorkers.has(i));
-    if (idleIndex === -1) return;
+    const index = this.freeSlot();
+    if (index === -1) return;
 
     const pending = this.taskQueue.shift()!;
-    this.busyWorkers.add(idleIndex);
-    this.workerTasks.set(idleIndex, pending);
-    this.workers[idleIndex].postMessage(pending.task);
+    const worker = this.workers[index] ?? this.startWorker(index);
+    this.cancelRelease(index);
+    this.busyWorkers.add(index);
+    this.workerTasks.set(index, pending);
+    worker.postMessage(pending.task);
   }
 
   dispatch(tasks: WorkerTask[]): Promise<WorkerResult[]> {
@@ -151,8 +226,8 @@ export class WorkerPool {
     }
 
     // Trigger processing — multiple calls to flushQueue will use multiple idle workers
-    const idleCount = this.workers.filter((_, i) => !this.busyWorkers.has(i)).length;
-    for (let i = 0; i < Math.min(idleCount, this.taskQueue.length); i++) {
+    const freeCount = this.maxWorkers - this.busyWorkers.size;
+    for (let i = 0; i < Math.min(freeCount, this.taskQueue.length); i++) {
       this.flushQueue();
     }
 
@@ -179,10 +254,12 @@ export class WorkerPool {
       this.busyWorkers.clear();
       this.taskQueue.length = 0;
     }
+    for (const timer of this.idleTimers.values()) clearTimeout(timer);
+    this.idleTimers.clear();
     for (const worker of this.workers) {
-      await worker.terminate();
+      if (worker) await worker.terminate();
     }
-    this.workers.length = 0;
+    this.workers.fill(null);
     this.workerTasks.clear();
   }
 

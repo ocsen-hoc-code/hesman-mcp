@@ -1,0 +1,21 @@
+{
+  "files": {
+    "deploy.sh": {
+      "symbolCount": { "min": 6, "max": 6 },
+      "symbols": [
+        { "name": "MAX_ATTEMPTS", "kind": "constant", "line": 6, "isExported": true, "doc": "Largest number of upload attempts." },
+        { "name": "RELEASE_DIR", "kind": "variable", "line": 7, "isExported": true },
+        { "name": "log", "kind": "function", "line": 10, "isExported": true, "doc": "Prints a message to stderr." },
+        { "name": "require_command", "kind": "function", "line": 15, "isExported": true, "doc": "Fails unless a command is installed." },
+        { "name": "_upload_file", "kind": "function", "line": 20, "isExported": false, "doc": "Uploads one file, retrying on failure." },
+        { "name": "main", "kind": "function", "line": 31, "isExported": true }
+      ],
+      "calls": [
+        { "from": "require_command", "to": "log" },
+        { "from": "_upload_file", "to": "log" },
+        { "from": "main", "to": "require_command" },
+        { "from": "main", "to": "_upload_file" }
+      ]
+    }
+  }
+}

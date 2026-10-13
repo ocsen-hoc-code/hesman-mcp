@@ -1,0 +1,102 @@
+/*
+ * Design tokens. The look is a drafting sheet: cool paper, Prussian-blue ink, and line
+ * conventions (solid, dashed, dotted) that carry meaning in the graph. The dark theme is the
+ * same sheet as a cyanotype. No fonts are downloaded; the stacks below use what the system has.
+ */
+:root {
+  color-scheme: light;
+
+  --paper: #eef2f6;
+  --surface: #fbfcfd;
+  --surface-sunk: #e4eaf0;
+  --ink: #10283f;
+  --ink-muted: #4a5e74;
+  --rule: #c3ceda;
+  --rule-strong: #8fa2b6;
+  --accent: #1b5aa6;
+  --accent-ink: #ffffff;
+  --accent-wash: #dce8f6;
+  --ok: #17703f;
+  --warn: #8a5200;
+  --error: #b3261e;
+  --error-wash: #fbe9e7;
+  --warn-wash: #fbf0d9;
+  --grid: rgba(27, 90, 166, 0.09);
+
+  /* Chart marks (validated with the dataviz palette checker against --surface). */
+  --series-calls: #1b5aa6;
+  --series-errors: #c2410c;
+  --series-returned: #1b5aa6;
+  --series-original: #a9bfd8;
+
+  --font-sans: 'Avenir Next', 'Segoe UI Variable Text', 'Segoe UI', 'Helvetica Neue', system-ui, sans-serif;
+  --font-code: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2.25rem;
+
+  --radius: 3px;
+  --rail-width: 13.5rem;
+  --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --paper: #0b1e31;
+    --surface: #102841;
+    --surface-sunk: #0a1a2b;
+    --ink: #e4edf6;
+    --ink-muted: #9db3c8;
+    --rule: #284461;
+    --rule-strong: #4a6a8b;
+    --accent: #7cc0ff;
+    --accent-ink: #06182a;
+    --accent-wash: #173a5e;
+    --ok: #6ed3a0;
+    --warn: #f0b552;
+    --error: #ff9a90;
+    --error-wash: #3b1f24;
+    --warn-wash: #3a2f17;
+    --grid: rgba(124, 192, 255, 0.1);
+    --series-calls: #7cc0ff;
+    --series-errors: #ff8a4c;
+    --series-returned: #7cc0ff;
+    --series-original: #2f5378;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #0b1e31;
+  --surface: #102841;
+  --surface-sunk: #0a1a2b;
+  --ink: #e4edf6;
+  --ink-muted: #9db3c8;
+  --rule: #284461;
+  --rule-strong: #4a6a8b;
+  --accent: #7cc0ff;
+  --accent-ink: #06182a;
+  --accent-wash: #173a5e;
+  --ok: #6ed3a0;
+  --warn: #f0b552;
+  --error: #ff9a90;
+  --error-wash: #3b1f24;
+  --warn-wash: #3a2f17;
+  --grid: rgba(124, 192, 255, 0.1);
+  --series-calls: #7cc0ff;
+  --series-errors: #ff8a4c;
+  --series-returned: #7cc0ff;
+  --series-original: #2f5378;
+}

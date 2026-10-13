@@ -74,6 +74,9 @@ npx vitest run tests/unit/parsers/
 
 # By name pattern
 npx vitest run -t "compact mode"
+
+# Language conformance: every registered language, in-process and through the worker pool
+npm run test:conformance
 ```
 
 ### Performance Benchmarks
@@ -128,7 +131,7 @@ src/
 ├── cli/                  # CLI subcommands (commands.ts, install.ts)
 ├── config/               # Config loading (schema.ts, loader.ts, defaults.ts)
 ├── parsers/              # Tree-sitter parsing, compression, language profiles
-│   └── profiles/         # Language-specific profiles (typescript.ts, python.ts, go.ts)
+│   └── profiles/         # Language profiles (typescript.ts, python.ts, go.ts, generic.ts for the data-only ones)
 ├── indexing/             # Index orchestration, worker pool, file watcher
 ├── stores/               # SQLite and ZVec store implementations
 ├── server/               # MCP server, tool implementations, response compression
@@ -139,16 +142,71 @@ src/
 
 ---
 
-## Adding a Language Profile
+## Adding a Language
 
-Hesman supports adding new languages by implementing the `LanguageProfile` interface.
+Symbols are extracted by a generic engine (`src/parsers/tags-engine.ts`) that runs the language's
+Tree-sitter `tags.scm` query. A new language is therefore mostly **data**: a WASM grammar, a query
+file, a small profile and one registry entry.
 
-### 1. Create the Profile
+### 1. Add the WASM Grammar
 
-Create `src/parsers/profiles/<language>.ts`:
+Add the grammar to `parsers/` and pin its URL and sha256 in `scripts/download-parsers.ts`. It must
+load in the pinned `web-tree-sitter` (0.25.10: ABI 13–15). Use the `.wasm` asset of the grammar's
+own upstream GitHub release, as decided in [ADR 0001](adr/0001-grammar-distribution.md); do not
+substitute a third-party build. The bundled core set is committed to git and has a size budget:
+`parsers/` at most 30 MB unpacked and at most 3 MB added to the gzipped npm tarball (16 grammars
+today: 27.3 MB). A grammar that does not fit belongs to the on-demand catalog, not to `parsers/`.
+Add the grammar and its license to `NOTICE`.
+
+### 2. Vendor the Tags Query
+
+Copy the grammar's own `queries/tags.scm` **at the same revision as the grammar** to
+`queries/<lang>/tags.scm`, unmodified. A query is only valid for the grammar revision it was
+written for.
+
+- Allowed sources: the grammar's upstream repository, the xberg bundle (MIT) where upstream has
+  none, and queries written for Hesman. **Not** Helix (MPL-2.0) or Aider (Apache-2.0) queries.
+- Record the file in `queries/SOURCES.json` (repository, tag, commit, SPDX license, sha256) and in
+  `NOTICE`. `tests/unit/parsers/queries.test.ts` fails when a query file has no provenance, when an
+  upstream file was edited, or when a query does not compile against the committed grammar.
+- If upstream misses definitions you need, do not edit its file: add
+  `queries/<lang>/hesman-tags.scm` and list it **after** the upstream file. Layers are applied in
+  order and the earliest pattern that tags a name wins, so a gap filler adds symbols but never
+  changes what upstream tags.
+- If an upstream pattern puts the `@definition` capture on the wrong node, so that the symbol's
+  lines, signature and doc comment are wrong, add `queries/<lang>/hesman-overrides.scm` and list it
+  **before** the upstream file, with a comment that states why. Today: C and C++ (upstream tags only
+  the `function_declarator`) and Swift (upstream tags members on the enclosing type). Do not use an
+  override just to change a kind.
+- Where upstream has no tags query at the pinned tag, say so in the `note` of the `SOURCES.json`
+  entry (Kotlin: the query the same repository added later; Bash: a Hesman query).
+
+The engine understands the shared convention:
+
+| Capture | Meaning |
+|---|---|
+| `@definition.<suffix>` | The definition node (its range becomes the symbol's lines) |
+| `@reference.<suffix>` | A reference (available from the engine; not stored yet, see M1-07) |
+| `@name` | The identifier inside either |
+
+Suffixes map to Hesman kinds in `src/parsers/symbol-kinds.ts` (`function`, `method`, `class`,
+`interface`, `type`, `enum`, `constant`, `variable`, `namespace`; `module` → `namespace`,
+`struct` → `class`, `trait` → `interface`, `macro` → `function`, …). An unknown suffix becomes the
+kind `unknown` — the symbol is still indexed.
+
+Signatures and doc comments need no code: the signature is the first line of the definition
+without its body, and the doc comment is the contiguous comment block directly above it.
+
+### 3. Create the Profile
+
+A language that needs nothing beyond a grammar, a query and a visibility rule is one
+`defineProfile({ language, extensions, grammar, relations, isExported })` call in
+`src/parsers/profiles/generic.ts`, with its `isExported` rule documented in one comment line
+(`relations: true` only for a `deep` entry). A language that needs an override hook gets its own
+file, `src/parsers/profiles/<language>.ts`:
 
 ```typescript
-import type { LanguageProfile } from '../language-profile';
+import type { LanguageProfile } from '../language-profile.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -162,76 +220,124 @@ export const myLangProfile: LanguageProfile = {
     return join(__dirname, '..', '..', '..', 'parsers', 'tree-sitter-mylang.wasm');
   },
 
-  symbolNodeTypes: new Set([
-    'function_definition',
-    'class_definition',
-  ]),
-
-  relationQueries: {
-    calls: `(call_expression function: (identifier) @callee) @call_site`,
-    imports: `(import_statement source: (string) @module_path)`,
-  },
-
-  extractSignature(nodeText: string, _sourceText: string): string {
-    return nodeText.split('\n')[0].trim();
-  },
-
-  extractDocComment(nodeStartLine: number, sourceLines: string[]): string | null {
-    // Look for comment lines immediately above the symbol
-    const line = sourceLines[nodeStartLine - 1]?.trim();
-    if (line?.startsWith('//')) return line;
-    return null;
-  },
+  // Optional: the language's own visibility rule (default: inside an `export_statement`).
+  isExported: (name, _node) => !name.startsWith('_'),
 };
 ```
 
-### 2. Download the WASM Parser
+Two override hooks exist for what a query cannot express. Use one only with a comment in the
+profile that states the reason:
 
-Add the WASM file to `parsers/` and update `scripts/download-parsers.ts` if needed.
+- `extractDocComment(node, source)` — documentation that is not a comment above the definition
+  (Python docstrings). Return `null` to fall back to the generic helper.
+- `includeDefinition(definition)` — drop a definition an unmodified upstream query tags
+  (TypeScript body-less signatures, which would make call resolution ambiguous).
 
-### 3. Register the Profile
+`relationQueries` (set by `relations: true`) marks a language whose relations are extracted. Calls
+and imports are not written in the profile: they are the `@reference.call` and `@reference.import`
+patterns of the language's query layers (`@name` is the callee or the module specifier). Use the
+upstream tags query where it tags calls, and add what it misses in
+`queries/<lang>/hesman-relations.scm`, listed last in `tagsQuery` and recorded in
+`queries/SOURCES.json` and `NOTICE`. A pattern with a property predicate (`#is?`, `#is-not?`) is
+skipped, because the runtime does not evaluate it.
 
-Add your profile to `src/parsers/core.ts` (the `PROFILE_BY_LANG` map):
+### 4. Add One Registry Entry
+
+`src/parsers/languages.ts` is the **single source of truth** for languages. The scanner, index
+coordinator, worker threads, file watcher and tools all derive their tables from it — do not add
+extension or profile maps anywhere else. Append one entry to `LANGUAGES`:
 
 ```typescript
 import { myLangProfile } from './profiles/mylang.js';
 
-export const PROFILE_BY_LANG: Record<string, LanguageProfile> = {
-  typescript: tsProfile,
-  python: pythonProfile,
-  go: goProfile,
-  mylang: myLangProfile,
-};
+export const LANGUAGES: readonly LanguageDefinition[] = Object.freeze([
+  // ...existing entries
+  {
+    id: 'mylang',                       // must equal myLangProfile.language
+    tier: 'structural',                 // 'deep' only if every call of the fixture is found and none is a false self-call
+    extensions: ['.my'],                // lowercase, with the leading dot; must equal the profile's list
+    grammar: 'tree-sitter-mylang.wasm', // file name inside parsers/; must match parserWasmPath
+    tagsQuery: ['mylang/tags.scm', 'mylang/hesman-tags.scm'], // relative to queries/, layered in order
+    profile: myLangProfile,
+  },
+]);
 ```
 
-Also update `src/indexing/index-coordinator.ts` (the `PROFILE_BY_LANG` map) and add the import.
+The registry validates itself at load time (duplicate ids, an extension claimed by two languages,
+or a profile whose `language` differs from the entry id all throw). Consumers use the helpers:
+`profileFor(id)`, `languageForPath(path)`, `languageForExtension(ext)`, `languageById(id)`,
+`isLanguageId(id)`, `tagsQueryFiles(def)` and `LANGUAGE_IDS`. A language without `tagsQuery` is
+parsed but yields no symbols. `tier` states what the entry promises — `deep` (symbols and call
+graph) or `structural` (symbols only) — and the conformance suite holds the entry to it.
 
-### 4. Write Tests
+### 5. Add Conformance Fixtures (required)
 
-Add tests under `tests/unit/parsers/`:
+The conformance suite (`npm run test:conformance`) iterates over the registry and fails, naming the
+language, for every entry that has no fixtures. A new entry needs exactly two things:
 
-- `mylang.symbols.test.ts` — verify symbol extraction from sample `.my` files
-- `mylang.relations.test.ts` — verify relation extraction (calls, imports)
+1. **`tests/fixtures/languages/<id>/`** with at least one small, realistic source file per flavor
+   of the language. Exercise what the tier promises: functions, classes/structs, methods,
+   interfaces/types where the language has them, constants, a multi-name declaration, a nested
+   definition, doc comments, exported and private names, and one call between two functions.
+2. **`tests/fixtures/languages/<id>/expected.json`** — what must be extracted from each file:
 
-### 5. Update the File Watcher
-
-Add the file extension mapping in `src/indexing/file-watcher.ts`:
-
-```typescript
-const EXT_TO_LANG: Record<string, string> = {
-  '.ts': 'typescript',
-  // ...
-  '.my': 'mylang',
-};
+```json
+{
+  "files": {
+    "sample.my": {
+      "maxErrorNodes": 0,
+      "symbolCount": { "min": 3, "max": 3 },
+      "symbols": [
+        { "name": "MAX", "kind": "constant", "line": 3, "isExported": true },
+        { "name": "helper", "kind": "function", "line": 6, "isExported": false, "doc": "Adds one." },
+        { "name": "run", "kind": "function", "line": 11, "isExported": true, "doc": "Runs the helper." }
+      ],
+      "calls": [{ "from": "run", "to": "helper" }]
+    }
+  },
+  "knownGaps": []
+}
 ```
 
-### 6. Update `get_context` Language Map
+- `symbols` lists the definitions that **must** be found: `name`, `kind` (a Hesman kind), `line`
+  (1-based start line of the definition), `isExported`, and `doc` (text the stored doc comment must
+  contain) when the definition is documented. Write them from the source file, not from the
+  extractor's output. `symbolCount` bounds the total, so a query that suddenly tags much more or much
+  less is caught.
+- `maxErrorNodes` (default 0) is the number of `ERROR`/`MISSING` nodes the file may parse with.
+- `calls` is required for a `deep` language: at least one `{ "from": caller, "to": callee }`
+  between two definitions of the same file.
+- `knownGaps` documents an expectation that does not hold yet instead of deleting it:
+  `{ "file", "check": "parse" | "symbols" | "docs" | "calls", "subject", "reason", "fixedBy" }`,
+  where `subject` is `name@line` for a symbol, `from->to` for a call, and absent for `parse`. The
+  suite fails as soon as a listed gap passes, so the entry is removed by the change that fixes it.
 
-Update the `langMap` in `src/server/tools/get-context.ts` to include the new extension.
+Per language the suite checks: the grammar loads in the pinned runtime; every query layer compiles
+against that grammar; every fixture parses within its error threshold; the expected symbols are
+extracted with a signature and their doc comments; the expected calls are extracted (`deep`); and
+`tests/integration/language-conformance.test.ts` indexes the same fixtures through the worker pool
+into SQLite and checks every language is in the store. Both print a pass/fail table per language;
+set `HESMAN_CONFORMANCE_REPORT=<dir>` to also write it as Markdown and JSON.
 
-### 7. Add Fixture Data
+### 6. Write Tests
 
-Create a test fixture project in `tests/fixtures/<lang>-basic/` with sample source files.
+- `tests/unit/parsers/languages.test.ts` checks every entry against its profile and that its
+  grammar file exists — update the expected `LANGUAGE_IDS` list.
+- `tests/unit/parsers/queries.test.ts` checks the query files of every registered language
+  automatically (existence, provenance, compilation).
+- Add `tests/unit/parsers/mylang.symbols.test.ts` (symbol extraction) and
+  `mylang.relations.test.ts` (calls, imports).
+- Add a fixture project in `tests/fixtures/<lang>-basic/` (or a directory in `polyglot-basic`) and
+  an e2e assertion that `find_symbol` finds one of its symbols through the real server, which
+  indexes via the worker pool.
+- If the change alters the symbols of an already supported language, or moves an extension to
+  another language id, bump `INDEX_SCHEMA_VERSION` in `src/stores/sqlite.ts` so existing indexes
+  are rebuilt.
+- `src/parsers/text-languages.ts` must label every extension of the new entry with its registry id
+  (`languages.test.ts` checks it), so a file keeps its language when it falls back to the text tier.
+
+No other code changes are needed: the worker, file watcher, scanner and `get_context` pick the
+language up from the registry.
 
 ---
 
@@ -244,7 +350,7 @@ Create a test fixture project in `tests/fixtures/<lang>-basic/` with sample sour
 - [ ] Changes are formatted: `npm run format`
 - [ ] New dependencies are justified in PR description
 - [ ] Performance benchmarks are not degraded (check `npm run test:perf`)
-- [ ] Language changes include a profile + symbol/relation tests + fixture
+- [ ] Language changes include a grammar, a tags query with provenance (`queries/SOURCES.json`, `NOTICE`), a profile, symbol/relation tests and a fixture
 - [ ] Docs updated: README.md for user-facing changes, docs/ for architecture/tools
 - [ ] Changelog updated with user-facing changes
 - [ ] No `.hesman/` or `dist/` files committed

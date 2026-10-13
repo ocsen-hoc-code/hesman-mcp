@@ -1,38 +1,52 @@
-import { readFileSync, existsSync } from 'node:fs';
-import { extname } from 'node:path';
+import { readFileSync } from 'node:fs';
 import type { McpServer, ToolHandler } from '../mcp-server.js';
 import type { SqliteStore } from '../../stores/sqlite.js';
+import type { HesmanConfig } from '../../config/schema.js';
 import { compactCode } from '../../parsers/compact-mode.js';
 import { compressToolResponse, estimateTokens } from '../response-compressor.js';
-import { ErrorCode, formatError } from '../error-codes.js';
+import { intArg, withArgValidation } from '../args.js';
+import { ProjectPathError, projectPathErrorResult, resolveProjectPath } from '../paths.js';
+import { languageForPath } from '../../parsers/languages.js';
+import { textLanguageForPath } from '../../parsers/text-languages.js';
+
+const MAX_LINE = 10_000_000;
+const MAX_CONTEXT_LINES = 200;
 
 const inputSchema = {
   type: 'object',
   properties: {
     filePath: { type: 'string', description: 'Absolute or relative file path' },
-    startLine: { type: 'number', description: 'Focus line number (1-indexed)' },
-    endLine: { type: 'number', description: 'End line (default: same as startLine)' },
-    contextLines: { type: 'number', description: 'Lines of context above and below (default: 5)' },
+    startLine: { type: 'integer', minimum: 1, maximum: MAX_LINE, description: 'Focus line number (1-indexed)' },
+    endLine: { type: 'integer', minimum: 1, maximum: MAX_LINE, description: 'End line (default: same as startLine; values below startLine are raised to startLine)' },
+    contextLines: { type: 'integer', minimum: 0, maximum: MAX_CONTEXT_LINES, description: 'Lines of context above and below (default: 5, max 200)' },
     mode: { type: 'string', enum: ['compact', 'full'], description: 'Compact mode strips comments and blank lines (default: compact)' },
     symbolName: { type: 'string', description: 'Optional — return symbols in range' },
   },
   required: ['filePath', 'startLine'],
 };
 
-export function registerGetContextTool(server: McpServer, store: SqliteStore): void {
+export function registerGetContextTool(server: McpServer, store: SqliteStore, config: HesmanConfig): void {
   const handler: ToolHandler = async (args) => {
-    const filePath = args.filePath as string;
-    const startLine = (args.startLine as number) || 1;
-    const endLine = (args.endLine as number) || startLine;
-    const contextLines = (args.contextLines as number) || 5;
+    const startLine = intArg(args, 'startLine', { default: 1, min: 1, max: MAX_LINE });
+    const endLine = intArg(args, 'endLine', { default: startLine, min: startLine, max: MAX_LINE });
+    const contextLines = intArg(args, 'contextLines', { default: 5, min: 0, max: MAX_CONTEXT_LINES });
     const mode = (args.mode as string) || 'compact';
 
-    if (!existsSync(filePath)) {
-      return { content: [{ type: 'text', text: JSON.stringify(formatError(ErrorCode.FILE_NOT_FOUND, `File not found: ${filePath}`)) }], isError: true };
+    // Untrusted input: confine to the project root, regular files, size limit.
+    let filePath: string;
+    try {
+      filePath = resolveProjectPath(config.projectRoot, args.filePath as string, {
+        maxFileSizeBytes: config.maxFileSizeBytes,
+      });
+    } catch (err) {
+      if (err instanceof ProjectPathError) return projectPathErrorResult(err);
+      throw err;
     }
 
     const source = readFileSync(filePath, 'utf-8');
     const lines = source.split('\n');
+    // A trailing newline terminates the last line; it does not start another one.
+    if (lines[lines.length - 1] === '') lines.pop();
     const totalLines = lines.length;
 
     // Capture full-file token count as pipeline baseline (before pruning)
@@ -69,13 +83,9 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore): v
       // Symbol lookup is best-effort
     }
 
-    // Detect language
-    const ext = extname(filePath).toLowerCase();
-    const langMap: Record<string, string> = {
-      '.ts': 'typescript', '.tsx': 'typescript', '.js': 'typescript', '.jsx': 'typescript',
-      '.py': 'python', '.go': 'go',
-    };
-    const language = langMap[ext] || 'unknown';
+    // Detect language: a parsed language, or the text-tier label of a file without a grammar.
+    const parsedLanguage = languageForPath(filePath);
+    const language = parsedLanguage ?? textLanguageForPath(filePath);
 
     const result = {
       filePath,
@@ -85,12 +95,18 @@ export function registerGetContextTool(server: McpServer, store: SqliteStore): v
       language,
       totalLines,
       symbolsInRange,
+      // No grammar: the file has no symbols, so `symbolsInRange` is always empty for it.
+      ...(parsedLanguage ? {} : { precision: 'text' }),
     };
-    const compressed = compressToolResponse('get_context', result, { store, originalTokens: fullFileTokens });
+    const compressed = compressToolResponse('get_context', result, {
+      store,
+      originalTokens: fullFileTokens,
+      compact: mode === 'compact',
+    });
     return {
       content: [{ type: 'text', text: JSON.stringify(compressed) }],
     };
   };
 
-  server.registerTool('get_context', 'Get surrounding code at a location with optional compact mode', inputSchema, handler);
+  server.registerTool('get_context', 'Get surrounding code at a location with optional compact mode', inputSchema, withArgValidation(handler));
 }

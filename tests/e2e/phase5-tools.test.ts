@@ -4,6 +4,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rmSync, existsSync } from 'node:fs';
+import { waitForIndexReady } from './helpers/server.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -43,8 +44,8 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
     );
     await client.connect(transport);
 
-    // Wait for server startup
-    await new Promise((r) => setTimeout(r, 3000));
+    // The server indexes in the background: wait for the index, not a fixed delay.
+    await waitForIndexReady(client);
   }, 120000);
 
   afterAll(async () => {
@@ -84,7 +85,7 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
 
     it('returns error for nonexistent file', async () => {
       const result = await client.callTool(
-        { name: 'get_context', arguments: { filePath: '/nonexistent/path.ts', startLine: 1 } },
+        { name: 'get_context', arguments: { filePath: resolve(PROJECT_DIR, 'nonexistent/path.ts'), startLine: 1 } },
         undefined,
         { timeout: 5000 },
       );
@@ -106,7 +107,7 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
     beforeAll(async () => {
       // Find the 'add' function symbol to use as target
       const findResult = await client.callTool(
-        { name: 'find_symbol', arguments: { name: 'add', matchMode: 'exact' } },
+        { name: 'find_symbol', arguments: { format: 'full', name: 'add', matchMode: 'exact' } },
         undefined,
         { timeout: 5000 },
       );
@@ -125,6 +126,7 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
         {
           name: 'impact_analysis',
           arguments: {
+            format: 'full',
             symbolId: addSymbolId,
             changeType: 'rename',
             newName: 'addition',
@@ -154,6 +156,7 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
         {
           name: 'impact_analysis',
           arguments: {
+            format: 'full',
             symbolId: 'nonexistent-symbol-id',
             changeType: 'delete',
           },
@@ -178,6 +181,7 @@ describe('Hesman E2E — Phase 5 tools (get_context, impact_analysis)', () => {
           {
             name: 'impact_analysis',
             arguments: {
+              format: 'full',
               symbolId: addSymbolId,
               changeType,
             },

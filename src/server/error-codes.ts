@@ -11,6 +11,8 @@ export const ErrorCode = {
   PARTIAL_RESULTS: 'PARTIAL_RESULTS',
   RATE_LIMITED: 'RATE_LIMITED',
   CONFIG_INVALID: 'CONFIG_INVALID',
+  PATH_OUTSIDE_PROJECT: 'PATH_OUTSIDE_PROJECT',
+  NO_PROJECT: 'NO_PROJECT',
 } as const;
 
 export type ErrorCodeType = (typeof ErrorCode)[keyof typeof ErrorCode];
