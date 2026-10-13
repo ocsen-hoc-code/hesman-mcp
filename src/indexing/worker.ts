@@ -28,6 +28,7 @@ interface WorkerResult {
     is_exported: number;
     is_property?: number;
     is_declaration?: number;
+    owner_type?: string | null;
   }>;
   relations: Array<{
     from_id: string;
@@ -38,6 +39,7 @@ interface WorkerResult {
     col: number;
     to_name: string | null;
     receiver: string | null;
+    receiverType: string | null;
     names: string | null;
   }>;
   contentHash: string;
@@ -84,6 +86,7 @@ parentPort.on('message', async (task: WorkerTask) => {
         col: r.col,
         to_name: r.to_name ?? null,
         receiver: r.receiver ?? null,
+        receiverType: r.receiverType ?? null,
         names: r.names ?? null,
       }));
     }

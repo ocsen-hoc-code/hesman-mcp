@@ -123,7 +123,7 @@ describe('pickCallTarget: member calls (M1-09)', () => {
   it('a call with a receiver is linked to a method, a property function or a class', () => {
     expect(pickCallTarget('/p/a.ts', [method], none, { receiver: 'store' })).toBe('method');
     expect(pickCallTarget('/p/a.ts', [free, method], none, { receiver: 'store' })).toBe('method');
-    expect(pickCallTarget('/p/a.ts', [{ id: 'class', file_path: '/p/lib/item.py', type: true }], none, { receiver: 'models' })).toBe('class');
+    expect(pickCallTarget('/p/a.ts', [{ id: 'class', file_path: '/p/lib/models.py', type: true }], none, { receiver: 'models' })).toBe('class');
   });
 
   it('a member that is not exported is reached through its object where its file is imported or in the same directory', () => {

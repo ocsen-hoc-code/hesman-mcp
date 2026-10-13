@@ -389,11 +389,11 @@ describe('tags engine', () => {
       const query = new TagsQuery(languages.typescript, [LAYER]);
       const { calls } = query.relations(parse('typescript', SOURCE).rootNode);
       // Line 4: `  return b(x) + x.e();` — `b` at column 9, `e` at column 18.
-      // Both are made by `function a` (line 2); `e` is called on `x` (M1-09).
+      // Both are made by `function a` (line 2); `e` is called on `x` (M1-09), and `x` is declared `x: Thing` (M1-10).
       const caller = { name: 'a', kind: 'function', line: 2 };
       expect(calls).toEqual([
         { name: 'b', line: 4, col: 9, caller },
-        { name: 'e', line: 4, col: 18, caller, receiver: 'x' },
+        { name: 'e', line: 4, col: 18, caller, receiver: 'x', receiverType: 'Thing' },
       ]);
       query.delete();
     });

@@ -41,6 +41,7 @@ export interface WorkerResult {
     /** Callee name of a `calls` relation (see `resolveCallRelations`). */
     to_name?: string | null;
 receiver?: string | null;
+receiverType?: string | null;
 names?: string | null;
   }>;
   contentHash: string;

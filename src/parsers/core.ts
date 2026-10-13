@@ -14,6 +14,7 @@ import {
   type TagDefinition,
 } from './tags-engine.js';
 import { isEcmaScriptExported, isPropertyAssigned } from './ecmascript.js';
+import { ownerTypeOf } from './receiver-types.js';
 import { createLogger } from '../utils/logger.js';
 
 const log = createLogger('parser');
@@ -46,6 +47,12 @@ export interface ExtractedSymbol {
    * same-named definition that has one.
    */
   is_declaration?: number;
+  /**
+   * The type a method is declared on when the declaration is outside it (a Go
+   * method's receiver, a Rust method in an `impl` block), so that a call on a
+   * receiver of that type can target it (M1-10). Null otherwise.
+   */
+  owner_type?: string | null;
 }
 
 export interface ParseResult {
@@ -207,6 +214,7 @@ function extractSymbols(
       is_property:
         kind === 'function' && (isPropertyAssigned(node) || isMemberName(nameNode, node, source) || exposedAsMember.has(name)) ? 1 : 0,
       is_declaration: CALLABLE_KINDS.has(kind) && !hasBody(node) ? 1 : 0,
+      owner_type: containers.length === 0 && CALLABLE_KINDS.has(kind) ? ownerTypeOf(node, nameNode) : null,
     });
 
     if (CONTAINER_KINDS.has(kind)) containers.push({ id, endIndex: node.endIndex });
