@@ -656,12 +656,10 @@ npm run test:perf         # Performance benchmarks
 
 | Benchmark | Threshold |
 |---|---|
-| Index throughput | ≥ 500 files/sec |
 | `find_symbol` (exact) | < 1ms |
 | `find_symbol` (fuzzy) | < 5ms |
 | `semantic_search` | < 10ms |
 | `get_references` | < 5ms |
-| Memory (after index) | < 350MB |
 
 ### Measured on this repository
 

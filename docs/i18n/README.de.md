@@ -5,7 +5,7 @@
 
 🌐 **Lesen in:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | **Deutsch** | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
-**Hesman** ist ein MCP-Server (Model Context Protocol) der nächsten Generation, der KI-Coding-Agenten ein tiefes Verständnis Ihrer Codebasis gibt – Symbole, Aufrufgraphen, Abhängigkeiten und semantische Suche – mit gezielten Code-Lesezugriffen, die den Tokenverbrauch senken (`get_context` liefert ~90 % weniger Token als die ganze Datei, wenn Sie nach der Umgebung einer einzelnen Funktion fragen). Alles läuft lokal. Keine externen APIs. Keine LSP-Server.
+**Hesman** ist ein MCP-Server (Model Context Protocol) der nächsten Generation, der KI-Coding-Agenten ein tiefes Verständnis Ihrer Codebasis gibt – Symbole, Aufrufgraphen, Abhängigkeiten und semantische Suche – mit Antworten, die wenig Token kosten: In diesem Repository liefert `get_context` 80–96 % weniger Token als die ganze Datei, und Listen von Aufrufern oder Referenzen sind 66–72 % kleiner als reines JSON (siehe [Gemessen an diesem Repository](#gemessen-an-diesem-repository)). Alles läuft auf Ihrem Rechner: keine externen APIs, keine LSP-Server, und Ihr Code wird nirgendwohin gesendet.
 
 ---
 
@@ -16,6 +16,7 @@
 - [Funktionen](#funktionen)
 - [Wie die Tokenreduktion funktioniert](#wie-die-tokenreduktion-funktioniert)
 - [Installation und Einrichtung](#installation-und-einrichtung)
+- [Deinstallation](#deinstallation)
 - [Tool-Referenz](#tool-referenz)
 - [Konfiguration](#konfiguration)
 - [CLI-Referenz](#cli-referenz)
@@ -36,7 +37,7 @@ Hesman löst das so:
 
 - **Nur liefern, was der Agent braucht** – eine einzelne Funktion, ihre Aufrufer, die von ihr aufgerufenen Funktionen oder die von einer Änderung betroffenen Symbole.
 - **Code verdichten und beschneiden** – `get_context` entfernt Kommentare und Leerzeilen und gibt nur die Zeilen rund um die Fokusstelle zurück statt der ganzen Datei.
-- **Antworten nie aufblähen** – eine Antwort ist nie größer als ihre unveränderte Nutzlast. Zusammenfassungen für lange Ergebnislisten sind geplant, werden aber noch nicht angewendet (siehe [Token-Reduktions-Pipeline](#token-reduktions-pipeline)).
+- **Kompakte Listen** – Aufrufer, Aufgerufene, Referenzen, Symbole und Dateiübersichten kommen als Zeilen unter benannten Spalten, nach Datei gruppiert, mit projektrelativen Pfaden; keine Zeile geht verloren. Eine Antwort ist nie größer als ihre unveränderte Nutzlast (siehe [Token-Reduktions-Pipeline](#token-reduktions-pipeline)).
 - **Auf Ihrem Rechner laufen** – keine API-Schlüssel, kein externer Dienst, keine Latenz durch einen solchen. Ihr Code verlässt niemals Ihren Rechner. Die einzigen Downloads sind das Embedding-Modell bei der ersten Verwendung und die Grammatiken von Bei-Bedarf-Sprachen; beides lässt sich abschalten (`--no-semantic`, `HESMAN_GRAMMARS_OFFLINE=1`).
 - **Messbare Einsparungen** – jede Tool-Antwort außer `index_status` enthält `_meta.reduction` und zeigt damit genau, wie viele Token gegenüber der Rohausgabe eingespart wurden.
 
@@ -89,15 +90,15 @@ Der Server antwortet Ihrem Agenten sofort und indiziert im Hintergrund (wenige S
 
 ### Token-Reduktions-Pipeline
 
-Hesman legt seine Komprimierungspipeline in 3 Schichten an; heute stammen die Einsparungen aus dem Compact-Modus und dem Kontext-Pruning in `get_context`. Jede Antwort meldet ihre tatsächliche Einsparung in `_meta.reduction`, und eine Antwort ist nie größer als ihre unveränderte Nutzlast.
+Hesman reduziert Token auf drei Arten. Jede Antwort meldet ihre tatsächliche Einsparung in `_meta.reduction`, und eine Antwort ist nie größer als ihre unveränderte Nutzlast.
 
-| Schicht | Technik | Gemessene Einsparung | Status |
+| Schicht | Technik | Gemessene Einsparung | Gilt für |
 |---|---|---|---|
-| **Compact-Modus** | Entfernt Kommentare, Leerzeilen, Leerraum am Zeilenende | ~14–16 % eines Codeausschnitts (`get_context`, `mode: "full"` gegenüber `"compact"`) | In `get_context` angewendet |
-| **Kontext-Pruning** | Extraktion eines Zeilenbereichs rund um die Fokusstelle + Compact-Modus | 89,9 % mit den standardmäßigen ±5 Zeilen, 29,9 % mit ±40 Zeilen (Datei mit 195 Zeilen); 0 %, wenn die ganze Datei angefordert wird | In `get_context` angewendet |
-| **Intelligente Zusammenfassung** | Aggregierte `_summary`-Blöcke für lange Ergebnislisten | 0 % – ein `_summary` hat die Antwort nur vergrößert und wird deshalb verworfen | Noch nicht angewendet ([Backlog](../../tasks/STATUS.md)) |
+| **Compact-Modus** | Entfernt Kommentare, Leerzeilen, Leerraum am Zeilenende | 0–16 % eines Codeausschnitts, je nachdem wie viele Kommentare und Leerzeilen er hat (`mode: "full"` gegenüber `"compact"`) | `get_context` |
+| **Kontext-Pruning** | Liefert einen Zeilenbereich rund um die Fokusstelle statt der Datei | 96,0 % mit den standardmäßigen ±5 Zeilen, 79,7 % mit ±40 Zeilen (Datei mit 514 Zeilen); 0 %, wenn die ganze Datei angefordert wird | `get_context` |
+| **Kompakte Listen** | Zeilen unter benannten Spalten, nach Datei gruppiert, mit projektrelativen Pfaden | 66–72 % für Aufrufer, Aufgerufene und Referenzen; 35–41 % für Symbollisten, Dateiübersichten, Abhängigkeiten und Auswirkungsanalyse | `find_symbol`, `get_references`, `get_callers`, `get_callees`, `get_file_structure`, `list_dependencies`, `impact_analysis` |
 
-Listen- und Aufrufgraph-Tools (`get_references`, `get_callers`, `get_callees`, `list_dependencies`, `get_file_structure`) geben derzeit ihre unveränderte Nutzlast mit `_meta.reduction: "0.0%"` und `_meta.compressed: false` zurück. Gemessen am Verzeichnis `src/` dieses Repositorys und an `tests/fixtures/polyglot-basic`. Das Feld `_meta.reduction` in jeder Antwort meldet die exakte Einsparung für Ihre Arbeitslast.
+`find_pattern` und `semantic_search` liefern ihre unveränderte Nutzlast (`_meta.reduction: "0.0%"`). Die Zahlen stammen aus diesem Repository; die vollständige Tabelle und die Anleitung zum Nachmessen stehen unter [Gemessen an diesem Repository](#gemessen-an-diesem-repository). Das Feld `_meta.reduction` in jeder Antwort meldet die exakte Einsparung für Ihre Arbeitslast.
 
 ### Produktionsreif
 
@@ -160,27 +161,40 @@ function calculateTotal(
 
 Das Pruning erfolgt ausschließlich nach Zeilenbereich: Es folgt weder Aufrufern noch aufgerufenen Funktionen. Um zu lesen, was eine Funktion aufruft oder wovon sie aufgerufen wird, fragen Sie `get_callees` / `get_callers` nach den Fundstellen und anschließend `get_context` für jede davon.
 
-### Schicht 3: Intelligente Zusammenfassung (noch nicht angewendet)
+### Schicht 3: Kompakte Listen
 
-Geplant ist, lange Ergebnislisten durch ein aggregiertes `_summary` (Anzahlen nach Art und nach Datei) plus die obersten Einträge zu ersetzen. Die aktuelle Implementierung hat ein `_summary` lediglich neben der vollständigen Liste *hinzugefügt*, was die Antworten größer machte; deshalb verwirft Hesman es und gibt die unveränderte Nutzlast zurück: Listen- und Aufrufgraph-Tools melden heute `_meta.reduction: "0.0%"`. Dass Zusammenfassungen tatsächlich Token sparen, wird im Backlog verfolgt ([`tasks/STATUS.md`](../../tasks/STATUS.md)). Lange Listen lassen sich bereits seitenweise über `topK` und `cursor` abrufen (`get_references`).
+Eine Listenantwort wiederholt in jeder Zeile dieselben Dinge: einen langen Dateipfad, die Feldnamen, Werte, die sich nie ändern. Die kompakte Form schreibt jedes davon einmal: die Feldnamen in `columns`, den Pfad einmal pro Datei, relativ zum Projekt. Das ist eine echte `get_callers`-Antwort:
+
+```json
+{
+  "format": "compact",
+  "columns": ["symbolId", "name", "kind", "line", "depth", "callLine", "callFile"],
+  "files": [
+    { "file": "src/indexing/file-watcher.ts", "rows": [["a182668c09c39b47", "scan", "method", 78, 1, 79, null]] }
+  ],
+  "_meta": { "originalTokens": 101, "compressedTokens": 54, "reduction": "46.5%", "compressed": true, "layers": ["group", "columns", "paths"] }
+}
+```
+
+Keine Zeile geht verloren, und nichts wird zu einer Zusammenfassung verdichtet; `symbolId`, der relative `file` und `line` lassen sich direkt an die anderen Tools übergeben. `get_file_structure` und `list_dependencies` verwenden eine flache `rows`-Liste. Wenn die kompakte Form nicht kleiner wäre (eine leere Liste, eine einzelne Zeile), wird die unveränderte Nutzlast zurückgegeben. Übergeben Sie `format: "full"` an eines dieser Tools, um die einfachen Objekte mit absoluten Pfaden zu erhalten. Lange Listen werden seitenweise über `topK` und bei `get_references` über `cursor` abgerufen.
 
 ### Einsparungen messen
 
-Jede Hesman-Antwort enthält einen `_meta`-Block mit den tatsächlichen Token-Einsparungen:
+Jede Tool-Antwort außer `index_status` enthält einen `_meta`-Block mit den tatsächlichen Token-Einsparungen:
 
 ```json
 {
   "_meta": {
-    "originalTokens": 1764,
-    "compressedTokens": 178,
-    "reduction": "89.9%",
+    "originalTokens": 4782,
+    "compressedTokens": 190,
+    "reduction": "96.0%",
     "compressed": false,
     "layers": ["prune"]
   }
 }
 ```
 
-Dieses Beispiel ist ein echter `get_context`-Aufruf (Standard ±5 Zeilen, Compact-Modus) auf einer Datei mit 195 Zeilen: Der Ausschnitt ist vom Tool bereits verdichtet, daher wird nur die Schicht `prune` aufgeführt, und `compressed: false` bedeutet, dass der Antwort-Kompressor nichts weiter zu entfernen hatte. Das Feld `_meta.reduction` misst gegen die ursprüngliche Tokenzahl der ganzen Datei und liefert Ihnen damit die echte Ende-zu-Ende-Einsparung. Antworten, die nicht kleiner würden, werden unverändert mit `reduction: "0.0%"` zurückgegeben; der Wert ist nie negativ. Prüfen Sie genau, wie viel Hesman in Ihren realen Arbeitslasten einspart, indem Sie `_meta.reduction` in einer beliebigen Tool-Antwort ansehen.
+Dieses Beispiel ist ein echter `get_context`-Aufruf (Standard ±5 Zeilen, Compact-Modus) auf einer Datei mit 514 Zeilen: Der Ausschnitt ist vom Tool bereits verdichtet, daher wird nur die Schicht `prune` aufgeführt, und `compressed: false` bedeutet, dass der Antwort-Kompressor nichts weiter zu entfernen hatte. Das Feld `_meta.reduction` misst gegen die ursprüngliche Tokenzahl der ganzen Datei und liefert Ihnen damit die echte Ende-zu-Ende-Einsparung. Antworten, die nicht kleiner würden, werden unverändert mit `reduction: "0.0%"` zurückgegeben; der Wert ist nie negativ. Prüfen Sie genau, wie viel Hesman in Ihren realen Arbeitslasten einspart, indem Sie `_meta.reduction` in einer beliebigen Tool-Antwort ansehen.
 
 ---
 
@@ -314,6 +328,59 @@ Ein Serverprozess indiziert ein Projekt. Es wird in dieser Reihenfolge bestimmt:
 4. **Kein Projekt** – der Server startet trotzdem und listet seine Tools auf, aber jedes Tool gibt einen `NO_PROJECT`-Fehler zurück, der erklärt, wie man einen Root festlegt.
 
 Das Home-Verzeichnis und seine übergeordneten Verzeichnisse werden nie automatisch gewählt (Schritte 2 und 3), sodass ein globaler MCP-Eintrag, der aus `~` gestartet wird, nicht Ihre Festplatte durchsucht. Der Index liegt in `.hesman/` innerhalb des gewählten Projekts.
+
+---
+
+## Deinstallation
+
+Hesman speichert Daten an vier Stellen. Entfernen Sie sie in dieser Reihenfolge, weil die ersten beiden Schritte den Befehl `hesman` brauchen.
+
+**1. Hesman aus Ihren KI-Clients entfernen**
+
+```bash
+hesman remove --dry-run        # zeigen, was entfernt würde, nichts schreiben
+hesman remove                  # den Eintrag hesman aus jedem Client entfernen, der ihn hat (Scope „user“)
+hesman remove --scope project  # innerhalb eines Projekts ausführen, das mit --scope project eingerichtet wurde
+```
+
+`hesman remove` löscht nur den Eintrag `hesman` und, falls Sie `hesman setup --rules` verwendet haben, den Block zwischen `<!-- hesman:rules:start -->` und `<!-- hesman:rules:end -->` in den Anweisungsdateien des Projekts; alles andere in diesen Dateien bleibt unverändert. Starten Sie die Clients danach neu. Eine Datei `<config>.hesman.bak` neben der Konfiguration eines Clients ist die Sicherung, die Hesman vor seiner letzten Änderung angelegt hat; löschen Sie sie, wenn Sie sie nicht mehr brauchen.
+
+**2. Den Index jedes Projekts löschen**
+
+```bash
+cd /path/to/project
+hesman clean --dry-run   # zeigt das Verzeichnis und seine Größe
+hesman clean --force     # löscht .hesman/ (Index, Vektoren, Logs, Tool-Aufruf-Log)
+```
+
+Wiederholen Sie das in jedem Projekt, in dem Hesman verwendet wurde, oder löschen Sie das Verzeichnis `.hesman/` des Projekts von Hand. Wenn Sie `HESMAN_DATA_DIR` oder `--data-dir` gesetzt haben, liegen die Daten stattdessen in diesem Verzeichnis.
+
+**3. Den Grammatik-Cache löschen**
+
+Bei Bedarf heruntergeladene Grammatiken werden pro Benutzer aufbewahrt, außerhalb jedes Projekts. Löschen Sie das Verzeichnis `hesman` an der ersten Stelle, die zutrifft:
+
+| Einstellung / Plattform | Zu löschendes Verzeichnis |
+|---|---|
+| `HESMAN_CACHE_DIR` ist gesetzt | `$HESMAN_CACHE_DIR/hesman` |
+| `XDG_CACHE_HOME` ist gesetzt | `$XDG_CACHE_HOME/hesman` |
+| macOS | `~/Library/Caches/hesman` |
+| Windows | `%LOCALAPPDATA%\hesman` |
+| Linux und andere | `~/.cache/hesman` |
+
+`hesman grammars list` gibt das genaue Cache-Verzeichnis aus. Wurde nie eine Grammatik bei Bedarf heruntergeladen, existiert das Verzeichnis nicht.
+
+**4. Das Programm entfernen**
+
+```bash
+# aus dem Quellcode installiert
+npm unlink -g hesman-mcp   # nur, wenn Sie `npm link` ausgeführt haben
+rm -r /path/to/hesman-mcp  # das geklonte Repository
+
+# aus npm installiert (nach Veröffentlichung des Pakets)
+npm uninstall -g hesman-mcp
+```
+
+Das Embedding-Modell liegt im eigenen `node_modules` des Pakets und verschwindet daher mit dem Programm. Außerhalb der oben genannten Orte wird nichts geschrieben: kein Hintergrunddienst, keine systemweite Konfiguration.
 
 ---
 
@@ -504,14 +571,14 @@ Die Symbolarten folgen der eigenen Tags-Query der jeweiligen Grammatik, daher si
                          │       Hesman MCP Server                │
                          │              │                          │
                          │   ┌──────────┴──────────────────────┐  │
-                         │   │     3-Layer Compression Pipeline │  │
+                         │   │      Token Reduction Pipeline    │  │
                          │   │  ┌────────────────────────────┐  │  │
                          │   │  │ 1. Compact Mode            │  │  │
                          │   │  │    Strip comments/blanks    │  │  │
                          │   │  │ 2. Context Pruning         │  │  │
-                         │   │  │    Keep only relevant lines │  │  │
-                         │   │  │ 3. Smart Summarization     │  │  │
-                         │   │  │    planned, not applied     │  │  │
+                         │   │  │    A line range, not a file │  │  │
+                         │   │  │ 3. Compact Lists           │  │  │
+                         │   │  │    Columns, grouped by file │  │  │
                          │   │  └────────────────────────────┘  │  │
                          │   └───────────────────────────────────┘  │
                          │                                          │
@@ -527,7 +594,7 @@ Die Symbolarten folgen der eigenen Tags-Query der jeweiligen Grammatik, daher si
                          └──────────────────────────────────────────┘
 ```
 
-**Zentrale Datenpipeline:** Dateiänderungen (chokidar) → Tree-sitter-Parsing (AST + Symbole) → SQLite-Index + ZVec-Embeddings → komprimierte MCP-Antworten
+**Zentrale Datenpipeline:** Dateiänderungen (chokidar) → Tree-sitter-Parsing (AST + Symbole) → SQLite-Index + ZVec-Embeddings → kompakte MCP-Antworten
 
 **Zentrale Designentscheidungen:**
 - **Keine LSP-Abhängigkeit** – Tree-sitter bietet sprachunabhängiges Parsen, ohne Language Server zu betreiben
@@ -581,16 +648,48 @@ npm run test:e2e          # End-to-End-Tests (starten den vollständigen Server)
 npm run test:perf         # Performance-Benchmarks
 ```
 
-### Performance-Ziele
+### Performance-Schwellenwerte
 
-| Benchmark | Ziel |
+`npm run test:perf` schlägt fehl, wenn ein Benchmark schlechter ist als sein Schwellenwert (`tests/perf/thresholds.ts`). Das sind Grenzen, die auf dem macOS-Rechner des Maintainers gegen die Fixtures des Repositorys geprüft werden, keine Garantien für jedes Projekt; `semantic_search` wird ohne das Embedding der Anfrage gemessen.
+
+| Benchmark | Schwellenwert |
 |---|---|
-| Indizierungsdurchsatz | ≥ 500 Dateien/s |
 | `find_symbol` (exakt) | < 1 ms |
 | `find_symbol` (unscharf) | < 5 ms |
 | `semantic_search` | < 10 ms |
 | `get_references` | < 5 ms |
-| Speicher (nach der Indizierung) | < 350 MB |
+
+### Gemessen an diesem Repository
+
+`node scripts/measure.mjs` startet den gebauten Server über stdio, lässt ihn einen sauberen Export dieses Repositorys indizieren (502 Dateien: 350 mit Symbolen, 152 als Text; 7.700 Symbole, 27.372 Relationen) und ruft jedes Tool 100-mal über MCP auf. Gemessen am 2026-10-13 auf einem Apple M3 Pro (11 Kerne, 18 GB), macOS, Node 24. Ihre Zahlen hängen von Rechner und Projekt ab; führen Sie das Skript aus, um eigene zu erhalten.
+
+| Start, Index und Speicher | Semantische Suche an | `--no-semantic` |
+|---|---:|---:|
+| Handshake-Antwort des MCP nach | 0,4 s | 0,2 s |
+| Index bereit nach | 70,2 s | 2,4 s |
+| Index auf der Festplatte | 46,2 MB | 22,1 MB |
+| Speicher beim Handshake | 286 MB | 195 MB |
+| Speicher direkt nach der Indizierung | 673 MB | 426 MB |
+| Speicher im Leerlauf (35 s nach dem letzten Aufruf) | 545 MB | 303 MB |
+
+Der Server beantwortet Tools während der Indizierung; mit eingeschalteter semantischer Suche entfallen fast alle 70 Sekunden auf das Berechnen von 5.760 Embeddings auf der CPU. Der Speicher ist der physische Footprint des Prozesses, also die Zahl, die die Aktivitätsanzeige zeigt. Parser-Threads werden nur während der Indizierung gestartet (standardmäßig höchstens vier) und nach 30 Sekunden Leerlauf freigegeben.
+
+| Tool | Aufruf | Median | Ursprüngliche Token | Zurückgegebene Token | Einsparung |
+|---|---|---:|---:|---:|---:|
+| `get_context` | eine Funktion, ±5 Zeilen | 0,39 ms | 4.782 | 190 | 96,0 % |
+| `get_context` | eine Funktion, ±40 Zeilen | 0,46 ms | 4.782 | 970 | 79,7 % |
+| `get_references` | Verweise auf `indexProject` | 0,29 ms | 3.026 | 854 | 71,8 % |
+| `get_callers` | Aufrufer von `indexProject` | 0,24 ms | 1.244 | 373 | 70,0 % |
+| `get_callees` | Aufgerufene von `indexProject` | 0,15 ms | 387 | 132 | 65,9 % |
+| `find_symbol` | Präfix `index`, 20 Ergebnisse | 0,38 ms | 2.326 | 1.369 | 41,1 % |
+| `impact_analysis` | Löschen von `indexProject` | 0,39 ms | 3.498 | 2.116 | 39,5 % |
+| `get_file_structure` | eine Quelldatei | 0,34 ms | 3.474 | 2.270 | 34,7 % |
+| `list_dependencies` | Importe einer Datei | 0,11 ms | 572 | 374 | 34,6 % |
+| `find_symbol` | exakter Name, 1 Ergebnis | 0,14 ms | 214 | 197 | 7,9 % |
+| `find_pattern` | `console.$M($$$A)` in TypeScript | 38,4 ms | 2.112 | 2.112 | 0,0 % |
+| `semantic_search` | eine Anfrage in natürlicher Sprache | 2,75 ms | 3.880 | 3.880 | 0,0 % |
+
+„Ursprüngliche Token“ ist die Nutzlast als einfache JSON-Objekte mit absoluten Pfaden (bei `get_context` die ganze Datei); Token werden mit vier Zeichen pro Token geschätzt. Die Latenz ist, was der Client für einen Aufruf sieht, einschließlich MCP-Rahmung. `semantic_search` schließt das Embedding der Anfrage ein.
 
 Den vollständigen Leitfaden für Mitwirkende, einschließlich des Hinzufügens neuer Sprachen, finden Sie in **[docs/CONTRIBUTING.md](../CONTRIBUTING.md)**.
 
@@ -601,8 +700,7 @@ Den vollständigen Leitfaden für Mitwirkende, einschließlich des Hinzufügens 
 | Ressource | Minimum |
 |---|---|
 | **Node.js** | ≥ 20.0.0 |
-| **Arbeitsspeicher (Leerlauf)** | ~100 MB |
-| **Arbeitsspeicher (unter Last)** | ~350 MB |
+| **Arbeitsspeicher** | Etwa 300 MB im Leerlauf und 430 MB beim Indizieren ohne semantische Suche; etwa 550 MB im Leerlauf und 670 MB beim Indizieren mit ihr (gemessen an einem Projekt mit 502 Dateien, siehe [Gemessen an diesem Repository](#gemessen-an-diesem-repository)) |
 | **Festplatte** | ~30 MB für das Paket (mitgelieferte Grammatiken), ~80 MB für das Embedding-Modell (einmaliger Download), bis zu 47 MB für Bei-Bedarf-Grammatiken, wenn alle installiert sind, dazu der Index in `.hesman/` |
 | **Netzwerk** | Für die Installation, für das Embedding-Modell bei der ersten Verwendung und für die Grammatik einer Bei-Bedarf-Sprache, wenn ein Projekt sie zum ersten Mal enthält. Sonst keines; weder Code noch Abfragen werden jemals irgendwohin gesendet |
 

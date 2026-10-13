@@ -5,7 +5,7 @@
 
 🌐 **Đọc bằng:** [English](../../README.md) | **Tiếng Việt** | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | [中文](./README.zh.md) | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
-**Hesman** là một MCP server (Model Context Protocol) thế hệ mới, giúp các AI agent lập trình hiểu sâu codebase của bạn — symbol, call graph, phụ thuộc và tìm kiếm ngữ nghĩa — với cách đọc mã có trọng tâm giúp giảm lượng token tiêu thụ (`get_context` trả về ít hơn ~90% token so với cả tệp khi bạn hỏi về vùng xung quanh một hàm). Mọi thứ chạy cục bộ. Không API bên ngoài. Không LSP server.
+**Hesman** là một MCP server (Model Context Protocol) thế hệ mới, giúp các AI agent lập trình hiểu sâu codebase của bạn — symbol, call graph, phụ thuộc và tìm kiếm ngữ nghĩa — với câu trả lời được thiết kế để tốn ít token: trên repository này `get_context` trả về ít hơn 80–96% token so với cả tệp, còn danh sách caller hoặc reference nhỏ hơn 66–72% so với JSON thuần (xem [Số đo trên repository này](#số-đo-trên-repository-này)). Mọi thứ chạy trên máy của bạn: không API bên ngoài, không LSP server, và mã của bạn không bao giờ bị gửi đi đâu cả.
 
 ---
 
@@ -16,6 +16,7 @@
 - [Tính năng](#tính-năng)
 - [Cơ chế giảm token](#cơ-chế-giảm-token)
 - [Cài đặt & Thiết lập](#cài-đặt--thiết-lập)
+- [Gỡ cài đặt](#gỡ-cài-đặt)
 - [Tham chiếu công cụ](#tham-chiếu-công-cụ)
 - [Cấu hình](#cấu-hình)
 - [Tham chiếu CLI](#tham-chiếu-cli)
@@ -36,7 +37,7 @@ Hesman giải quyết việc này bằng cách:
 
 - **Chỉ cung cấp đúng thứ agent cần** — một hàm cụ thể, các hàm gọi nó, các hàm nó gọi, hoặc những symbol bị ảnh hưởng bởi một thay đổi.
 - **Thu gọn và cắt tỉa mã** — `get_context` bỏ chú thích và dòng trống, và chỉ trả về các dòng quanh vị trí trọng tâm thay vì cả tệp.
-- **Không bao giờ làm phản hồi phình to** — một phản hồi không bao giờ lớn hơn payload gốc của nó. Việc tóm tắt các danh sách kết quả dài đã được lên kế hoạch nhưng chưa được áp dụng (xem [Pipeline giảm token](#pipeline-giảm-token)).
+- **Danh sách gọn** — callers, callees, references, symbol và outline tệp được trả về dưới dạng các dòng có cột đặt tên, nhóm theo tệp, với đường dẫn tương đối theo dự án; không dòng nào bị bỏ. Một phản hồi không bao giờ lớn hơn payload gốc của nó (xem [Pipeline giảm token](#pipeline-giảm-token)).
 - **Chạy trên máy của bạn** — không khóa API, không dịch vụ bên ngoài, không độ trễ từ dịch vụ như vậy. Mã của bạn không bao giờ rời khỏi máy. Những lần tải về duy nhất là mô hình embedding ở lần dùng đầu tiên và grammar của các ngôn ngữ tải khi cần; cả hai đều có thể tắt (`--no-semantic`, `HESMAN_GRAMMARS_OFFLINE=1`).
 - **Mức tiết kiệm đo được** — mọi phản hồi của công cụ, trừ `index_status`, đều có `_meta.reduction` cho biết chính xác đã tiết kiệm bao nhiêu token so với đầu ra thô.
 
@@ -89,15 +90,15 @@ Server trả lời agent ngay lập tức và lập chỉ mục ở chế độ 
 
 ### Pipeline giảm token
 
-Hesman thiết kế pipeline nén của mình thành 3 lớp; hiện tại mức tiết kiệm đến từ chế độ compact và cắt tỉa ngữ cảnh trong `get_context`. Mọi phản hồi đều báo cáo mức tiết kiệm thực tế của nó trong `_meta.reduction`, và một phản hồi không bao giờ lớn hơn payload gốc của nó.
+Hesman giảm token theo ba cách. Mọi phản hồi đều báo cáo mức tiết kiệm thực tế của nó trong `_meta.reduction`, và một phản hồi không bao giờ lớn hơn payload gốc của nó.
 
-| Lớp | Kỹ thuật | Mức tiết kiệm đo được | Trạng thái |
+| Lớp | Kỹ thuật | Mức tiết kiệm đo được | Áp dụng cho |
 |---|---|---|---|
-| **Chế độ compact** | Bỏ chú thích, dòng trống, khoảng trắng cuối dòng | ~14–16% của một đoạn trích mã (`get_context`, `mode: "full"` so với `"compact"`) | Đã áp dụng trong `get_context` |
-| **Cắt tỉa ngữ cảnh** | Trích một khoảng dòng quanh vị trí trọng tâm + chế độ compact | 89.9% với mặc định ±5 dòng, 29.9% với ±40 dòng (tệp 195 dòng); 0% khi yêu cầu cả tệp | Đã áp dụng trong `get_context` |
-| **Tóm tắt thông minh** | Các khối `_summary` tổng hợp cho những danh sách kết quả dài | 0% — `_summary` chỉ làm phản hồi dài thêm, nên nó bị bỏ đi | Chưa áp dụng ([backlog](../../tasks/STATUS.md)) |
+| **Chế độ compact** | Bỏ chú thích, dòng trống, khoảng trắng cuối dòng | 0–16% của một đoạn trích mã, tùy số chú thích và dòng trống mà nó có (`mode: "full"` so với `"compact"`) | `get_context` |
+| **Cắt tỉa ngữ cảnh** | Trả về một khoảng dòng quanh vị trí trọng tâm thay vì tệp | 96.0% với mặc định ±5 dòng, 79.7% với ±40 dòng (tệp 514 dòng); 0% khi yêu cầu cả tệp | `get_context` |
+| **Danh sách gọn** | Các dòng dưới cột có tên, nhóm theo tệp, đường dẫn tương đối theo dự án | 66–72% cho callers, callees và references; 35–41% cho danh sách symbol, outline tệp, dependency và phân tích tác động | `find_symbol`, `get_references`, `get_callers`, `get_callees`, `get_file_structure`, `list_dependencies`, `impact_analysis` |
 
-Các công cụ dạng danh sách và call graph (`get_references`, `get_callers`, `get_callees`, `list_dependencies`, `get_file_structure`) hiện trả về payload gốc với `_meta.reduction: "0.0%"` và `_meta.compressed: false`. Số liệu được đo trên thư mục `src/` của chính repository này và trên `tests/fixtures/polyglot-basic`. Trường `_meta.reduction` trong mỗi phản hồi cho biết mức tiết kiệm chính xác với khối lượng công việc của bạn.
+`find_pattern` và `semantic_search` trả về payload gốc (`_meta.reduction: "0.0%"`). Các con số lấy từ repository này; xem [Số đo trên repository này](#số-đo-trên-repository-này) để có bảng đầy đủ và cách tái lập. Trường `_meta.reduction` trong mọi phản hồi cho biết mức tiết kiệm chính xác với khối lượng công việc của bạn.
 
 ### Sẵn sàng cho production
 
@@ -160,27 +161,40 @@ function calculateTotal(
 
 Việc cắt tỉa chỉ dựa trên khoảng dòng: nó không lần theo caller hay callee. Để đọc những gì một hàm gọi hoặc những gì gọi nó, hãy hỏi `get_callees` / `get_callers` để lấy các vị trí, rồi gọi `get_context` cho từng vị trí.
 
-### Lớp 3: Tóm tắt thông minh (chưa áp dụng)
+### Lớp 3: Danh sách gọn
 
-Kế hoạch là thay các danh sách kết quả dài bằng một `_summary` tổng hợp (số lượng theo loại và theo tệp) cùng các mục đứng đầu. Bản cài đặt hiện tại chỉ *thêm* một `_summary` bên cạnh danh sách đầy đủ, khiến phản hồi lớn hơn, nên Hesman bỏ nó đi và trả về payload gốc: các công cụ dạng danh sách và call graph hiện báo `_meta.reduction: "0.0%"`. Việc làm cho phần tóm tắt thực sự tiết kiệm token đang được theo dõi trong backlog ([`tasks/STATUS.md`](../../tasks/STATUS.md)). Các danh sách dài hiện đã có thể lấy theo từng trang qua `topK` và `cursor` (`get_references`).
+Một câu trả lời dạng danh sách lặp lại cùng một thứ trong mọi dòng: đường dẫn tệp dài, tên trường, các giá trị không bao giờ đổi. Dạng compact ghi mỗi thứ một lần: tên trường nằm trong `columns`, đường dẫn được ghi một lần cho mỗi tệp, tương đối so với dự án. Đây là một câu trả lời `get_callers` thật:
+
+```json
+{
+  "format": "compact",
+  "columns": ["symbolId", "name", "kind", "line", "depth", "callLine", "callFile"],
+  "files": [
+    { "file": "src/indexing/file-watcher.ts", "rows": [["a182668c09c39b47", "scan", "method", 78, 1, 79, null]] }
+  ],
+  "_meta": { "originalTokens": 101, "compressedTokens": 54, "reduction": "46.5%", "compressed": true, "layers": ["group", "columns", "paths"] }
+}
+```
+
+Không dòng nào bị bỏ và không có gì bị tóm tắt đi; `symbolId`, `file` tương đối và `line` có thể được truyền thẳng sang các công cụ khác. `get_file_structure` và `list_dependencies` dùng một danh sách `rows` phẳng. Khi dạng compact không nhỏ hơn (danh sách rỗng, chỉ một dòng), payload gốc được trả về. Truyền `format: "full"` cho bất kỳ công cụ nào trong số này để nhận các đối tượng gốc với đường dẫn tuyệt đối. Danh sách dài được lấy theo trang bằng `topK` và, với `get_references`, `cursor`.
 
 ### Đo mức tiết kiệm
 
-Mọi phản hồi của Hesman đều có một khối `_meta` với mức tiết kiệm token thực tế:
+Mọi phản hồi của công cụ, trừ `index_status`, đều có một khối `_meta` với mức tiết kiệm token thực tế:
 
 ```json
 {
   "_meta": {
-    "originalTokens": 1764,
-    "compressedTokens": 178,
-    "reduction": "89.9%",
+    "originalTokens": 4782,
+    "compressedTokens": 190,
+    "reduction": "96.0%",
     "compressed": false,
     "layers": ["prune"]
   }
 }
 ```
 
-Ví dụ này là một lệnh gọi `get_context` thật (mặc định ±5 dòng, chế độ compact) trên một tệp 195 dòng: đoạn trích đã được chính công cụ thu gọn, nên chỉ lớp `prune` được liệt kê, và `compressed: false` nghĩa là bộ nén phản hồi không còn gì để loại bỏ thêm. Trường `_meta.reduction` so với số token ban đầu của cả tệp, cho bạn mức tiết kiệm thực sự từ đầu đến cuối. Những phản hồi không thể nhỏ hơn được trả về nguyên trạng với `reduction: "0.0%"`; giá trị này không bao giờ âm. Hãy kiểm tra chính xác Hesman tiết kiệm bao nhiêu trong công việc thực tế của bạn bằng cách xem `_meta.reduction` trên bất kỳ phản hồi nào của công cụ.
+Ví dụ này là một lệnh gọi `get_context` thật (mặc định ±5 dòng, chế độ compact) trên một tệp 514 dòng: đoạn trích đã được chính công cụ thu gọn, nên chỉ lớp `prune` được liệt kê, và `compressed: false` nghĩa là bộ nén phản hồi không còn gì để loại bỏ thêm. Trường `_meta.reduction` so với số token ban đầu của cả tệp, cho bạn mức tiết kiệm thực sự từ đầu đến cuối. Những phản hồi không thể nhỏ hơn được trả về nguyên trạng với `reduction: "0.0%"`; giá trị này không bao giờ âm. Hãy kiểm tra chính xác Hesman tiết kiệm bao nhiêu trong công việc thực tế của bạn bằng cách xem `_meta.reduction` trên bất kỳ phản hồi nào của công cụ.
 
 ---
 
@@ -314,6 +328,59 @@ Một tiến trình server lập chỉ mục một dự án. Dự án được c
 4. **Không có dự án** — server vẫn khởi động và liệt kê các công cụ, nhưng mọi công cụ đều trả về lỗi `NO_PROJECT` giải thích cách đặt root.
 
 Thư mục home và các thư mục cha của nó không bao giờ được chọn tự động (bước 2 và 3), nên một mục MCP global được khởi động từ `~` sẽ không quét khắp ổ đĩa của bạn. Chỉ mục được lưu trong `.hesman/` bên trong dự án được chọn.
+
+---
+
+## Gỡ cài đặt
+
+Hesman lưu dữ liệu ở bốn nơi. Hãy gỡ theo thứ tự này, vì hai bước đầu cần lệnh `hesman`.
+
+**1. Gỡ Hesman khỏi các AI client**
+
+```bash
+hesman remove --dry-run        # hiển thị những gì sẽ bị gỡ, không ghi gì
+hesman remove                  # xóa mục hesman khỏi mọi client có mục đó (phạm vi user)
+hesman remove --scope project  # chạy trong một dự án đã được thiết lập với --scope project
+```
+
+`hesman remove` chỉ xóa mục `hesman` và, nếu bạn đã dùng `hesman setup --rules`, khối nằm giữa `<!-- hesman:rules:start -->` và `<!-- hesman:rules:end -->` trong các tệp chỉ dẫn của dự án; mọi thứ khác trong các tệp đó được giữ nguyên. Sau đó hãy khởi động lại các client. Tệp `<config>.hesman.bak` nằm cạnh cấu hình của một client là bản sao lưu Hesman tạo trước lần sửa cuối cùng; hãy xóa nó khi bạn không cần nữa.
+
+**2. Xóa chỉ mục của từng dự án**
+
+```bash
+cd /path/to/project
+hesman clean --dry-run   # hiển thị thư mục và dung lượng của nó
+hesman clean --force     # xóa .hesman/ (chỉ mục, vector, log, nhật ký lời gọi công cụ)
+```
+
+Lặp lại trong mọi dự án mà Hesman đã dùng, hoặc tự xóa thư mục `.hesman/` của dự án. Nếu bạn đặt `HESMAN_DATA_DIR` hoặc `--data-dir`, dữ liệu nằm trong thư mục đó.
+
+**3. Xóa cache grammar**
+
+Grammar tải khi cần được lưu theo từng người dùng, nằm ngoài mọi dự án. Hãy xóa thư mục `hesman` ở vị trí đầu tiên áp dụng được:
+
+| Cài đặt / nền tảng | Thư mục cần xóa |
+|---|---|
+| `HESMAN_CACHE_DIR` được đặt | `$HESMAN_CACHE_DIR/hesman` |
+| `XDG_CACHE_HOME` được đặt | `$XDG_CACHE_HOME/hesman` |
+| macOS | `~/Library/Caches/hesman` |
+| Windows | `%LOCALAPPDATA%\hesman` |
+| Linux và các hệ khác | `~/.cache/hesman` |
+
+`hesman grammars list` in ra đường dẫn chính xác của thư mục cache. Nếu chưa từng tải grammar tải khi cần nào, thư mục đó không tồn tại.
+
+**4. Gỡ chương trình**
+
+```bash
+# cài từ mã nguồn
+npm unlink -g hesman-mcp   # chỉ khi bạn đã chạy `npm link`
+rm -r /path/to/hesman-mcp  # thư mục repository đã clone
+
+# cài từ npm (sau khi gói được phát hành)
+npm uninstall -g hesman-mcp
+```
+
+Mô hình embedding được lưu trong `node_modules` của chính gói, nên nó biến mất cùng chương trình. Không có gì khác được ghi ra ngoài các nơi trên: không có dịch vụ nền, không có cấu hình toàn hệ thống.
 
 ---
 
@@ -504,14 +571,14 @@ Loại symbol tuân theo tags query của chính từng grammar, nên một số
                          │       Hesman MCP Server                │
                          │              │                          │
                          │   ┌──────────┴──────────────────────┐  │
-                         │   │     3-Layer Compression Pipeline │  │
+                         │   │      Token Reduction Pipeline    │  │
                          │   │  ┌────────────────────────────┐  │  │
                          │   │  │ 1. Compact Mode            │  │  │
                          │   │  │    Strip comments/blanks    │  │  │
                          │   │  │ 2. Context Pruning         │  │  │
-                         │   │  │    Keep only relevant lines │  │  │
-                         │   │  │ 3. Smart Summarization     │  │  │
-                         │   │  │    planned, not applied     │  │  │
+                         │   │  │    A line range, not a file │  │  │
+                         │   │  │ 3. Compact Lists           │  │  │
+                         │   │  │    Columns, grouped by file │  │  │
                          │   │  └────────────────────────────┘  │  │
                          │   └───────────────────────────────────┘  │
                          │                                          │
@@ -527,7 +594,7 @@ Loại symbol tuân theo tags query của chính từng grammar, nên một số
                          └──────────────────────────────────────────┘
 ```
 
-**Pipeline dữ liệu cốt lõi:** Thay đổi tệp (chokidar) → Tree-sitter phân tích (AST + symbol) → chỉ mục SQLite + embedding ZVec → phản hồi MCP đã nén
+**Pipeline dữ liệu cốt lõi:** Thay đổi tệp (chokidar) → Tree-sitter phân tích (AST + symbol) → chỉ mục SQLite + embedding ZVec → phản hồi MCP dạng compact
 
 **Các quyết định thiết kế chính:**
 - **Không phụ thuộc LSP** — Tree-sitter cung cấp khả năng phân tích cú pháp không phụ thuộc ngôn ngữ mà không cần chạy language server
@@ -581,16 +648,48 @@ npm run test:e2e          # Test end-to-end (khởi động server đầy đủ)
 npm run test:perf         # Benchmark hiệu năng
 ```
 
-### Mục tiêu hiệu năng
+### Ngưỡng hiệu năng
 
-| Benchmark | Mục tiêu |
+`npm run test:perf` thất bại khi một benchmark chậm hơn ngưỡng của nó (`tests/perf/thresholds.ts`). Đây là giới hạn được kiểm tra trên máy macOS của người bảo trì với các fixture của repository, không phải cam kết cho mọi dự án; `semantic_search` được đo mà không tính phần embedding của truy vấn.
+
+| Benchmark | Ngưỡng |
 |---|---|
-| Thông lượng lập chỉ mục | ≥ 500 tệp/giây |
 | `find_symbol` (chính xác) | < 1ms |
 | `find_symbol` (mờ) | < 5ms |
 | `semantic_search` | < 10ms |
 | `get_references` | < 5ms |
-| Bộ nhớ (sau khi lập chỉ mục) | < 350MB |
+
+### Số đo trên repository này
+
+`node scripts/measure.mjs` khởi động server đã build qua stdio, để nó lập chỉ mục một bản xuất sạch của repository này (502 tệp: 350 tệp có symbol, 152 tệp dạng text; 7,700 symbol, 27,372 quan hệ) và gọi mỗi công cụ 100 lần qua MCP. Đo ngày 2026-10-13 trên Apple M3 Pro (11 nhân, 18 GB), macOS, Node 24. Số liệu của bạn phụ thuộc vào máy và dự án; hãy chạy script để có số của riêng bạn.
+
+| Khởi động, lập chỉ mục và bộ nhớ | Bật tìm kiếm ngữ nghĩa | `--no-semantic` |
+|---|---:|---:|
+| Handshake MCP được trả lời sau | 0.4 s | 0.2 s |
+| Chỉ mục sẵn sàng sau | 70.2 s | 2.4 s |
+| Chỉ mục trên đĩa | 46.2 MB | 22.1 MB |
+| Bộ nhớ tại thời điểm handshake | 286 MB | 195 MB |
+| Bộ nhớ ngay sau khi lập chỉ mục | 673 MB | 426 MB |
+| Bộ nhớ khi nghỉ (35 s sau lần gọi cuối) | 545 MB | 303 MB |
+
+Máy chủ trả lời công cụ trong khi đang lập chỉ mục; khi bật tìm kiếm ngữ nghĩa, gần như toàn bộ 70 giây được dùng để tính 5,760 embedding trên CPU. Bộ nhớ là footprint vật lý của tiến trình, con số mà Activity Monitor hiển thị. Các luồng parser chỉ được khởi động khi đang lập chỉ mục (mặc định tối đa bốn) và được giải phóng sau 30 giây không hoạt động.
+
+| Công cụ | Lời gọi | Trung vị | Token gốc | Token trả về | Giảm |
+|---|---|---:|---:|---:|---:|
+| `get_context` | một hàm, ±5 dòng | 0.39 ms | 4,782 | 190 | 96.0% |
+| `get_context` | một hàm, ±40 dòng | 0.46 ms | 4,782 | 970 | 79.7% |
+| `get_references` | tham chiếu tới `indexProject` | 0.29 ms | 3,026 | 854 | 71.8% |
+| `get_callers` | caller của `indexProject` | 0.24 ms | 1,244 | 373 | 70.0% |
+| `get_callees` | callee của `indexProject` | 0.15 ms | 387 | 132 | 65.9% |
+| `find_symbol` | tiền tố `index`, 20 kết quả | 0.38 ms | 2,326 | 1,369 | 41.1% |
+| `impact_analysis` | xóa `indexProject` | 0.39 ms | 3,498 | 2,116 | 39.5% |
+| `get_file_structure` | một tệp mã nguồn | 0.34 ms | 3,474 | 2,270 | 34.7% |
+| `list_dependencies` | import của một tệp | 0.11 ms | 572 | 374 | 34.6% |
+| `find_symbol` | tên chính xác, 1 kết quả | 0.14 ms | 214 | 197 | 7.9% |
+| `find_pattern` | `console.$M($$$A)` trong TypeScript | 38.4 ms | 2,112 | 2,112 | 0.0% |
+| `semantic_search` | một truy vấn ngôn ngữ tự nhiên | 2.75 ms | 3,880 | 3,880 | 0.0% |
+
+"Token gốc" là payload dưới dạng đối tượng JSON thuần với đường dẫn tuyệt đối (với `get_context`, là cả tệp); token được ước tính bằng bốn ký tự mỗi token. Độ trễ là thời gian client thấy cho một lời gọi, kể cả khung MCP. `semantic_search` bao gồm việc embedding truy vấn.
 
 Để xem hướng dẫn đóng góp đầy đủ, gồm cả cách thêm ngôn ngữ mới, xem **[docs/CONTRIBUTING.md](../CONTRIBUTING.md)**.
 
@@ -601,8 +700,7 @@ npm run test:perf         # Benchmark hiệu năng
 | Tài nguyên | Tối thiểu |
 |---|---|
 | **Node.js** | ≥ 20.0.0 |
-| **Bộ nhớ (khi rảnh)** | ~100 MB |
-| **Bộ nhớ (khi có tải)** | ~350 MB |
+| **Bộ nhớ** | Khoảng 300 MB khi nghỉ và 430 MB khi lập chỉ mục không có tìm kiếm ngữ nghĩa; khoảng 550 MB khi nghỉ và 670 MB khi lập chỉ mục có tìm kiếm ngữ nghĩa (đo trên dự án 502 tệp, xem [Số đo trên repository này](#số-đo-trên-repository-này)) |
 | **Ổ đĩa** | ~30 MB cho gói (các grammar đi kèm), ~80 MB cho mô hình embedding (tải một lần), tối đa 47 MB cho các grammar tải khi cần nếu cài tất cả, cộng thêm chỉ mục trong `.hesman/` |
 | **Mạng** | Cho việc cài đặt, cho mô hình embedding ở lần dùng đầu tiên, và cho grammar của một ngôn ngữ tải khi cần vào lần đầu một dự án có ngôn ngữ đó. Ngoài ra thì không; không có mã hay truy vấn nào được gửi đi bất cứ đâu |
 

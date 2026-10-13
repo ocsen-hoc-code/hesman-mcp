@@ -5,7 +5,7 @@
 
 🌐 **阅读语言:** [English](../../README.md) | [Tiếng Việt](./README.vi.md) | [Русский](./README.ru.md) | [Deutsch](./README.de.md) | [Français](./README.fr.md) | **中文** | [日本語](./README.ja.md) | [العربية](./README.ar.md) | [Español](./README.es.md) | [Português](./README.pt.md)
 
-**Hesman** 是一款新一代 MCP（模型上下文协议）服务器，它让 AI 编码代理能够深度理解你的代码库——符号、调用图、依赖关系和语义搜索——并通过聚焦式的代码读取来削减 Token 消耗（当你只请求某个函数的周边代码时，`get_context` 返回的 Token 比整个文件少约 90%）。一切都在本地运行。无需外部 API。无需 LSP 服务器。
+**Hesman** 是一款新一代 MCP（模型上下文协议）服务器，它让 AI 编码代理能够深度理解你的代码库——符号、调用图、依赖关系和语义搜索——并让每个答案只消耗很少的 Token：在本仓库上，`get_context` 返回的 Token 比整个文件少 80–96%，调用者或引用列表比普通 JSON 小 66–72%（参见 [在本仓库上的实测](#在本仓库上的实测)）。一切都在你的机器上运行：无需外部 API，无需 LSP 服务器，你的代码绝不会被发送到任何地方。
 
 ---
 
@@ -16,6 +16,7 @@
 - [功能特性](#功能特性)
 - [Token 缩减原理](#token-缩减原理)
 - [安装与配置](#安装与配置)
+- [卸载](#卸载)
 - [工具参考](#工具参考)
 - [配置项](#配置项)
 - [CLI 参考](#cli-参考)
@@ -36,7 +37,7 @@ Hesman 通过以下方式解决这一问题：
 
 - **只提供代理所需的内容**——一个聚焦的函数、它的调用者、它的被调用者，或受某次变更影响的符号。
 - **精简并裁剪代码**——`get_context` 去除注释和空行，只返回关注位置周围的代码行，而不是整个文件。
-- **绝不让响应变大**——响应永远不会比其原始载荷更大。针对长结果列表的摘要已在计划中，但尚未应用（参见 [Token 缩减管道](#token-缩减管道)）。
+- **紧凑列表**——调用者、被调用者、引用、符号和文件大纲都以按命名列组织的行返回，按文件分组，路径相对于项目；没有任何一行被丢弃。响应永远不会比其原始载荷更大（参见 [Token 缩减管道](#token-缩减管道)）。
 - **在你的机器上运行**——无需 API 密钥，没有外部服务，也就没有它带来的延迟。你的代码永远不会离开你的机器。仅有的下载是首次使用时的嵌入模型和按需语言的语法；两者都可以关闭（`--no-semantic`、`HESMAN_GRAMMARS_OFFLINE=1`）。
 - **可量化的节省**——除 `index_status` 外，每个工具响应都包含 `_meta.reduction`，精确显示相比原始输出节省了多少 Token。
 
@@ -89,15 +90,15 @@ npx -y hesman-mcp setup   # 仅在 hesman-mcp 发布到 npm 之后
 
 ### Token 缩减管道
 
-Hesman 的压缩管道按 3 层设计；目前的节省来自 `get_context` 中的紧凑模式和上下文裁剪。每个响应都会在 `_meta.reduction` 中报告其实际节省量，并且响应永远不会比其原始载荷更大。
+Hesman 以三种方式减少 Token。每个响应都会在 `_meta.reduction` 中报告其实际节省量，并且响应永远不会比其原始载荷更大。
 
-| 层级 | 技术 | 实测节省 | 状态 |
+| 层级 | 技术 | 实测节省 | 适用于 |
 |---|---|---|---|
-| **紧凑模式** | 去除注释、空行和行尾空白 | 代码片段的约 14–16%（`get_context`，`mode: "full"` 对比 `"compact"`） | 已在 `get_context` 中应用 |
-| **上下文裁剪** | 提取关注位置周围的行范围 + 紧凑模式 | 默认 ±5 行时为 89.9%，±40 行时为 29.9%（195 行的文件）；请求整个文件时为 0% | 已在 `get_context` 中应用 |
-| **智能摘要** | 为长结果列表生成聚合的 `_summary` 块 | 0%——`_summary` 只是给响应增加了内容，因此被丢弃 | 尚未应用（[backlog](../../tasks/STATUS.md)） |
+| **紧凑模式** | 去除注释、空行和行尾空白 | 代码片段的 0–16%，取决于其中注释和空行的多少（`mode: "full"` 对比 `"compact"`） | `get_context` |
+| **上下文裁剪** | 返回关注位置周围的行范围，而不是整个文件 | 默认 ±5 行时为 96.0%，±40 行时为 79.7%（514 行的文件）；请求整个文件时为 0% | `get_context` |
+| **紧凑列表** | 按命名列组织的行，按文件分组，路径相对于项目 | 调用者、被调用者和引用为 66–72%；符号列表、文件大纲、依赖关系和影响分析为 35–41% | `find_symbol`、`get_references`、`get_callers`、`get_callees`、`get_file_structure`、`list_dependencies`、`impact_analysis` |
 
-列表类和调用图类工具（`get_references`、`get_callers`、`get_callees`、`list_dependencies`、`get_file_structure`）目前返回其原始载荷，并带有 `_meta.reduction: "0.0%"` 和 `_meta.compressed: false`。以上数据在本仓库的 `src/` 和 `tests/fixtures/polyglot-basic` 上测得。每个响应中的 `_meta.reduction` 字段会报告你的工作负载的确切节省量。
+`find_pattern` 和 `semantic_search` 返回其原始载荷（`_meta.reduction: "0.0%"`）。数据来自本仓库；完整表格及复现方法见 [在本仓库上的实测](#在本仓库上的实测)。每个响应中的 `_meta.reduction` 字段会报告你的工作负载的确切节省量。
 
 ### 生产就绪
 
@@ -160,27 +161,40 @@ function calculateTotal(
 
 裁剪只按行范围进行：它不会跟随调用者或被调用者。要阅读一个函数调用了什么或什么调用了它，请先向 `get_callees` / `get_callers` 询问位置，然后对每个位置调用 `get_context`。
 
-### 第三层：智能摘要（尚未应用）
+### 第三层：紧凑列表
 
-计划是用聚合的 `_summary`（按类型和按文件统计的数量）加上排名靠前的条目来替换长结果列表。当前的实现只是在完整列表旁边*追加*了一个 `_summary`，这让响应变得更大，因此 Hesman 将其丢弃并返回原始载荷：目前列表类和调用图类工具报告 `_meta.reduction: "0.0%"`。让摘要真正节省 Token 的工作记录在 backlog 中（[`tasks/STATUS.md`](../../tasks/STATUS.md)）。长列表已经可以通过 `topK` 和 `cursor` 分页获取（`get_references`）。
+列表答案的每一行都会重复相同的内容：很长的文件路径、字段名，以及从不变化的值。紧凑形式只把它们各写一次：字段名写在 `columns` 中，路径每个文件只写一次，且相对于项目。以下是一个真实的 `get_callers` 答案：
+
+```json
+{
+  "format": "compact",
+  "columns": ["symbolId", "name", "kind", "line", "depth", "callLine", "callFile"],
+  "files": [
+    { "file": "src/indexing/file-watcher.ts", "rows": [["a182668c09c39b47", "scan", "method", 78, 1, 79, null]] }
+  ],
+  "_meta": { "originalTokens": 101, "compressedTokens": 54, "reduction": "46.5%", "compressed": true, "layers": ["group", "columns", "paths"] }
+}
+```
+
+没有任何一行被丢弃，也没有任何内容被摘要掉；`symbolId`、相对的 `file` 和 `line` 可以直接传给其他工具。`get_file_structure` 和 `list_dependencies` 使用一个扁平的 `rows` 列表。当紧凑形式不会更小时（空列表、单行），返回原始载荷。对这些工具中的任意一个传入 `format: "full"`，即可获得带绝对路径的普通对象。长列表通过 `topK` 分页获取，对于 `get_references` 还可以使用 `cursor`。
 
 ### 衡量节省量
 
-每个 Hesman 响应都包含一个 `_meta` 块，给出实际的 Token 节省量：
+除 `index_status` 外，每个工具响应都包含一个 `_meta` 块，给出实际的 Token 节省量：
 
 ```json
 {
   "_meta": {
-    "originalTokens": 1764,
-    "compressedTokens": 178,
-    "reduction": "89.9%",
+    "originalTokens": 4782,
+    "compressedTokens": 190,
+    "reduction": "96.0%",
     "compressed": false,
     "layers": ["prune"]
   }
 }
 ```
 
-这个示例是一次真实的 `get_context` 调用（默认 ±5 行，紧凑模式），针对一个 195 行的文件：片段已经由该工具精简过，所以只列出了 `prune` 层，而 `compressed: false` 表示响应压缩器已经没有更多可移除的内容。`_meta.reduction` 字段以原始完整文件的 Token 数为基准进行衡量，给出真实的端到端节省量。不会变小的响应会原样返回，并带有 `reduction: "0.0%"`；该值永远不会为负。查看任意工具响应上的 `_meta.reduction`，即可精确核查 Hesman 在你的实际工作负载中节省了多少。
+这个示例是一次真实的 `get_context` 调用（默认 ±5 行，紧凑模式），针对一个 514 行的文件：片段已经由该工具精简过，所以只列出了 `prune` 层，而 `compressed: false` 表示响应压缩器已经没有更多可移除的内容。`_meta.reduction` 字段以原始完整文件的 Token 数为基准进行衡量，给出真实的端到端节省量。不会变小的响应会原样返回，并带有 `reduction: "0.0%"`；该值永远不会为负。查看任意工具响应上的 `_meta.reduction`，即可精确核查 Hesman 在你的实际工作负载中节省了多少。
 
 ---
 
@@ -314,6 +328,57 @@ hesman remove                                     # 同时也会再删除该内�
 4. **没有项目**——服务器仍会启动并列出其工具，但每个工具都会返回 `NO_PROJECT` 错误，并说明如何设置根目录。
 
 主目录及其上级目录绝不会被自动选中（第 2 步和第 3 步），因此从 `~` 启动的全局 MCP 条目不会遍历你的整个磁盘。索引存放在所选项目内的 `.hesman/` 中。
+
+## 卸载
+
+Hesman 的数据保存在四个地方。请按此顺序删除，因为前两步需要 `hesman` 命令。
+
+**1. 将 Hesman 从你的 AI 客户端中移除**
+
+```bash
+hesman remove --dry-run        # 显示将被移除的内容，不写入任何内容
+hesman remove                  # 从每个含有 hesman 条目的客户端中移除该条目（用户作用域）
+hesman remove --scope project  # 在使用 --scope project 设置的项目中运行
+```
+
+`hesman remove` 只删除 `hesman` 条目；如果你使用过 `hesman setup --rules`，还会删除项目指令文件中 `<!-- hesman:rules:start -->` 与 `<!-- hesman:rules:end -->` 之间的内容块，文件中的其他内容保持不变。之后请重启客户端。客户端配置文件旁边的 `<config>.hesman.bak` 文件是 Hesman 在上次编辑前创建的备份，不再需要时可以删除。
+
+**2. 删除每个项目的索引**
+
+```bash
+cd /path/to/project
+hesman clean --dry-run   # 显示该目录及其大小
+hesman clean --force     # 删除 .hesman/（索引、向量、日志、工具调用日志）
+```
+
+在 Hesman 使用过的每个项目中重复此操作，或手动删除项目的 `.hesman/` 目录。如果你设置了 `HESMAN_DATA_DIR` 或 `--data-dir`，数据则位于该目录中。
+
+**3. 删除语法缓存**
+
+按需下载的语法按用户保存，位于任何项目之外。请删除第一个适用位置中的 `hesman` 目录：
+
+| 设置 / 平台 | 要删除的目录 |
+|---|---|
+| 已设置 `HESMAN_CACHE_DIR` | `$HESMAN_CACHE_DIR/hesman` |
+| 已设置 `XDG_CACHE_HOME` | `$XDG_CACHE_HOME/hesman` |
+| macOS | `~/Library/Caches/hesman` |
+| Windows | `%LOCALAPPDATA%\hesman` |
+| Linux 及其他 | `~/.cache/hesman` |
+
+`hesman grammars list` 会打印确切的缓存目录。如果从未下载过按需语法，该目录不存在。
+
+**4. 删除程序本身**
+
+```bash
+# 从源码安装
+npm unlink -g hesman-mcp   # 仅当你运行过 `npm link` 时
+rm -r /path/to/hesman-mcp  # 克隆下来的仓库
+
+# 从 npm 安装（包发布之后）
+npm uninstall -g hesman-mcp
+```
+
+嵌入模型存放在包自身的 `node_modules` 中，因此会随程序一起消失。除上述位置外，不会在其他地方写入任何内容：没有后台服务，也没有系统级配置。
 
 ---
 
@@ -504,14 +569,14 @@ hesman --help, -h              Show help text
                          │       Hesman MCP Server                │
                          │              │                          │
                          │   ┌──────────┴──────────────────────┐  │
-                         │   │     3-Layer Compression Pipeline │  │
+                         │   │      Token Reduction Pipeline    │  │
                          │   │  ┌────────────────────────────┐  │  │
                          │   │  │ 1. Compact Mode            │  │  │
                          │   │  │    Strip comments/blanks    │  │  │
                          │   │  │ 2. Context Pruning         │  │  │
-                         │   │  │    Keep only relevant lines │  │  │
-                         │   │  │ 3. Smart Summarization     │  │  │
-                         │   │  │    planned, not applied     │  │  │
+                         │   │  │    A line range, not a file │  │  │
+                         │   │  │ 3. Compact Lists           │  │  │
+                         │   │  │    Columns, grouped by file │  │  │
                          │   │  └────────────────────────────┘  │  │
                          │   └───────────────────────────────────┘  │
                          │                                          │
@@ -527,7 +592,7 @@ hesman --help, -h              Show help text
                          └──────────────────────────────────────────┘
 ```
 
-**核心数据管道：** 文件变更（chokidar）→ Tree-sitter 解析（AST + 符号）→ SQLite 索引 + ZVec 嵌入 → 压缩后的 MCP 响应
+**核心数据管道：** 文件变更（chokidar）→ Tree-sitter 解析（AST + 符号）→ SQLite 索引 + ZVec 嵌入 → 紧凑的 MCP 响应
 
 **关键设计决策：**
 - **无 LSP 依赖**——Tree-sitter 提供与语言无关的解析，无需运行语言服务器
@@ -581,16 +646,48 @@ npm run test:e2e          # 端到端测试（启动完整服务器）
 npm run test:perf         # 性能基准测试
 ```
 
-### 性能目标
+### 性能阈值
 
-| 基准项 | 目标 |
+`npm run test:perf` 在某个基准比其阈值更差时失败（`tests/perf/thresholds.ts`）。这些限值是在维护者的 macOS 机器上，针对仓库的 fixtures 检查的，并非对每个项目的保证；`semantic_search` 的计时不包含查询的嵌入。
+
+| 基准项 | 阈值 |
 |---|---|
-| 索引吞吐量 | ≥ 500 文件/秒 |
 | `find_symbol`（精确） | < 1ms |
 | `find_symbol`（模糊） | < 5ms |
 | `semantic_search` | < 10ms |
 | `get_references` | < 5ms |
-| 内存（索引后） | < 350MB |
+
+### 在本仓库上的实测
+
+`node scripts/measure.mjs` 会启动已构建的服务器（通过 stdio），让它索引本仓库的一份干净导出（502 个文件：350 个含符号，152 个为文本；7,700 个符号，27,372 条关系），并通过 MCP 对每个工具调用 100 次。测量于 2026-10-13 进行，环境为 Apple M3 Pro（11 核，18 GB）、macOS、Node 24。你的数字取决于机器和项目；请运行该脚本获取你自己的数字。
+
+| 启动、索引与内存 | 开启语义搜索 | `--no-semantic` |
+|---|---:|---:|
+| MCP 握手应答耗时 | 0.4 s | 0.2 s |
+| 索引就绪耗时 | 70.2 s | 2.4 s |
+| 磁盘上的索引 | 46.2 MB | 22.1 MB |
+| 握手时的内存 | 286 MB | 195 MB |
+| 索引完成后立即的内存 | 673 MB | 426 MB |
+| 静置时的内存（最后一次调用后 35 秒） | 545 MB | 303 MB |
+
+服务器在索引期间仍会响应工具调用；开启语义搜索时，70 秒中几乎全部用于在 CPU 上计算 5,760 个嵌入。内存为进程的物理占用，即活动监视器显示的数字。解析器线程仅在索引期间启动（默认最多四个），空闲 30 秒后释放。
+
+| 工具 | 调用 | 中位数 | 原始 Token | 返回 Token | 缩减 |
+|---|---|---:|---:|---:|---:|
+| `get_context` | 一个函数，±5 行 | 0.39 ms | 4,782 | 190 | 96.0% |
+| `get_context` | 一个函数，±40 行 | 0.46 ms | 4,782 | 970 | 79.7% |
+| `get_references` | `indexProject` 的引用 | 0.29 ms | 3,026 | 854 | 71.8% |
+| `get_callers` | `indexProject` 的调用者 | 0.24 ms | 1,244 | 373 | 70.0% |
+| `get_callees` | `indexProject` 的被调用者 | 0.15 ms | 387 | 132 | 65.9% |
+| `find_symbol` | 前缀 `index`，20 条结果 | 0.38 ms | 2,326 | 1,369 | 41.1% |
+| `impact_analysis` | 删除 `indexProject` | 0.39 ms | 3,498 | 2,116 | 39.5% |
+| `get_file_structure` | 一个源文件 | 0.34 ms | 3,474 | 2,270 | 34.7% |
+| `list_dependencies` | 一个文件的导入 | 0.11 ms | 572 | 374 | 34.6% |
+| `find_symbol` | 精确名称，1 条结果 | 0.14 ms | 214 | 197 | 7.9% |
+| `find_pattern` | TypeScript 中的 `console.$M($$$A)` | 38.4 ms | 2,112 | 2,112 | 0.0% |
+| `semantic_search` | 一个自然语言查询 | 2.75 ms | 3,880 | 3,880 | 0.0% |
+
+“原始 Token”是以带绝对路径的普通 JSON 对象形式返回的载荷（对 `get_context` 而言即整个文件）；Token 按每 4 个字符估算。延迟是客户端对一次调用所见的时间，包括 MCP 帧开销。`semantic_search` 包含查询的嵌入计算。
 
 完整的贡献指南（包括如何添加新语言）请参阅 **[docs/CONTRIBUTING.md](../CONTRIBUTING.md)**。
 
@@ -601,8 +698,7 @@ npm run test:perf         # 性能基准测试
 | 资源 | 最低要求 |
 |---|---|
 | **Node.js** | ≥ 20.0.0 |
-| **内存（空闲）** | ~100 MB |
-| **内存（负载下）** | ~350 MB |
+| **内存** | 静置约 300 MB，索引时（不含语义搜索）约 430 MB；静置约 550 MB，索引时（含语义搜索）约 670 MB（在 502 个文件的项目上测得，参见 [在本仓库上的实测](#在本仓库上的实测)） |
 | **磁盘** | 包本身约 30 MB（内置语法），嵌入模型约 80 MB（一次性下载），若安装全部按需语法则最多再占 47 MB，另加 `.hesman/` 中的索引 |
 | **网络** | 用于安装、首次使用时下载嵌入模型，以及项目中第一次出现某种按需语言时下载其语法。除此之外不需要；任何代码或查询都绝不会被发送到任何地方 |
 
