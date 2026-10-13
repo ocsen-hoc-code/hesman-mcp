@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-13 · **M0: 16/16 done** · **M1: 9/9 done** · **M2: 5/7 done** · **M3: 2/2 done**
+Updated: 2026-10-13 · **M0: 16/16 done** · **M1: 9/10 done** · **M2: 5/7 done** · **M3: 2/2 done** · **M4: 0/1 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -46,6 +46,7 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 | M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | done |
 | M1-08 | [Fix the extraction bugs found by the conformance suite](M1-08-extraction-bug-fixes.md) | Parsing | P0 | M1-03 | done |
 | M1-09 | [Call-link precision and recovery from a corrupt index](M1-09-call-link-precision.md) | Parsing | P0 | M1-07 | done |
+| M1-10 | [Resolve the receiver of a member call before linking it](M1-10-receiver-type-resolution.md) | Parsing | P0 | M1-09 | pending |
 
 Recommended order: 01 → 02 → 03 → (04, 05 in parallel) → 06 → 07 (one sub-task per language).
 
@@ -77,6 +78,14 @@ Goal: `hesman ui` opens a local web page (127.0.0.1 + token) to watch logs and m
 | M3-02 | [Dashboard frontend](M3-02-dashboard-frontend.md) | UI | P0 | M0-12 | done |
 
 Publishing to npm: the owner decided on 2026-10-11 not to publish yet, so M2-06 and the `npx` checks of M2-04 stay on hold.
+
+## M4 — Token efficiency
+
+Goal: every tool, not only `get_context`, returns fewer tokens than its plain payload, measured by a committed benchmark.
+
+| # | Task | Area | Priority | Depends on | Status |
+|---|---|---|---|---|---|
+| M4-01 | [List and call-graph responses that actually save tokens](M4-01-summaries-that-save-tokens.md) | Tools | P0 | M0-15 | pending |
 
 ## Backlog after M0 (not specified, not scheduled)
 
