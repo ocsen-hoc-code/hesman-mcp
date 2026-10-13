@@ -327,6 +327,50 @@ function withRetry<T>(fn: () => T, maxRetries = 3): T {
   throw new Error('SQLITE_BUSY after max retries');
 }
 
+/**
+ * Call-chain queries. Two things keep them on the `to_id` / `from_id` indexes:
+ * `+kind` stops SQLite from choosing the low-selectivity `kind` index (which
+ * reads every `calls` row), and `CROSS JOIN` keeps the chain as the outer loop
+ * so `symbols` is looked up by primary key instead of scanned.
+ */
+export const CALLERS_SQL = `
+      WITH RECURSIVE caller_chain AS (
+        SELECT from_id, to_id, kind, file_path, line, 1 AS depth
+        FROM relations
+        WHERE to_id = ? AND +kind = 'calls'
+        UNION ALL
+        SELECT r.from_id, r.to_id, r.kind, r.file_path, r.line, cc.depth + 1
+        FROM relations r
+        JOIN caller_chain cc ON r.to_id = cc.from_id
+        WHERE +r.kind = 'calls' AND cc.depth < ?
+      )
+      SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.start_line,
+             cc.depth, cc.file_path AS call_file, cc.line AS call_line
+      FROM caller_chain cc
+      CROSS JOIN symbols s ON s.id = cc.from_id
+      ORDER BY cc.depth
+      LIMIT ?
+    `;
+
+export const CALLEES_SQL = `
+      WITH RECURSIVE callee_chain AS (
+        SELECT from_id, to_id, kind, file_path, line, 1 AS depth
+        FROM relations
+        WHERE from_id = ? AND +kind = 'calls'
+        UNION ALL
+        SELECT r.from_id, r.to_id, r.kind, r.file_path, r.line, cc.depth + 1
+        FROM relations r
+        JOIN callee_chain cc ON r.from_id = cc.to_id
+        WHERE +r.kind = 'calls' AND cc.depth < ?
+      )
+      SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.start_line,
+             cc.depth, cc.file_path AS call_file, cc.line AS call_line
+      FROM callee_chain cc
+      CROSS JOIN symbols s ON s.id = cc.to_id
+      ORDER BY cc.depth
+      LIMIT ?
+    `;
+
 export class SqliteStore {
   private db!: BetterSqlite3.Database;
   private dataDir: string;
@@ -907,24 +951,7 @@ export class SqliteStore {
   }
 
   getCallers(symbolId: string, maxDepth: number = 1, topK: number = 50): CallerResult[] {
-    const rows = this.db.prepare(`
-      WITH RECURSIVE caller_chain AS (
-        SELECT from_id, to_id, kind, file_path, line, 1 AS depth
-        FROM relations
-        WHERE to_id = ? AND kind = 'calls'
-        UNION ALL
-        SELECT r.from_id, r.to_id, r.kind, r.file_path, r.line, cc.depth + 1
-        FROM relations r
-        JOIN caller_chain cc ON r.to_id = cc.from_id
-        WHERE r.kind = 'calls' AND cc.depth < ?
-      )
-      SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.start_line,
-             cc.depth, cc.file_path AS call_file, cc.line AS call_line
-      FROM caller_chain cc
-      JOIN symbols s ON s.id = cc.from_id
-      ORDER BY cc.depth
-      LIMIT ?
-    `).all(symbolId, maxDepth, topK) as any[];
+    const rows = this.db.prepare(CALLERS_SQL).all(symbolId, maxDepth, topK) as any[];
 
     return rows.map((r: any) => ({
       symbolId: r.id,
@@ -938,24 +965,7 @@ export class SqliteStore {
   }
 
   getCallees(symbolId: string, maxDepth: number = 1, topK: number = 50): CalleeResult[] {
-    const rows = this.db.prepare(`
-      WITH RECURSIVE callee_chain AS (
-        SELECT from_id, to_id, kind, file_path, line, 1 AS depth
-        FROM relations
-        WHERE from_id = ? AND kind = 'calls'
-        UNION ALL
-        SELECT r.from_id, r.to_id, r.kind, r.file_path, r.line, cc.depth + 1
-        FROM relations r
-        JOIN callee_chain cc ON r.from_id = cc.to_id
-        WHERE r.kind = 'calls' AND cc.depth < ?
-      )
-      SELECT DISTINCT s.id, s.name, s.kind, s.file_path, s.start_line,
-             cc.depth, cc.file_path AS call_file, cc.line AS call_line
-      FROM callee_chain cc
-      JOIN symbols s ON s.id = cc.to_id
-      ORDER BY cc.depth
-      LIMIT ?
-    `).all(symbolId, maxDepth, topK) as any[];
+    const rows = this.db.prepare(CALLEES_SQL).all(symbolId, maxDepth, topK) as any[];
 
     return rows.map((r: any) => ({
       symbolId: r.id,

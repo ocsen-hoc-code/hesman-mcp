@@ -192,6 +192,9 @@ async function main() {
   }
 
   const afterQueries = { rssMb: rssMb(transport.pid), footprintMb: footprintMb(transport.pid) };
+  // Idle parser threads are released after 30 s; measure what stays.
+  await new Promise((r) => setTimeout(r, 35_000));
+  const atRest = { rssMb: rssMb(transport.pid), footprintMb: footprintMb(transport.pid) };
   await client.close();
 
   const report = {
@@ -218,7 +221,7 @@ async function main() {
       filesPerSecond: round((status.totalFiles + (status.textTier?.files ?? 0)) / (readyMs / 1000), 0),
       diskMb: round(directorySize(dataDir) / 2 ** 20, 1),
     },
-    memory: { atHandshake, afterIndex, afterQueries },
+    memory: { atHandshake, afterIndex, afterQueries, atRest },
     tools,
   };
 
@@ -250,6 +253,7 @@ function renderMarkdown(r) {
     `| Server memory at the handshake: footprint / RSS | ${r.memory.atHandshake.footprintMb ?? '–'} MB / ${r.memory.atHandshake.rssMb} MB |`,
     `| Server memory after indexing: footprint / RSS | ${r.memory.afterIndex.footprintMb ?? '–'} MB / ${r.memory.afterIndex.rssMb} MB |`,
     `| Server memory after the queries: footprint / RSS | ${r.memory.afterQueries.footprintMb ?? '–'} MB / ${r.memory.afterQueries.rssMb} MB |`,
+    `| Server memory at rest, 35 s later: footprint / RSS | ${r.memory.atRest.footprintMb ?? '–'} MB / ${r.memory.atRest.rssMb} MB |`,
     '',
     '| Tool | Call | Median ms | p95 ms | Plain tokens | Returned tokens | Reduction |',
     '|---|---|---:|---:|---:|---:|---:|',

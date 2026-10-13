@@ -260,3 +260,24 @@ describe('SqliteStore call targets', () => {
     expect(store.getImportSpecifiers('/p/main.ts')).toEqual(['./greet.js']);
   });
 });
+
+describe('call-chain queries use the relation indexes', () => {
+  it('looks callers and callees up by id, never through the kind index or a symbols scan', async () => {
+    const { CALLERS_SQL, CALLEES_SQL } = await import('../../../src/stores/sqlite');
+    const dir = mkdtempSync(join(tmpdir(), 'hesman-plan-'));
+    const store = new SqliteStore(dir);
+    store.open();
+    store.close();
+    const db = new Database(join(dir, 'symbols.db'), { readonly: true });
+    try {
+      for (const [sql, index] of [[CALLERS_SQL, '(to_id=?)'], [CALLEES_SQL, '(from_id=?)']] as const) {
+        const plan = (db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all('x', 1, 50) as Array<{ detail: string }>).map((r) => r.detail).join('\n');
+        expect(plan, plan).toContain(index);
+        expect(plan, plan).not.toContain('idx_relations_kind');
+        expect(plan, plan).not.toMatch(/SCAN s\b/);
+      }
+    } finally {
+      db.close();
+    }
+  });
+});
