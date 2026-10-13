@@ -136,9 +136,10 @@ async function main() {
   const afterIndex = { rssMb: rssMb(transport.pid), footprintMb: footprintMb(transport.pid) };
 
   // Targets: a symbol with callers and callees, and the file that defines it.
-  const found = (await call('find_symbol', { name: 'indexProject', matchMode: 'exact' })).body;
+  const found = (await call('find_symbol', { name: 'indexProject', matchMode: 'exact', format: 'full' })).body;
   const target = (found.symbols ?? found.results ?? [])[0];
   if (!target) throw new Error('The measured project has no symbol named indexProject; pass a project that has one or edit the targets.');
+  // The full format carries absolute paths; tools accept them as they are.
   const file = target.filePath;
   const line = target.startLine ?? target.line;
 

@@ -260,6 +260,9 @@ function compactPayload(toolName: string, data: Record<string, unknown>, root: s
   };
 }
 
+/** Tokens the layer names of a compact list answer add to `_meta` (`"group","columns","paths"`). */
+const COMPACT_LAYERS_TOKENS = 7;
+
 export function compressToolResponse(
   toolName: string,
   data: Record<string, unknown>,
@@ -286,8 +289,11 @@ export function compressToolResponse(
 
   // Never return something larger than the plain payload: the candidate is
   // used only when it is strictly smaller.
+  // The compact list shape also names its layers in `_meta`, which the plain
+  // answer does not; count that so the whole response is never larger either.
   const candidateTokens = candidate ? estimateTokens(JSON.stringify(candidate)) : Infinity;
-  const compressed = candidate !== null && candidateTokens < plainTokens;
+  const layerOverhead = isListShape ? COMPACT_LAYERS_TOKENS : 0;
+  const compressed = candidate !== null && candidateTokens + layerOverhead < plainTokens;
   const output: Record<string, unknown> = compressed && candidate ? candidate : plain;
   const outputTokens = compressed ? candidateTokens : plainTokens;
 
