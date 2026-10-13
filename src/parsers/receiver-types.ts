@@ -7,15 +7,20 @@
  * `var x T`, `x: &T`), or a value that constructs one (`new T()`, `T()`,
  * `T::new()`, `T{}`, `&T{}`). A receiver `this.f` / `self.f` is typed by a
  * typed field of the enclosing class or by an assignment of `this.f` in one of
- * its methods. Anything else has no type (`null`).
+ * its methods. A declaration without a type gives `null`. A capitalized name
+ * that no declaration of the file gives is a static reference to a type or a
+ * namespace (`Vec::new()`, `Math.max()`): its type is the name itself, and the
+ * project's symbols decide at link time what it is. Other undeclared names
+ * (globals, imports, which the import rule handles) have no recorded type.
  *
  * The declarations are found by the grammar's field names, which are shared by
  * the grammars Hesman parses (`name` / `pattern` / `left`, `type`, `value` /
  * `right`, `declarator`, `operand`, `constructor`, `function`), not by a rule
  * per language. A type is the name its declaration gives, with its generic
  * arguments and its reference or pointer markers removed; a qualified name
- * keeps its last segment. A type that is not a plain name (`Store[]`,
- * `A | B`, `Optional[T]`, `interface{}`) is not read, so it is not a type.
+ * keeps its last segment. `T | undefined` and `T | null` name `T`. A type that
+ * is not a plain name (`Store[]`, `A | B`, `Optional[T]`, `interface{}`) is not
+ * read, so it is not a type.
  *
  * Two declarations of the receiver in the same scope that do not give the same
  * type make the receiver untyped. A constructed value is recorded as the name
