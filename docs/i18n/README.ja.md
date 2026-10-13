@@ -467,6 +467,7 @@ hesman --help, -h              Show help text
 | R | `.r` | structural | オンデマンド | シンボルのみ（コールグラフなし） |
 | CodeQL | `.ql`, `.qll` | structural | オンデマンド | シンボルのみ（コールグラフなし） |
 | Arduino | `.ino` | structural | オンデマンド | シンボルのみ（コールグラフなし） |
+| Elixir | `.ex`, `.exs` | structural | オンデマンド | シンボルのみ（コールグラフなし） |
 | その他すべて | 任意のテキストファイル | text | なし | `semantic_search`、`find_pattern`、`get_context` 用のテキストチャンク（シンボルなし） |
 
 上の表は言語レジストリから生成されます（`npx tsx scripts/generate-language-matrix.ts`。表が古くなるとテストが失敗します）。*同梱*と記された文法（grammar）はパッケージに含まれているため、オフラインで動作します。
@@ -477,7 +478,7 @@ hesman --help, -h              Show help text
 - **キャッシュを事前に用意する：** `hesman grammars install scala r` または `hesman grammars install --all`（46.9 MB）。ネットワークにアクセスできないマシンでは、`.wasm` ファイルをそこにコピーして `hesman grammars install --from <directory>` を実行します。`hesman grammars list` は、何が同梱され、キャッシュされ、利用可能かを表示します。[docs/CLI.md](../CLI.md#hesman-grammars) を参照してください。
 - **不足しているものを確認する：** `index_status` は、言語ごとにそのティア（`deep`、`structural` または `text`）、ファイル数、および文法が同梱・キャッシュ済み・未取得のいずれであるかとその理由を一覧表示します。
 
-`grammars.json` は、シンボル用のクエリがまだない18の文法も固定しています（Haskell、Elixir、Zig、Julia、Perl、Objective-C、Odin、Luau、Starlark、HTML、CSS、JSON、YAML、TOML、XML、Markdown、HCL、Make）。これらは `hesman grammars install` でインストールできますが、Hesmanはまだ使用しません。これらの言語のファイルはテキストとしてインデックスされ、文法が自動的にダウンロードされることはありません。
+`grammars.json` は、シンボル用のクエリがまだない17の文法も固定しています（Haskell、Zig、Julia、Perl、Objective-C、Odin、Luau、Starlark、HTML、CSS、JSON、YAML、TOML、XML、Markdown、HCL、Make）。これらは `hesman grammars install` でインストールできますが、Hesmanはまだ使用しません。これらの言語のファイルはテキストとしてインデックスされ、文法が自動的にダウンロードされることはありません。
 
 各ティアの現時点での意味：
 
@@ -629,6 +630,6 @@ npm run test:perf         # パフォーマンスベンチマーク
 
 MITライセンスは、Hesmanのために書かれたコードを対象とします。サードパーティのソフトウェアは、それぞれ独自のライセンスのままです：
 
-- **パッケージに含まれるもの：** Tree-sitterの文法とクエリファイル。すべてMITです。それぞれがリポジトリ、リビジョン、著作権表示とともに [NOTICE](../../NOTICE) に記載されています。
+- **パッケージに含まれるもの：** Tree-sitterの文法とクエリファイル。Elixirのクエリ（Apache-2.0。その文法のライセンス）を除き、すべてMITです。それぞれがリポジトリ、リビジョン、著作権表示とともに [NOTICE](../../NOTICE) に記載されています。
 - **npmが依存関係としてインストールするもの：** すべて寛容なライセンス（MIT、ISC、BSD、Apache-2.0）です。完全な一覧は [THIRD-PARTY-LICENSES.md](../../THIRD-PARTY-LICENSES.md) にあります。埋め込みライブラリ `@xenova/transformers` とベクトルストア `@zvec/zvec` はApache-2.0です。
 - **実行時にダウンロードされるもの：** 埋め込みモデル `Xenova/all-MiniLM-L6-v2`（Apache-2.0）とオンデマンドの文法（MIT。ただしElixirとHCLはApache-2.0）。[NOTICE](../../NOTICE) を参照してください。埋め込みライブラリの依存関係である `sharp` は、ビルド済みのlibvips（LGPL-3.0-or-later）を独立した共有ライブラリとしてインストールします。

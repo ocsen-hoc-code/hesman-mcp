@@ -467,6 +467,7 @@ hesman --help, -h              Show help text
 | R | `.r` | structural | 按需下载 | 仅符号（无调用图） |
 | CodeQL | `.ql`、`.qll` | structural | 按需下载 | 仅符号（无调用图） |
 | Arduino | `.ino` | structural | 按需下载 | 仅符号（无调用图） |
+| Elixir | `.ex`、`.exs` | structural | 按需下载 | 仅符号（无调用图） |
 | 其他所有文件 | 任意文本文件 | text | 无 | 供 `semantic_search`、`find_pattern` 和 `get_context` 使用的文本块（无符号） |
 
 上表由语言注册表生成（`npx tsx scripts/generate-language-matrix.ts`；表格过期时会有一项测试失败）。标记为*内置*的语法（grammar）随包一起发布，因此可以离线使用。
@@ -477,7 +478,7 @@ hesman --help, -h              Show help text
 - **预先填充缓存：** `hesman grammars install scala r` 或 `hesman grammars install --all`（46.9 MB）；在无法联网的机器上，把 `.wasm` 文件复制过去，然后运行 `hesman grammars install --from <directory>`。`hesman grammars list` 会显示哪些是内置的、已缓存的和可获取的。参见 [docs/CLI.md](../CLI.md#hesman-grammars)。
 - **查看缺少什么：** `index_status` 按语言列出其等级（`deep`、`structural` 或 `text`）、文件数量，以及其语法是内置、已缓存还是缺失，并说明原因。
 
-`grammars.json` 还固定了 18 个尚无符号查询的语法（Haskell、Elixir、Zig、Julia、Perl、Objective-C、Odin、Luau、Starlark、HTML、CSS、JSON、YAML、TOML、XML、Markdown、HCL、Make）。它们可以通过 `hesman grammars install` 安装，但 Hesman 目前还不使用它们：这些语言的文件按文本索引，其语法绝不会被自动下载。
+`grammars.json` 还固定了 17 个尚无符号查询的语法（Haskell、Zig、Julia、Perl、Objective-C、Odin、Luau、Starlark、HTML、CSS、JSON、YAML、TOML、XML、Markdown、HCL、Make）。它们可以通过 `hesman grammars install` 安装，但 Hesman 目前还不使用它们：这些语言的文件按文本索引，其语法绝不会被自动下载。
 
 各等级目前的含义：
 
@@ -629,6 +630,6 @@ npm run test:perf         # 性能基准测试
 
 MIT 许可证涵盖为 Hesman 编写的代码。第三方软件保留其各自的许可证：
 
-- **包内包含：** Tree-sitter 语法和查询文件，全部为 MIT；每一项都连同其仓库、修订版本和版权信息列在 [NOTICE](../../NOTICE) 中。
+- **包内包含：** Tree-sitter 语法和查询文件，除 Elixir 查询（Apache-2.0，即其语法的许可证）外全部为 MIT；每一项都连同其仓库、修订版本和版权信息列在 [NOTICE](../../NOTICE) 中。
 - **由 npm 作为依赖安装：** 全部采用宽松许可证（MIT、ISC、BSD、Apache-2.0）；完整列表见 [THIRD-PARTY-LICENSES.md](../../THIRD-PARTY-LICENSES.md)。嵌入库 `@xenova/transformers` 和向量存储 `@zvec/zvec` 采用 Apache-2.0。
 - **运行时下载：** 嵌入模型 `Xenova/all-MiniLM-L6-v2`（Apache-2.0）和按需语法（MIT，Elixir 和 HCL 除外：Apache-2.0）；见 [NOTICE](../../NOTICE)。嵌入库的依赖 `sharp` 会安装一个预构建的 libvips（LGPL-3.0-or-later），作为独立的共享库。

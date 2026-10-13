@@ -467,6 +467,7 @@ hesman --help, -h              Show help text
 | R | `.r` | structural | tải khi cần | Chỉ symbol (không có call graph) |
 | CodeQL | `.ql`, `.qll` | structural | tải khi cần | Chỉ symbol (không có call graph) |
 | Arduino | `.ino` | structural | tải khi cần | Chỉ symbol (không có call graph) |
+| Elixir | `.ex`, `.exs` | structural | tải khi cần | Chỉ symbol (không có call graph) |
 | Mọi thứ còn lại | mọi tệp văn bản | text | không có | Các đoạn văn bản cho `semantic_search`, `find_pattern` và `get_context` (không có symbol) |
 
 Bảng trên được sinh ra từ registry ngôn ngữ (`npx tsx scripts/generate-language-matrix.ts`; một bài test sẽ thất bại khi bảng lỗi thời). Các grammar ghi *đi kèm* nằm sẵn trong gói, nên chúng hoạt động khi offline.
@@ -477,7 +478,7 @@ Bảng trên được sinh ra từ registry ngôn ngữ (`npx tsx scripts/genera
 - **Nạp sẵn cache:** `hesman grammars install scala r` hoặc `hesman grammars install --all` (46.9 MB); trên máy không có kết nối mạng, hãy chép các tệp `.wasm` sang đó và chạy `hesman grammars install --from <directory>`. `hesman grammars list` cho biết những gì đi kèm, đã cache và có thể tải. Xem [docs/CLI.md](../CLI.md#hesman-grammars).
 - **Xem còn thiếu gì:** `index_status` liệt kê, theo từng ngôn ngữ, tầng của nó (`deep`, `structural` hoặc `text`), số tệp, và grammar của nó là đi kèm, đã cache hay còn thiếu, cùng lý do.
 
-`grammars.json` còn ghim 18 grammar chưa có query symbol (Haskell, Elixir, Zig, Julia, Perl, Objective-C, Odin, Luau, Starlark, HTML, CSS, JSON, YAML, TOML, XML, Markdown, HCL, Make). Chúng có thể được cài bằng `hesman grammars install`, nhưng Hesman chưa dùng đến: tệp thuộc các ngôn ngữ đó được lập chỉ mục dưới dạng văn bản và grammar của chúng không bao giờ được tải tự động.
+`grammars.json` còn ghim 17 grammar chưa có query symbol (Haskell, Zig, Julia, Perl, Objective-C, Odin, Luau, Starlark, HTML, CSS, JSON, YAML, TOML, XML, Markdown, HCL, Make). Chúng có thể được cài bằng `hesman grammars install`, nhưng Hesman chưa dùng đến: tệp thuộc các ngôn ngữ đó được lập chỉ mục dưới dạng văn bản và grammar của chúng không bao giờ được tải tự động.
 
 Ý nghĩa hiện tại của các tầng:
 
@@ -629,6 +630,6 @@ Mô hình embedding (`all-MiniLM-L6-v2`) được tải về ở lần dùng đ�
 
 Giấy phép MIT áp dụng cho phần mã được viết cho Hesman. Phần mềm của bên thứ ba giữ giấy phép riêng của nó:
 
-- **Bên trong gói:** các grammar Tree-sitter và các tệp query, tất cả đều MIT; mỗi thứ được liệt kê cùng repository, revision và bản quyền trong [NOTICE](../../NOTICE).
+- **Bên trong gói:** các grammar Tree-sitter và các tệp query, tất cả đều MIT, trừ query của Elixir (Apache-2.0, giấy phép của grammar tương ứng); mỗi thứ được liệt kê cùng repository, revision và bản quyền trong [NOTICE](../../NOTICE).
 - **Được npm cài làm dependency:** tất cả đều theo giấy phép dễ dãi (MIT, ISC, BSD, Apache-2.0); danh sách đầy đủ nằm trong [THIRD-PARTY-LICENSES.md](../../THIRD-PARTY-LICENSES.md). Thư viện embedding `@xenova/transformers` và vector store `@zvec/zvec` theo Apache-2.0.
 - **Được tải về khi chạy:** mô hình embedding `Xenova/all-MiniLM-L6-v2` (Apache-2.0) và các grammar tải khi cần (MIT, trừ Elixir và HCL: Apache-2.0); xem [NOTICE](../../NOTICE). Dependency `sharp` của thư viện embedding cài một bản libvips dựng sẵn (LGPL-3.0-or-later) dưới dạng một thư viện dùng chung riêng biệt.

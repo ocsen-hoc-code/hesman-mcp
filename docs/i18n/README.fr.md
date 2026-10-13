@@ -467,6 +467,7 @@ hesman --help, -h              Show help text
 | R | `.r` | structural | à la demande | Symboles uniquement (pas de graphe d'appels) |
 | CodeQL | `.ql`, `.qll` | structural | à la demande | Symboles uniquement (pas de graphe d'appels) |
 | Arduino | `.ino` | structural | à la demande | Symboles uniquement (pas de graphe d'appels) |
+| Elixir | `.ex`, `.exs` | structural | à la demande | Symboles uniquement (pas de graphe d'appels) |
 | Tout le reste | tout fichier texte | text | aucune | Fragments de texte pour `semantic_search`, `find_pattern` et `get_context` (pas de symboles) |
 
 Le tableau ci-dessus est généré à partir du registre des langages (`npx tsx scripts/generate-language-matrix.ts` ; un test échoue lorsqu'il n'est plus à jour). Les grammaires marquées *intégrée* sont livrées dans le paquet et fonctionnent donc hors ligne.
@@ -477,7 +478,7 @@ Le tableau ci-dessus est généré à partir du registre des langages (`npx tsx 
 - **Préremplir le cache :** `hesman grammars install scala r` ou `hesman grammars install --all` (46,9 Mo) ; sur une machine sans accès réseau, copiez-y les fichiers `.wasm` et lancez `hesman grammars install --from <directory>`. `hesman grammars list` montre ce qui est intégré, en cache et disponible. Voir [docs/CLI.md](../CLI.md#hesman-grammars).
 - **Voir ce qui manque :** `index_status` liste, pour chaque langage, son niveau (`deep`, `structural` ou `text`), le nombre de fichiers, et si sa grammaire est intégrée, en cache ou manquante, et pourquoi.
 
-`grammars.json` épingle aussi 18 grammaires qui n'ont pas encore de requête de symboles (Haskell, Elixir, Zig, Julia, Perl, Objective-C, Odin, Luau, Starlark, HTML, CSS, JSON, YAML, TOML, XML, Markdown, HCL, Make). Elles peuvent être installées avec `hesman grammars install`, mais Hesman ne les utilise pas encore : les fichiers de ces langages sont indexés comme du texte et leur grammaire n'est jamais téléchargée automatiquement.
+`grammars.json` épingle aussi 17 grammaires qui n'ont pas encore de requête de symboles (Haskell, Zig, Julia, Perl, Objective-C, Odin, Luau, Starlark, HTML, CSS, JSON, YAML, TOML, XML, Markdown, HCL, Make). Elles peuvent être installées avec `hesman grammars install`, mais Hesman ne les utilise pas encore : les fichiers de ces langages sont indexés comme du texte et leur grammaire n'est jamais téléchargée automatiquement.
 
 Ce que les niveaux signifient aujourd'hui :
 
@@ -629,6 +630,6 @@ Le modèle d'embedding (`all-MiniLM-L6-v2`) est téléchargé à la première ut
 
 La licence MIT couvre le code écrit pour Hesman. Les logiciels tiers conservent leur propre licence :
 
-- **Dans le paquet :** les grammaires Tree-sitter et les fichiers de requêtes, tous sous licence MIT ; chacun est listé avec son dépôt, sa révision et son copyright dans [NOTICE](../../NOTICE).
+- **Dans le paquet :** les grammaires Tree-sitter et les fichiers de requêtes, tous sous licence MIT sauf la requête Elixir (Apache-2.0, la licence de sa grammaire) ; chacun est listé avec son dépôt, sa révision et son copyright dans [NOTICE](../../NOTICE).
 - **Installés par npm comme dépendances :** tous sous licences permissives (MIT, ISC, BSD, Apache-2.0) ; la liste complète se trouve dans [THIRD-PARTY-LICENSES.md](../../THIRD-PARTY-LICENSES.md). La bibliothèque d'embedding `@xenova/transformers` et le store vectoriel `@zvec/zvec` sont sous Apache-2.0.
 - **Téléchargés à l'exécution :** le modèle d'embedding `Xenova/all-MiniLM-L6-v2` (Apache-2.0) et les grammaires à la demande (MIT, sauf Elixir et HCL : Apache-2.0) ; voir [NOTICE](../../NOTICE). La dépendance `sharp` de la bibliothèque d'embedding installe une libvips précompilée (LGPL-3.0-or-later) sous forme de bibliothèque partagée distincte.

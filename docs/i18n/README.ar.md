@@ -467,6 +467,7 @@ hesman --help, -h              Show help text
 | R | `.r` | structural | عند الطلب | الرموز فقط (بدون رسم الاستدعاءات) |
 | CodeQL | `.ql`، `.qll` | structural | عند الطلب | الرموز فقط (بدون رسم الاستدعاءات) |
 | Arduino | `.ino` | structural | عند الطلب | الرموز فقط (بدون رسم الاستدعاءات) |
+| Elixir | `.ex`، `.exs` | structural | عند الطلب | الرموز فقط (بدون رسم الاستدعاءات) |
 | كل ما عدا ذلك | أي ملف نصي | text | لا يوجد | مقاطع نصية لـ `semantic_search` و `find_pattern` و `get_context` (بدون رموز) |
 
 الجدول أعلاه مولَّد من سجل اللغات (`npx tsx scripts/generate-language-matrix.ts`؛ ويفشل اختبار عندما يصبح قديماً). ملفات grammar الموسومة بـ *مضمن* تُشحن داخل الحزمة، لذا تعمل دون اتصال.
@@ -477,7 +478,7 @@ hesman --help, -h              Show help text
 - **ملء ذاكرة التخزين المؤقت مسبقاً:** `hesman grammars install scala r` أو `hesman grammars install --all` (46.9 MB)؛ وعلى جهاز بلا اتصال بالشبكة، انسخ ملفات `.wasm` إليه وشغل `hesman grammars install --from <directory>`. يعرض `hesman grammars list` ما هو مضمن وما هو مخزن مؤقتاً وما هو متاح. راجع [docs/CLI.md](../CLI.md#hesman-grammars).
 - **معرفة ما ينقص:** تسرد `index_status`، لكل لغة، فئتها (`deep` أو `structural` أو `text`)، وعدد الملفات، وهل الـ grammar الخاص بها مضمن أم مخزن مؤقتاً أم مفقود، ولماذا.
 
-يثبت `grammars.json` أيضاً 18 ملف grammar ليس لها استعلام رموز بعد (Haskell و Elixir و Zig و Julia و Perl و Objective-C و Odin و Luau و Starlark و HTML و CSS و JSON و YAML و TOML و XML و Markdown و HCL و Make). يمكن تنصيبها بـ `hesman grammars install`، لكن Hesman لا يستخدمها بعد: ملفات تلك اللغات تُفهرس كنص ولا يُنزل الـ grammar الخاص بها تلقائياً أبداً.
+يثبت `grammars.json` أيضاً 17 ملف grammar ليس لها استعلام رموز بعد (Haskell و Zig و Julia و Perl و Objective-C و Odin و Luau و Starlark و HTML و CSS و JSON و YAML و TOML و XML و Markdown و HCL و Make). يمكن تنصيبها بـ `hesman grammars install`، لكن Hesman لا يستخدمها بعد: ملفات تلك اللغات تُفهرس كنص ولا يُنزل الـ grammar الخاص بها تلقائياً أبداً.
 
 ما تعنيه الفئات اليوم:
 
@@ -629,6 +630,6 @@ npm run test:perf         # قياسات الأداء
 
 رخصة MIT تغطي الشيفرة المكتوبة من أجل Hesman. أما برمجيات الأطراف الثالثة فتحتفظ برخصتها الخاصة:
 
-- **داخل الحزمة:** ملفات grammar الخاصة بـ Tree-sitter وملفات الاستعلامات، وكلها MIT؛ كل منها مدرج مع مستودعه ومراجعته وحقوق نشره في [NOTICE](../../NOTICE).
+- **داخل الحزمة:** ملفات grammar الخاصة بـ Tree-sitter وملفات الاستعلامات، وكلها MIT ما عدا استعلام Elixir (Apache-2.0، وهي رخصة الـ grammar الخاص به)؛ كل منها مدرج مع مستودعه ومراجعته وحقوق نشره في [NOTICE](../../NOTICE).
 - **ما ينصبه npm كتبعيات:** كلها برخص متساهلة (MIT و ISC و BSD و Apache-2.0)؛ القائمة الكاملة في [THIRD-PARTY-LICENSES.md](../../THIRD-PARTY-LICENSES.md). مكتبة التضمين `@xenova/transformers` ومخزن المتجهات `@zvec/zvec` برخصة Apache-2.0.
 - **ما يُنزل وقت التشغيل:** نموذج التضمين `Xenova/all-MiniLM-L6-v2` (برخصة Apache-2.0) وملفات grammar عند الطلب (MIT، ما عدا Elixir و HCL: Apache-2.0)؛ راجع [NOTICE](../../NOTICE). التبعية `sharp` الخاصة بمكتبة التضمين تنصب نسخة libvips مبنية مسبقاً (LGPL-3.0-or-later) كمكتبة مشتركة منفصلة.
