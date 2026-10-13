@@ -5,7 +5,7 @@
  * through MCP and records
  *
  *   - time to the MCP handshake and time until the index is ready,
- *   - index size on disk and the server's memory (RSS),
+ *   - index size on disk and the server's memory (physical footprint and RSS),
  *   - per tool: latency seen by the client (median, p95) and the tokens of the
  *     response next to the tokens of the plain payload (`_meta`).
  *
@@ -71,6 +71,29 @@ function rssMb(pid) {
   }
 }
 
+/**
+ * Memory the process alone is responsible for, in MB: the "physical footprint"
+ * on macOS (what Activity Monitor shows), private pages on Linux. RSS is
+ * larger because it also counts shared library code mapped from disk. Null
+ * where neither source is available.
+ */
+function footprintMb(pid) {
+  try {
+    if (platform() === 'darwin') {
+      const out = execFileSync('vmmap', ['--summary', String(pid)], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] });
+      const match = /Physical footprint:\s+([\d.]+)([KMG])/.exec(out);
+      if (!match) return null;
+      const scale = { K: 1 / 1024, M: 1, G: 1024 }[match[2]];
+      return Math.round(Number(match[1]) * scale * 10) / 10;
+    }
+    const rollup = execFileSync('cat', [`/proc/${pid}/smaps_rollup`], { encoding: 'utf-8' });
+    const kb = [...rollup.matchAll(/^Private_(?:Clean|Dirty):\s+(\d+) kB/gm)].reduce((sum, m) => sum + Number(m[1]), 0);
+    return Math.round((kb / 1024) * 10) / 10;
+  } catch {
+    return null;
+  }
+}
+
 const quantile = (sorted, q) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
 const round = (value, digits = 2) => Math.round(value * 10 ** digits) / 10 ** digits;
 
@@ -99,6 +122,7 @@ async function main() {
   const startedAt = performance.now();
   await client.connect(transport);
   const handshakeMs = performance.now() - startedAt;
+  const atHandshake = { rssMb: rssMb(transport.pid), footprintMb: footprintMb(transport.pid) };
 
   // Wait until the background startup (model load + index) has finished.
   let status;
@@ -109,7 +133,7 @@ async function main() {
     await new Promise((r) => setTimeout(r, 100));
   }
   const readyMs = performance.now() - startedAt;
-  const rssAfterIndex = rssMb(transport.pid);
+  const afterIndex = { rssMb: rssMb(transport.pid), footprintMb: footprintMb(transport.pid) };
 
   // Targets: a symbol with callers and callees, and the file that defines it.
   const found = (await call('find_symbol', { name: 'indexProject', matchMode: 'exact' })).body;
@@ -166,7 +190,7 @@ async function main() {
     });
   }
 
-  const rssAfterQueries = rssMb(transport.pid);
+  const afterQueries = { rssMb: rssMb(transport.pid), footprintMb: footprintMb(transport.pid) };
   await client.close();
 
   const report = {
@@ -193,7 +217,7 @@ async function main() {
       filesPerSecond: round((status.totalFiles + (status.textTier?.files ?? 0)) / (readyMs / 1000), 0),
       diskMb: round(directorySize(dataDir) / 2 ** 20, 1),
     },
-    memory: { rssAfterIndexMb: rssAfterIndex, rssAfterQueriesMb: rssAfterQueries },
+    memory: { atHandshake, afterIndex, afterQueries },
     tools,
   };
 
@@ -222,7 +246,9 @@ function renderMarkdown(r) {
     `| Vectors | ${r.index.vectors} |`,
     `| Files per second, whole startup | ${r.index.filesPerSecond} |`,
     `| Index on disk | ${r.index.diskMb} MB |`,
-    `| Server memory (RSS) after indexing / after the queries | ${r.memory.rssAfterIndexMb} MB / ${r.memory.rssAfterQueriesMb} MB |`,
+    `| Server memory at the handshake: footprint / RSS | ${r.memory.atHandshake.footprintMb ?? '–'} MB / ${r.memory.atHandshake.rssMb} MB |`,
+    `| Server memory after indexing: footprint / RSS | ${r.memory.afterIndex.footprintMb ?? '–'} MB / ${r.memory.afterIndex.rssMb} MB |`,
+    `| Server memory after the queries: footprint / RSS | ${r.memory.afterQueries.footprintMb ?? '–'} MB / ${r.memory.afterQueries.rssMb} MB |`,
     '',
     '| Tool | Call | Median ms | p95 ms | Plain tokens | Returned tokens | Reduction |',
     '|---|---|---:|---:|---:|---:|---:|',
