@@ -40,6 +40,12 @@ const QUALIFIED_NAME = /^[A-Za-z_$][\w$]*(?:\s*(?:::|\.|\\)\s*[A-Za-z_$][\w$]*)*
 const INFERRED_TYPE_KEYWORDS: ReadonlySet<string> = new Set(['var', 'let', 'auto', 'val', 'const', 'final']);
 /** A parameter list (`parameters`, `formal_parameters`, `parameter_list`). */
 const PARAMETER_LIST = /^(?:formal_)?parameters$|^parameter_list$/;
+/**
+ * Node types that can introduce a declaration in the grammars Hesman parses
+ * (`variable_declarator`, `required_parameter`, `assignment`, Go's `var_spec`,
+ * `public_field_definition`). Other nodes are only walked into.
+ */
+const DECLARATION_NODE = /declar|parameter|assignment|_spec$|field/;
 /** Node types that open a scope for the declarations inside them. */
 const FUNCTION_SCOPE = /(function|method|lambda|closure|func_literal|arrow_function|constructor)/;
 const FUNCTION_SCOPE_EXCLUDED = /(invocation|call|reference|expression|parameter|argument)/;
@@ -288,13 +294,13 @@ export class ReceiverTypes {
       inner = node;
     }
     // A leaf (an identifier, a literal) declares nothing.
-    if (node.namedChildCount === 0) return;
-    if (!declarator) {
+    const children = node.namedChildren;
+    if (children.length === 0) return;
+    if (!declarator && DECLARATION_NODE.test(node.type)) {
       for (const declaration of declarationsOf(node)) this.record(declaration, inner, innerClass);
     }
-    const declaratorChild = node.childForFieldName('declarator');
-    for (let i = 0; i < node.namedChildCount; i++) {
-      const child = node.namedChild(i);
+    const declaratorChild = DECLARATION_NODE.test(node.type) ? node.childForFieldName('declarator') : null;
+    for (const child of children) {
       if (child) this.visit(child, inner, innerClass, declaratorChild !== null && child.id === declaratorChild.id);
     }
   }
