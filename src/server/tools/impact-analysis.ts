@@ -55,6 +55,19 @@ function suggestAction(changeType: string, kind: string, oldName: string, newNam
   }
 }
 
+/** "1 call", "3 calls", "2 imports": the count of one file's locations in plain words. */
+export function countLabel(count: number, kind: string | undefined): string {
+  const nouns: Record<string, [string, string]> = {
+    calls: ['call', 'calls'],
+    import: ['import', 'imports'],
+    extends: ['subclass', 'subclasses'],
+    implements: ['implementation', 'implementations'],
+    type_ref: ['type reference', 'type references'],
+  };
+  const [one, many] = nouns[kind ?? ''] ?? ['reference', 'references'];
+  return `${count} ${count === 1 ? one : many}`;
+}
+
 export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore, config: HesmanConfig): void {
   const handler: ToolHandler = async (args) => {
     const symbolId = args.symbolId as string;
@@ -116,7 +129,7 @@ export function registerImpactAnalysisTool(server: McpServer, store: SqliteStore
       .slice(0, maxFiles)
       .map(f => ({
         ...f,
-        reason: `${f.locations.length} ${f.locations[0]?.kind || 'reference'}(s) — ${f.severity === 'must_fix' ? 'will break' : f.severity === 'should_review' ? 'may need update' : 'FYI'}`,
+        reason: `${countLabel(f.locations.length, f.locations[0]?.kind)} — ${f.severity === 'must_fix' ? 'will break' : f.severity === 'should_review' ? 'may need update' : 'FYI'}`,
       }));
 
     const mustFix = impactedFiles.filter(f => f.severity === 'must_fix').length;
