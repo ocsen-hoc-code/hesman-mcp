@@ -1,6 +1,6 @@
 # Task Status
 
-Updated: 2026-10-13 · **M0: 16/16 done** · **M1: 9/10 done** · **M2: 5/7 done** · **M3: 2/2 done** · **M4: 1/1 done**
+Updated: 2026-10-13 · **M0: 16/16 done** · **M1: 10/10 done** · **M2: 5/7 done** · **M3: 2/2 done** · **M4: 1/1 done**
 
 Status conventions and update rules: see [`README.md`](README.md).
 
@@ -46,7 +46,7 @@ Goal: every text source file is indexed at some level, with depth shown honestly
 | M1-07 | [Expand the deep tier to the most-used languages](M1-07-deep-tier-expansion.md) | Parsing | P2 | M1-02, M1-03 | done |
 | M1-08 | [Fix the extraction bugs found by the conformance suite](M1-08-extraction-bug-fixes.md) | Parsing | P0 | M1-03 | done |
 | M1-09 | [Call-link precision and recovery from a corrupt index](M1-09-call-link-precision.md) | Parsing | P0 | M1-07 | done |
-| M1-10 | [Resolve the receiver of a member call before linking it](M1-10-receiver-type-resolution.md) | Parsing | P0 | M1-09 | pending |
+| M1-10 | [Resolve the receiver of a member call before linking it](M1-10-receiver-type-resolution.md) | Parsing | P0 | M1-09 | done |
 
 Recommended order: 01 → 02 → 03 → (04, 05 in parallel) → 06 → 07 (one sub-task per language).
 
@@ -89,6 +89,7 @@ Goal: every tool, not only `get_context`, returns fewer tokens than its plain pa
 
 ## Backlog after M0 (not specified, not scheduled)
 
+- **M1-10 remaining limits (receiver types):** a receiver without a declared type in its file still links by name in its own file, the files it imports or its directory (on this repository: `server.close()` and `tree.delete()` still link to project methods); no type inference across files, through return values, generics or flow; `Optional[T]`, TypeScript utility types (`InstanceType<typeof X>`) and Rust `self.field` are not read; `extends` / `implements` across files are not stored, so an inherited method is found only when the supertype is in the same file; a capitalized undeclared name is treated as a type name (naming heuristic).
 - **M4-01 follow-ups (compact responses):** `list_dependencies` with `direction: "imported_by"` returns no rows for TypeScript relative imports, because import relations keep their `unresolved:<specifier>` target and nothing links them to files; `get_callers` / `get_callees` have no cursor (only `topK`, max 200); the `nextCursor` of `get_references` still encodes an absolute path; the savings in `scripts/bench-responses.ts` depend on the length of the checkout path, because the plain payload carries absolute paths (72% for 70 references in the main checkout, 78% in a deeper worktree); the dashboard was not re-checked in a browser after the shape change; the dashboard mock keeps approximate payloads for `list_dependencies` and `impact_analysis`.
 - **M1-09 remaining limits (call links):** the receiver's type is not resolved, so a unique project method named like a built-in still collects calls on other objects (on this repository: `ImportedFiles.has` 154, `TagsQuery.delete` 53, `SqliteStore.open` / `close` 43 each) — the largest remaining source of false callers, needs its own task; a bare call can still link to an exported method in another file; an aliased import (`import { a as b }`) does not link to `a`; two calls of one name on one line by one caller are one row; re-exports through a Python absolute import are not followed; editing a re-exporting file does not re-resolve calls through it; a module-level call is stored with a `module:<hash>` pseudo caller (`get_references` shows `callerName: null`, `get_callers` and the dashboard do not show it), which raised this repository's `symbols.db` from 9.4 MB to 20.3 MB; `hesman status` also moves a corrupt index aside; corruption met inside per-file error handling is reported as file errors, not repaired. Found while merging: the file watcher's glob ignore list was not interpreted by chokidar 5, so files under `node_modules` / `dist` were indexed on change (fixed 2026-10-13: the watcher goes through `scanFile`).
 - **README and translations:** the README is kept in English plus nine translations (`docs/i18n/README.{vi,ru,de,fr,es,pt,zh,ja,ar}.md`, owner decision 2026-10-12); all nine were re-translated from the README on 2026-10-12 and a user-visible README change must be applied to them in the same piece of work. Their language table is a hand translation of the generated one and no test compares them with the English file. Still open in the English README: performance targets (`< 1ms`, `< 10ms`, `≥ 500 files/sec`) read like measured numbers; the architecture diagram is titled "3-Layer Compression Pipeline" although the third layer is not applied; "Measuring Savings" says every response has `_meta` while `index_status` has none; the intro says "Everything runs locally. No external APIs." without the download caveat; two links point readers to `tasks/STATUS.md`.
